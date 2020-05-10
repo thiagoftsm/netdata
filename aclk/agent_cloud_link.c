@@ -187,7 +187,7 @@ biofailed:
  * should be called with
  *
  * mode 0 to reset the delay
- * mode 1 to sleep for the calculated amount of time [0 .. ACLK_MAX_BACKOFF_DELAY * 1000] ms
+ * mode 1 to calculate sleep time [0 .. ACLK_MAX_BACKOFF_DELAY * 1000] ms
  *
  */
 unsigned long int aclk_reconnect_delay(int mode)
@@ -209,8 +209,6 @@ unsigned long int aclk_reconnect_delay(int mode)
         fail++;
         delay = (delay * 1000) + (random() % 1000);
     }
-
-    //    sleep_usec(USEC_PER_MS * delay);
 
     return delay;
 }
@@ -308,7 +306,7 @@ int aclk_queue_query(char *topic, char *data, char *msg_id, char *query, int run
         if (tmp_query->run_after == run_after) {
             QUERY_UNLOCK;
             QUERY_THREAD_WAKEUP;
-            return 1;
+            return 0;
         }
 
         if (last_query)
@@ -725,6 +723,50 @@ void aclk_del_collector(const char *hostname, const char *plugin_name, const cha
     }
 
     _free_collector(tmp_collector);
+
+}
+/*
+ * Take a buffer, encode it and rewrite it
+ *
+ */
+
+static char *aclk_encode_response(char *src, size_t content_size, int keep_newlines)
+{
+    char *tmp_buffer = mallocz(content_size * 2);
+    char *dst = tmp_buffer;
+    while (content_size > 0) {
+        switch (*src) {
+            case '\n':
+                if (keep_newlines)
+                {
+                    *dst++ = '\\';
+                    *dst++ = 'n';
+                }
+                break;
+            case '\t':
+                break;
+            case 0x01 ... 0x08:
+            case 0x0b ... 0x1F:
+                *dst++ = '\\';
+                *dst++ = 'u';
+                *dst++ = '0';
+                *dst++ = '0';
+                *dst++ = (*src < 0x0F) ? '0' : '1';
+                *dst++ = to_hex(*src);
+                break;
+            case '\"':
+                *dst++ = '\\';
+                *dst++ = *src;
+                break;
+            default:
+                *dst++ = *src;
+        }
+        src++;
+        content_size--;
+    }
+    *dst = '\0';
+
+    return tmp_buffer;
 }
 
 int aclk_execute_query(struct aclk_query *this_query)
@@ -732,6 +774,8 @@ int aclk_execute_query(struct aclk_query *this_query)
     if (strncmp(this_query->query, "/api/v1/", 8) == 0) {
         struct web_client *w = (struct web_client *)callocz(1, sizeof(struct web_client));
         w->response.data = buffer_create(NETDATA_WEB_RESPONSE_INITIAL_SIZE);
+        w->response.header = buffer_create(NETDATA_WEB_RESPONSE_HEADER_SIZE);
+        w->response.header_output = buffer_create(NETDATA_WEB_RESPONSE_HEADER_SIZE);
         strcpy(w->origin, "*"); // Simulate web_client_create_on_fd()
         w->cookie1[0] = 0;      // Simulate web_client_create_on_fd()
         w->cookie2[0] = 0;      // Simulate web_client_create_on_fd()
@@ -747,26 +791,36 @@ int aclk_execute_query(struct aclk_query *this_query)
         mysep = strrchr(this_query->query, '/');
 
         // TODO: handle bad response perhaps in a different way. For now it does to the payload
-        int rc = web_client_api_request_v1(localhost, w, mysep ? mysep + 1 : "noop");
+        w->response.code = web_client_api_request_v1(localhost, w, mysep ? mysep + 1 : "noop");
+        now_realtime_timeval(&w->tv_ready);
+        w->response.data->date = w->tv_ready.tv_sec;
+        web_client_build_http_header(w);  // TODO: this function should offset from date, not tv_ready
         BUFFER *local_buffer = buffer_create(NETDATA_WEB_RESPONSE_INITIAL_SIZE);
         buffer_flush(local_buffer);
         local_buffer->contenttype = CT_APPLICATION_JSON;
 
         aclk_create_header(local_buffer, "http", this_query->msg_id, 0, 0);
         buffer_strcat(local_buffer, ",\n\t\"payload\": ");
-        char *encoded_response = aclk_encode_response(w->response.data);
+        char *encoded_response = aclk_encode_response(w->response.data->buffer, w->response.data->len, 0);
+        char *encoded_header = aclk_encode_response(w->response.header_output->buffer, w->response.header_output->len, 1);
 
         buffer_sprintf(
-            local_buffer, "{\n\"code\": %d,\n\"body\": \"%s\"\n}", rc, encoded_response);
+            local_buffer, "{\n\"code\": %d,\n\"body\": \"%s\",\n\"headers\": \"%s\"\n}", 
+            w->response.code, encoded_response, encoded_header);
 
         buffer_sprintf(local_buffer, "\n}");
+
+        debug(D_ACLK, "Response:%s", encoded_header);
 
         aclk_send_message(this_query->topic, local_buffer->buffer, this_query->msg_id);
 
         buffer_free(w->response.data);
+        buffer_free(w->response.header);
+        buffer_free(w->response.header_output);
         freez(w);
         buffer_free(local_buffer);
         freez(encoded_response);
+        freez(encoded_header);
         return 0;
     }
     return 1;
@@ -865,18 +919,22 @@ int aclk_process_queries()
 static void aclk_query_thread_cleanup(void *ptr)
 {
     struct netdata_static_thread *static_thread = (struct netdata_static_thread *)ptr;
-    static_thread->enabled = NETDATA_MAIN_THREAD_EXITING;
 
     info("cleaning up...");
-
-    COLLECTOR_LOCK;
 
     _reset_collector_list();
     freez(collector_list);
 
-    COLLECTOR_UNLOCK;
+    // Clean memory for pending queries if any
+    struct aclk_query *this_query;
 
-    static_thread->enabled = NETDATA_MAIN_THREAD_EXITED;
+    do {
+        this_query = aclk_queue_pop();
+        aclk_query_free(this_query);
+    } while (this_query);
+
+    freez(static_thread->thread);
+    freez(static_thread);
 }
 
 /**
@@ -913,7 +971,7 @@ void *aclk_query_main_thread(void *ptr)
             if (unlikely(aclk_queue_query("on_connect", NULL, NULL, NULL, 0, 1, ACLK_CMD_ONCONNECT))) {
                 errno = 0;
                 error("ACLK failed to queue on_connect command");
-                aclk_metadata_submitted = 0;
+                aclk_metadata_submitted = ACLK_METADATA_REQUIRED;
             }
         }
 
@@ -973,7 +1031,6 @@ static void aclk_main_cleanup(void *ptr)
         }
     }
 
-    info("Disconnected");
 
     static_thread->enabled = NETDATA_MAIN_THREAD_EXITED;
 }
@@ -1256,11 +1313,11 @@ static void aclk_try_to_connect(char *hostname, char *port, int port_num)
     if (aclk_password == NULL)
         return;
     int rc;
+    aclk_connecting = 1;
     rc = mqtt_attempt_connection(hostname, port_num, aclk_username, aclk_password);
     if (unlikely(rc)) {
         error("Failed to initialize the agent cloud link library");
     }
-    aclk_connecting = 1;
 }
 
 
@@ -1276,11 +1333,12 @@ static void aclk_try_to_connect(char *hostname, char *port, int port_num)
  */
 void *aclk_main(void *ptr)
 {
+    struct netdata_static_thread *static_thread = (struct netdata_static_thread *)ptr;
     struct netdata_static_thread *query_thread;
 
-    netdata_thread_cleanup_push(aclk_main_cleanup, ptr);
     if (!netdata_cloud_setting) {
         info("Killing ACLK thread -> cloud functionality has been disabled");
+        static_thread->enabled = NETDATA_MAIN_THREAD_EXITED;
         return NULL;
     }
 
@@ -1298,6 +1356,7 @@ void *aclk_main(void *ptr)
     char *cloud_base_url = config_get(CONFIG_SECTION_CLOUD, "cloud base url", DEFAULT_CLOUD_BASE_URL);
     if (aclk_decode_base_url(cloud_base_url, &aclk_hostname, &aclk_port)) {
         error("Configuration error - cannot use agent cloud link");
+        static_thread->enabled = NETDATA_MAIN_THREAD_EXITED;
         return NULL;
     }
     port_num = atoi(aclk_port);     // SSL library uses the string, MQTT uses the numeric value
@@ -1318,9 +1377,10 @@ void *aclk_main(void *ptr)
         sleep_usec(USEC_PER_SEC * 60);
     }
     create_publish_base_topic();
-    create_private_key();
 
     usec_t reconnect_expiry = 0; // In usecs
+
+    netdata_thread_disable_cancelability();
 
     while (!netdata_exit) {
         static int first_init = 0;
@@ -1354,6 +1414,8 @@ void *aclk_main(void *ptr)
         }
 
         _link_event_loop();
+        if (unlikely(!aclk_connected))
+            continue;
         /*static int stress_counter = 0;
         if (write_q_bytes==0 && stress_counter ++ >5)
         {
@@ -1375,7 +1437,8 @@ void *aclk_main(void *ptr)
         }
     } // forever
 exited:
-    aclk_shutdown();
+    // Wakeup query thread to cleanup
+    QUERY_THREAD_WAKEUP;
 
     freez(aclk_username);
     freez(aclk_password);
@@ -1384,7 +1447,7 @@ exited:
     if (aclk_private_key != NULL)
         RSA_free(aclk_private_key);
 
-    netdata_thread_cleanup_pop(1);
+    aclk_main_cleanup(ptr);
     return NULL;
 }
 
@@ -1528,46 +1591,6 @@ inline void aclk_create_header(BUFFER *dest, char *type, char *msg_id, time_t ts
     debug(D_ACLK, "Sending v%d msgid [%s] type [%s] time [%ld]", ACLK_VERSION, msg_id, type, ts_secs);
 }
 
-/*
- * Take a buffer, encode it and rewrite it
- *
- */
-
-char *aclk_encode_response(BUFFER *contents)
-{
-    char *tmp_buffer = mallocz(contents->len * 2);
-    char *src, *dst;
-    size_t content_size = contents->len;
-
-    src = contents->buffer;
-    dst = tmp_buffer;
-    while (content_size > 0) {
-        switch (*src) {
-            case '\n':
-            case '\t':
-                break;
-            case 0x01 ... 0x08:
-            case 0x0b ... 0x1F:
-                *dst++ = '\\';
-                *dst++ = '0';
-                *dst++ = '0';
-                *dst++ = (*src < 0x0F) ? '0' : '1';
-                *dst++ = to_hex(*src);
-                break;
-            case '\"':
-                *dst++ = '\\';
-                *dst++ = *src;
-                break;
-            default:
-                *dst++ = *src;
-        }
-        src++;
-        content_size--;
-    }
-    *dst = '\0';
-
-    return tmp_buffer;
-}
 
 /*
  * This will send alarm information which includes
@@ -1867,6 +1890,12 @@ int aclk_handle_cloud_request(char *payload)
             freez(cloud_to_agent.callback_topic);
 
         return 1;
+    }
+
+    // Checked to be "http", not needed anymore
+    if (likely(cloud_to_agent.type_id)) {
+        freez(cloud_to_agent.type_id);
+        cloud_to_agent.type_id = NULL;
     }
 
     if (unlikely(aclk_submit_request(&cloud_to_agent)))
