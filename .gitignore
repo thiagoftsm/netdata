@@ -69,8 +69,8 @@ cgroup-network
 networkviewer.plugin
 !networkviewer.plugin/
 
-ebpf_process.plugin
-!ebpf_process.plugin/
+ebpf.plugin
+!ebpf.plugin/
 
 # protoc generated files
 *.pb.cc

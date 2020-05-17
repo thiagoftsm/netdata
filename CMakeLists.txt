@@ -252,6 +252,23 @@ find_library(HAVE_KINESIS aws-cpp-sdk-kinesis)
 # later we use:
 # ${HAVE_KINESIS}
 
+# -----------------------------------------------------------------------------
+# Detect libgrpc
+
+pkg_check_modules(GRPC grpc)
+# later we use:
+# ${GRPCF_LIBRARIES}
+# ${GRPC_CFLAGS_OTHER}
+# ${GRPC_INCLUDE_DIRS}
+
+# -----------------------------------------------------------------------------
+# Detect libgoogleapis_cpp_pubsub_protos
+
+pkg_check_modules(PUBSUB googleapis_cpp_pubsub_protos)
+# later we use:
+# ${PUBSUB_LIBRARIES}
+# ${PUBSUB_CFLAGS_OTHER}
+# ${PUBSUB_INCLUDE_DIRS}
 
 # -----------------------------------------------------------------------------
 # Detect libprotobuf
@@ -412,7 +429,7 @@ set(NETWORK_VIEWER_PLUGIN_FILES
         )
 
 set(EBPF_PROCESS_PLUGIN_FILES
-        collectors/ebpf_process.plugin/ebpf_process.c
+        collectors/ebpf.plugin/ebpf.c
         )
 
 set(PROC_PLUGIN_FILES
@@ -628,6 +645,13 @@ set(ACLK_PLUGIN_FILES
         aclk/mqtt.h
         )
 
+set(SPAWN_PLUGIN_FILES
+        spawn/spawn.c
+        spawn/spawn_server.c
+        spawn/spawn_client.c
+        spawn/spawn.h
+        )
+
 set(ACLK_STATIC_LIBS
         ${CMAKE_SOURCE_DIR}/externaldeps/mosquitto/libmosquitto.a
         ${CMAKE_SOURCE_DIR}/externaldeps/libwebsockets/libwebsockets.a
@@ -664,6 +688,13 @@ set(KINESIS_EXPORTING_FILES
         exporting/aws_kinesis/aws_kinesis.h
         exporting/aws_kinesis/aws_kinesis_put_record.cc
         exporting/aws_kinesis/aws_kinesis_put_record.h
+        )
+
+set(PUBSUB_EXPORTING_FILES
+        exporting/pubsub/pubsub.c
+        exporting/pubsub/pubsub.h
+        exporting/pubsub/pubsub_publish.cc
+        exporting/pubsub/pubsub_publish.h
         )
 
 set(MONGODB_EXPORTING_FILES
@@ -721,6 +752,7 @@ set(NETDATA_FILES
         ${STREAMING_PLUGIN_FILES}
         ${WEB_PLUGIN_FILES}
         ${CLAIM_PLUGIN_FILES}
+        ${SPAWN_PLUGIN_FILES}
 )
 
 set(NETDATACLI_FILES
@@ -760,6 +792,25 @@ IF(ENABLE_BACKEND_KINESIS)
     list(APPEND NETDATA_COMMON_CFLAGS ${CRYPTO_CFLAGS_OTHER} ${SSL_CFLAGS_OTHER} ${CURL_CFLAGS_OTHER})
 ELSE()
     message(STATUS "kinesis backend: disabled (requires AWS SDK for C++)")
+ENDIF()
+
+# -----------------------------------------------------------------------------
+# Pub/Sub exporting connector
+
+IF(GRPC_LIBRARIES AND PUBSUB_LIBRARIES)
+    SET(ENABLE_EXPORTING_PUBSUB True)
+ELSE()
+    SET(ENABLE_EXPORTING_PUBSUB False)
+ENDIF()
+
+IF(ENABLE_EXPORTING_PUBSUB)
+    message(STATUS "pubsub exporting connector: enabled")
+    list(APPEND NETDATA_FILES ${PUBSUB_EXPORTING_FILES})
+    list(APPEND NETDATA_COMMON_LIBRARIES ${GRPC_LIBRARIES} ${PUBSUB_LIBRARIES})
+    list(APPEND NETDATA_COMMON_INCLUDE_DIRS ${GRPC_INCLUDE_DIRS} ${PUBSUB_INCLUDE_DIRS})
+    list(APPEND NETDATA_COMMON_CFLAGS ${GRPC_CFLAGS_OTHER} ${PUBSUB_CFLAGS_OTHER})
+ELSE()
+    message(STATUS "pubsub exporting connector: disabled (requires grpc and googleapis)")
 ENDIF()
 
 # -----------------------------------------------------------------------------
@@ -871,7 +922,7 @@ ELSEIF(MACOS)
 
 ENDIF()
 
-IF(ENABLE_BACKEND_KINESIS OR ENABLE_BACKEND_PROMETHEUS_REMOTE_WRITE)
+IF(ENABLE_BACKEND_KINESIS OR ENABLE_EXPORTING_PUBSUB OR ENABLE_BACKEND_PROMETHEUS_REMOTE_WRITE)
     set_property(TARGET netdata PROPERTY CXX_STANDARD 11)
     set_property(TARGET netdata PROPERTY CMAKE_CXX_STANDARD_REQUIRED ON)
 ENDIF()
@@ -977,21 +1028,13 @@ ENDIF()
 # ebpf_process.plugin
 
 IF(ENABLE_PLUGIN_EBPF)
-    message(STATUS "ebpf_process.plugin: enabled")
-    add_executable(ebpf_process.plugin config.h ${EBPF_PROCESS_PLUGIN_FILES})
-    target_link_libraries (ebpf_process.plugin libnetdata ${NETDATA_COMMON_LIBRARIES})
-    target_include_directories(ebpf_process.plugin PUBLIC ${NETDATA_COMMON_INCLUDE_DIRS})
-    target_compile_options(ebpf_process.plugin PUBLIC ${NETDATA_COMMON_CFLAGS})
-
-    message(STATUS "networkviewer.plugin: enabled")
-    add_executable(networkviewer.plugin config.h ${NETWORK_VIEWER_PLUGIN_FILES})
-    target_link_libraries (networkviewer.plugin libnetdata ${NETDATA_COMMON_LIBRARIES})
-    target_include_directories(networkviewer.plugin PUBLIC ${NETDATA_COMMON_INCLUDE_DIRS})
-    target_compile_options(networkviewer.plugin PUBLIC ${NETDATA_COMMON_CFLAGS})
+    message(STATUS "ebpf.plugin: enabled")
+    add_executable(ebpf.plugin config.h ${EBPF_PROCESS_PLUGIN_FILES})
+    target_link_libraries (ebpf.plugin libnetdata ${NETDATA_COMMON_LIBRARIES})
+    target_include_directories(ebpf.plugin PUBLIC ${NETDATA_COMMON_INCLUDE_DIRS})
+    target_compile_options(ebpf.plugin PUBLIC ${NETDATA_COMMON_CFLAGS})
 ELSE()
-    message(STATUS "ebpf_process.plugin: disabled")
-
-    message(STATUS "networkviewer.plugin: disabled")
+    message(STATUS "ebpf.plugin: disabled")
 ENDIF()
 
 
@@ -1051,6 +1094,7 @@ if(BUILD_TESTING)
     set(TEST_NAME exporting_engine)
     set(PROMETHEUS_REMOTE_WRITE_LINK_OPTIONS)
     set(KINESIS_LINK_OPTIONS)
+    set(PUBSUB_LINK_OPTIONS)
     set(MONGODB_LINK_OPTIONS)
 if(ENABLE_BACKEND_PROMETHEUS_REMOTE_WRITE)
     list(APPEND EXPORTING_ENGINE_FILES ${PROMETHEUS_REMOTE_WRITE_EXPORTING_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
@@ -1070,6 +1114,16 @@ if(ENABLE_BACKEND_KINESIS)
         -Wl,--wrap=kinesis_init
         -Wl,--wrap=kinesis_put_record
         -Wl,--wrap=kinesis_get_result
+    )
+endif()
+if(ENABLE_EXPORTING_PUBSUB)
+    list(APPEND EXPORTING_ENGINE_FILES ${PUBSUB_EXPORTING_FILES})
+    list(
+        APPEND PUBSUB_LINK_OPTIONS
+        -Wl,--wrap=pubsub_init
+        -Wl,--wrap=pubsub_add_message
+        -Wl,--wrap=pubsub_publish
+        -Wl,--wrap=pubsub_get_result
     )
 endif()
 if(MONGOC_LIBRARIES)
@@ -1109,7 +1163,6 @@ endif()
         -Wl,--wrap=rrdset_is_exportable
         -Wl,--wrap=exporting_calculate_value_from_stored_data
         -Wl,--wrap=prepare_buffers
-        -Wl,--wrap=notify_workers
         -Wl,--wrap=send_internal_metrics
         -Wl,--wrap=now_realtime_sec
         -Wl,--wrap=uv_thread_set_name_np
@@ -1127,6 +1180,7 @@ endif()
         -Wl,--wrap=send_main_rusage
         ${PROMETHEUS_REMOTE_WRITE_LINK_OPTIONS}
         ${KINESIS_LINK_OPTIONS}
+        ${PUBSUB_LINK_OPTIONS}
         ${MONGODB_LINK_OPTIONS}
     )
     target_link_libraries(${TEST_NAME}_testdriver libnetdata ${NETDATA_COMMON_LIBRARIES} ${CMOCKA_LIBRARIES})

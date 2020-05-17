@@ -296,6 +296,9 @@ while [ -n "${1}" ]; do
         NETDATA_CONFIGURE_OPTIONS="${NETDATA_CONFIGURE_OPTIONS//--enable-cloud/} --enable-cloud"
       fi
       ;;
+    "--build-json-c")
+      NETDATA_BUILD_JSON_C=1
+      ;;
     "--install")
       NETDATA_PREFIX="${2}/netdata"
       shift 1
@@ -622,6 +625,73 @@ bundle_libwebsockets() {
 bundle_libwebsockets
 
 # -----------------------------------------------------------------------------
+
+build_jsonc() {
+  pushd "${1}" > /dev/null || exit 1
+  run env CFLAGS= CXXFLAGS= LDFLAGS= cmake -DBUILD_SHARED_LIBS=OFF .
+  run env CFLAGS= CXXFLAGS= LDFLAGS= make
+  popd > /dev/null || exit 1
+}
+
+copy_jsonc() {
+  target_dir="${PWD}/externaldeps/jsonc"
+
+  run mkdir -p "${target_dir}" "${target_dir}/json-c" || return 1
+
+  run cp "${1}/libjson-c.a" "${target_dir}/libjson-c.a" || return 1
+  run cp ${1}/*.h "${target_dir}/json-c" || return 1
+}
+
+bundle_jsonc() {
+  # If --build-json-c flag or not json-c on system, then bundle our own json-c
+  if [ -z "${NETDATA_BUILD_JSON_C}" ] && pkg-config json-c; then
+    return 0
+  fi
+
+  if [ -z "$(command -v cmake)" ]; then
+    run_failed "Could not find cmake, which is required to build JSON-C. The install process will continue, but Netdata Cloud support will be disabled."
+    defer_error_highlighted "Could not find cmake, which is required to build JSON-C. The install process will continue, but Netdata Cloud support will be disabled."
+    return 0
+  fi
+
+  progress "Prepare JSON-C"
+
+  JSONC_PACKAGE_VERSION="$(cat packaging/jsonc.version)"
+
+  tmp="$(mktemp -d -t netdata-jsonc-XXXXXX)"
+  JSONC_PACKAGE_BASENAME="json-c-${JSONC_PACKAGE_VERSION}.tar.gz"
+
+  if fetch_and_verify "jsonc" \
+    "https://github.com/json-c/json-c/archive/${JSONC_PACKAGE_BASENAME}" \
+    "${JSONC_PACKAGE_BASENAME}" \
+    "${tmp}" \
+    "${NETDATA_LOCAL_TARBALL_OVERRIDE_JSONC}"; then
+    if run tar -xf "${tmp}/${JSONC_PACKAGE_BASENAME}" -C "${tmp}" &&
+      build_jsonc "${tmp}/json-c-json-c-${JSONC_PACKAGE_VERSION}" &&
+      copy_jsonc "${tmp}/json-c-json-c-${JSONC_PACKAGE_VERSION}" &&
+      rm -rf "${tmp}"; then
+      run_ok "JSON-C built and prepared."
+    else
+      run_failed "Failed to build JSON-C."
+      if [ -n "${NETDATA_REQUIRE_CLOUD}" ]; then
+        exit 1
+      else
+        defer_error_highlighted "Failed to build JSON-C. Netdata Cloud support will be disabled."
+      fi
+    fi
+  else
+    run_failed "Unable to fetch sources for JSON-C."
+    if [ -n "${NETDATA_REQUIRE_CLOUD}" ]; then
+      exit 1
+    else
+      defer_error_highlighted "Unable to fetch sources for JSON-C. Netdata Cloud support will be disabled."
+    fi
+  fi
+}
+
+bundle_jsonc
+
+# -----------------------------------------------------------------------------
 # If we have the dashboard switching logic, make sure we're on the classic
 # dashboard during the install (updates don't work correctly otherwise).
 if [ -x "${NETDATA_PREFIX}/usr/libexec/netdata-switch-dashboard.sh" ]; then
@@ -853,7 +923,7 @@ NETDATA_LOG_DIR="$(config_option "global" "log directory" "${NETDATA_PREFIX}/var
 NETDATA_USER_CONFIG_DIR="$(config_option "global" "config directory" "${NETDATA_PREFIX}/etc/netdata")"
 NETDATA_STOCK_CONFIG_DIR="$(config_option "global" "stock config directory" "${NETDATA_PREFIX}/usr/lib/netdata/conf.d")"
 NETDATA_RUN_DIR="${NETDATA_PREFIX}/var/run"
-NETDATA_CLAIMING_DIR="${NETDATA_USER_CONFIG_DIR}/claim.d"
+NETDATA_CLAIMING_DIR="${NETDATA_LIB_DIR}/cloud.d"
 
 cat << OPTIONSEOF
 
@@ -997,9 +1067,9 @@ if [ "${UID}" -eq 0 ]; then
     run chmod 4750 "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ioping"
   fi
 
-  if [ -f "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf_process.plugin" ]; then
-    run chown root:${NETDATA_GROUP} "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf_process.plugin"
-    run chmod 4750 "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf_process.plugin"
+  if [ -f "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf.plugin" ]; then
+    run chown root:${NETDATA_GROUP} "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf.plugin"
+    run chmod 4750 "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf.plugin"
   fi
 
 	if [ -f "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/networkviewer.plugin" ]; then
@@ -1322,10 +1392,29 @@ should_install_ebpf() {
   return 0
 }
 
+remove_old_ebpf() {
+  if [ -f "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf_process.plugin" ]; then
+    echo >&2 "Removing alpha eBPF collector."
+    rm -f "${NETDATA_PREFIX}/usr/libexec/netdata/plugins.d/ebpf_process.plugin" 
+  fi
+
+  if [ -f "${NETDATA_PREFIX}/usr/lib/netdata/conf.d/ebpf_process.conf" ]; then
+    echo >&2 "Removing alpha eBPF stock file"
+    rm -f "${NETDATA_PREFIX}/usr/lib/netdata/conf.d/ebpf_process.conf" 
+  fi
+
+  if [ -f "${NETDATA_PREFIX}/etc/netdata/ebpf_process.conf" ]; then
+    echo >&2 "Renaming eBPF configuration file."
+    mv "${NETDATA_PREFIX}/etc/netdata/ebpf_process.conf" "${NETDATA_PREFIX}/etc/netdata/ebpf.conf" 
+  fi
+}
+
 install_ebpf() {
   if ! should_install_ebpf; then
     return 0
   fi
+
+  remove_old_ebpf
 
   progress "Installing eBPF plugin"
 
