@@ -284,7 +284,8 @@ static int select_file(char *name, const char *program, size_t length, int mode,
     return ret;
 }
 
-struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *kernel_string, struct bpf_object **obj, int *map_fd)
+struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em,
+                                    char *kernel_string, struct bpf_object **obj, int *map_fd)
 {
     char lpath[4096];
     char lname[128];
@@ -295,7 +296,9 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
         return NULL;
 
     snprintf(lpath, 4096, "%s/%s", plugins_dir, lname);
-    if (bpf_prog_load(lpath, BPF_PROG_TYPE_KPROBE, obj, &prog_fd)) {
+    // We are using BPF_PROG_TYPE_UNSPEC instead a specific type for bpf_prog_load to define the type
+    // according the eBPF loaded
+    if (bpf_prog_load(lpath, BPF_PROG_TYPE_UNSPEC, obj, &prog_fd)) {
         em->enabled = CONFIG_BOOLEAN_NO;
         info("Cannot load program: %s", lpath);
         return NULL;
