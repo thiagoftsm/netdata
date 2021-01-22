@@ -83,6 +83,9 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "socket", .config_name = "socket", .enabled = 0, .start_routine = ebpf_socket_thread,
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0  },
+    { .thread_name = "latency", .config_name = "latency", .enabled = 0, .start_routine = ebpf_latency_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0 },
@@ -595,6 +598,8 @@ void ebpf_print_help()
             " --process or -p   Enable charts related to process run time.\n"
             "\n"
             " --return or -r    Run the collector in return mode.\n"
+            "\n"
+            " --latency or -l   Enable charts related to hardware latency.\n"
             "\n",
             VERSION,
             (year >= 116) ? year + 1900 : 2020);
@@ -1763,6 +1768,7 @@ static void parse_args(int argc, char **argv)
         {"net",      no_argument,    0,  'n' },
         {"process",  no_argument,    0,  'p' },
         {"return",   no_argument,    0,  'r' },
+        {"latency",  no_argument,    0,  'l' },
         {0, 0, 0, 0}
     };
 
@@ -1777,7 +1783,7 @@ static void parse_args(int argc, char **argv)
     }
 
     while (1) {
-        int c = getopt_long(argc, argv, "hvganpr", long_options, &option_index);
+        int c = getopt_long(argc, argv, "hvganprl", long_options, &option_index);
         if (c == -1)
             break;
 
@@ -1811,6 +1817,15 @@ static void parse_args(int argc, char **argv)
                 ebpf_enable_chart(EBPF_MODULE_SOCKET_IDX, disable_apps);
 #ifdef NETDATA_INTERNAL_CHECKS
                 info("EBPF enabling \"NET\" charts, because it was started with the option \"--net\" or \"-n\".");
+#endif
+                break;
+            }
+            case 'l': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_LATENCY_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info(
+                    "EBPF enabling \"LATENCY\" charts, because it was started with the option \"--latency\" or \"-l\".");
 #endif
                 break;
             }
@@ -1948,9 +1963,14 @@ int main(int argc, char **argv)
     read_local_ports("/proc/net/udp6", IPPROTO_UDP);
 
     struct netdata_static_thread ebpf_threads[] = {
-        {"EBPF PROCESS", NULL, NULL, 1, NULL, NULL, ebpf_modules[0].start_routine},
-        {"EBPF SOCKET" , NULL, NULL, 1, NULL, NULL, ebpf_modules[1].start_routine},
-        {NULL          , NULL, NULL, 0, NULL, NULL, NULL}
+        {"EBPF PROCESS", NULL, NULL,
+          1, NULL, NULL, ebpf_modules[EBPF_MODULE_PROCESS_IDX].start_routine},
+        {"EBPF SOCKET" , NULL, NULL,
+          1, NULL, NULL, ebpf_modules[EBPF_MODULE_SOCKET_IDX].start_routine},
+        {"EBPF LATENCY" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_LATENCY_IDX].start_routine},
+        {NULL          , NULL, NULL,
+          0, NULL, NULL, NULL}
     };
 
     //clean_loaded_events();

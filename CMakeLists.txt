@@ -485,6 +485,8 @@ set(EBPF_PROCESS_PLUGIN_FILES
         collectors/ebpf.plugin/ebpf_process.h
         collectors/ebpf.plugin/ebpf_socket.c
         collectors/ebpf.plugin/ebpf_socket.h
+        collectors/ebpf.plugin/ebpf_latency.c
+        collectors/ebpf.plugin/ebpf_latency.h
         collectors/ebpf.plugin/ebpf_apps.c
         collectors/ebpf.plugin/ebpf_apps.h
         )
@@ -1120,7 +1122,7 @@ ENDIF()
 
 
 # -----------------------------------------------------------------------------
-# ebpf_process.plugin
+# ebpf.plugin
 
 IF(ENABLE_PLUGIN_EBPF)
     message(STATUS "ebpf.plugin: enabled")
