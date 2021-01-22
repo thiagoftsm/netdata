@@ -1657,7 +1657,7 @@ static void read_collector_values(int *disable_apps)
 
     // Read ebpf programs section
     enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION,
-                                    ebpf_modules[0].config_name, CONFIG_BOOLEAN_YES);
+                                    ebpf_modules[EBPF_MODULE_PROCESS_IDX].config_name, CONFIG_BOOLEAN_YES);
     int started = 0;
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_PROCESS_IDX, *disable_apps);
@@ -1668,8 +1668,8 @@ static void read_collector_values(int *disable_apps)
     enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "network viewer",
                                     CONFIG_BOOLEAN_NO);
     if (!enabled)
-        enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, ebpf_modules[1].config_name,
-                                        CONFIG_BOOLEAN_NO);
+        enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION,
+                                        ebpf_modules[EBPF_MODULE_SOCKET_IDX].config_name, CONFIG_BOOLEAN_NO);
 
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_SOCKET_IDX, *disable_apps);
@@ -1685,7 +1685,14 @@ static void read_collector_values(int *disable_apps)
     if (!enabled)
         enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "network connections",
                                         CONFIG_BOOLEAN_NO);
-    ebpf_modules[1].optional = enabled;
+    ebpf_modules[EBPF_MODULE_SOCKET_IDX].optional = enabled;
+
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION,
+                                    ebpf_modules[EBPF_MODULE_LATENCY_IDX].config_name, CONFIG_BOOLEAN_NO);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_LATENCY_IDX, *disable_apps);
+        started++;
+    }
 
     if (!started){
         ebpf_enable_all_charts(*disable_apps);

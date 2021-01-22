@@ -3,6 +3,34 @@
 #ifndef NETDATA_EBPF_LATENCY_H
 #define NETDATA_EBPF_LATENCY_H 1
 
+// Global chart name
+#define NETDATA_LATENCY_SCHEDULE_COUNT "latency_schedule_counter"
+#define NETDATA_LATENCY_IO_COUNT "latency_io_counter"
+#define NETDATA_LATENCY_SCHEDULER "Scheduler"
+#define NETDATA_LATENCY_BLOCK_IO "Block IO"
+
+#define NETDATA_LATENCY_READ_SLEEP_MS 700000ULL
+
+enum latency_tables {
+    NETDATA_LATENCY_CPU_STATS,
+    NETDATA_LATENCY_HD_STATS,
+    NETDATA_LATENCY_PID_STATS,
+    NETDATA_LATENCY_GLOBAL_STATS,
+
+    NETDATA_LATENCY_END
+};
+
+
+enum latency_counters {
+    NETDATA_KEY_TRY_TO_WAKE_UP,
+    NETDATA_KEY_WAKE_UP,
+    NETDATA_KEY_FINISH_TASK_SWITCH,
+    NETDATA_KEY_CALLS_BLOCK_RQ_ISSUE,
+    NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE,
+
+    NETDATA_LATENCY_COUNTER
+};
+
 extern void *ebpf_latency_thread(void *ptr);
 
 #endif
