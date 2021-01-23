@@ -89,6 +89,7 @@ enum ebpf_plugin_modules {
 
 // Chart defintions
 #define NETDATA_EBPF_FAMILY "ebpf"
+#define NETDATA_CPU_FAMILY "cpu"
 
 // Log file
 #define NETDATA_DEVELOPER_LOG_FILE "developer.log"

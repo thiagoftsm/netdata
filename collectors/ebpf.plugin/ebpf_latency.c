@@ -18,8 +18,14 @@ static ebpf_data_t latency_data;
 static netdata_syscall_stat_t *latency_counter_aggregated_data = NULL;
 static netdata_publish_syscall_t *latency_counter_publish_aggregated = NULL;
 
+static char *latency_hist_dimensions[NETDATA_LATENCY_HIST_BINS] = { };
+static netdata_syscall_stat_t *latency_hist_aggregated_data = NULL;
+static netdata_publish_syscall_t *latency_hist_publish_aggregated = NULL;
+
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;
+
+static struct netdata_hist_per_core *schedule_core = NULL;
 
 static int *map_fd = NULL;
 static int read_thread_closed = 1;
@@ -29,6 +35,29 @@ static int read_thread_closed = 1;
  *  FUNCTIONS WITH THE MAIN LOOP
  *
  *****************************************************************/
+
+/**
+ * Read CPU table
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_cpu_table()
+{
+    uint64_t idx;
+    netdata_idx_t *val = latency_hash_values;
+    int fd = map_fd[NETDATA_LATENCY_CPU_STATS];
+
+    int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+    for (idx = 0; idx < NETDATA_LATENCY_HIST_BINS; idx++) {
+        if (!bpf_map_lookup_elem(fd, &idx, val)) {
+            int i;
+            struct netdata_hist_per_core *sc = schedule_core;
+            for (i = 0; i < end; i++) {
+                sc[i].histogram[idx] = val[i];
+            }
+        }
+    }
+}
 
 /**
  * Read global counter
@@ -79,6 +108,7 @@ void *ebpf_latency_read_hash(void *ptr)
         (void)dt;
 
         read_global_table();
+        read_cpu_table();
 
         if(apps && !close_ebpf_plugin)
             (void)dt;
@@ -93,6 +123,39 @@ struct netdata_static_thread latency_threads = {"LATENCY KERNEL",
                                                 NULL, ebpf_latency_read_hash };
 
 /**
+ * Call the necessary functions to create a chart.
+ *
+ *
+ * @return It returns a variable tha maps the charts that did not have zero values.
+ */
+void write_histogram_chart(struct netdata_hist_per_core *values, uint32_t end)
+{
+    write_begin_chart(values->family, values->chart);
+    uint32_t i;
+    netdata_idx_t *hist = values->histogram;
+    for (i = 0 ; i < end; i++) {
+        write_chart_dimension(latency_hist_dimensions[i], hist[i]);
+    }
+
+    write_end_chart();
+}
+
+/**
+ * Send CPU histogram charts
+ *
+ * Write the chart commands on Netdata pipe
+ */
+static void ebpf_send_cpu_histogram_charts()
+{
+    int i;
+    int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+    struct netdata_hist_per_core *sc = schedule_core;
+    for (i = 0; i < end; i++) {
+        write_histogram_chart(&sc[i], NETDATA_LATENCY_HIST_BINS);
+    }
+}
+
+/**
  * Send data to Netdata calling auxiliar functions.
  *
  * @param em the structure with thread information
@@ -104,6 +167,8 @@ static void ebpf_latency_send_global_data()
 
     write_count_chart(NETDATA_LATENCY_IO_COUNT, NETDATA_EBPF_FAMILY,
                       &latency_counter_publish_aggregated[NETDATA_KEY_CALLS_BLOCK_RQ_ISSUE], 2);
+
+    ebpf_send_cpu_histogram_charts();
 }
 
 /**
@@ -137,6 +202,23 @@ static void latency_collector(ebpf_module_t *em)
  *****************************************************************/
 
 /**
+ * Cleanup CPU vector
+ *
+ * Clean the duplicated string.
+ */
+void cleanup_cpu_list() {
+    int i;
+    int end = ebpf_nprocs;
+    for (i = 0 ; i < end ; i++) {
+        struct netdata_hist_per_core *sc = &schedule_core[i];
+        freez(sc->family);
+        freez(sc->chart);
+    }
+
+    freez(schedule_core);
+}
+
+/**
  * Clean up the main thread.
  *
  * @param ptr thread data.
@@ -159,10 +241,16 @@ static void ebpf_latency_cleanup(void *ptr)
     ebpf_cleanup_publish_syscall(latency_counter_publish_aggregated);
     freez(latency_counter_publish_aggregated);
 
+    freez(latency_hist_aggregated_data);
+    ebpf_cleanup_publish_syscall(latency_hist_publish_aggregated);
+    freez(latency_hist_publish_aggregated);
+
     freez(latency_data.map_fd);
     freez(latency_threads.thread);
 
     freez(latency_hash_values);
+
+    cleanup_cpu_list();
 
     struct bpf_program *prog;
     size_t i = 0 ;
@@ -188,6 +276,37 @@ static void set_local_pointers()
 }
 
 /**
+ * Create CPU charts
+ *
+ * Create the cpu charts.
+ */
+static void ebpf_create_cpu_charts()
+{
+    char name[64];
+    int i;
+    int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+    int order;
+    struct netdata_hist_per_core *sc = schedule_core;
+    for (i = 0, order = 21110; i < end; i++, order++) {
+        snprintfz(name, 63, "cpu%d_schedule", i);
+        sc[i].chart = strdupz(name);
+        sc[i].family = strdupz(NETDATA_CPU_FAMILY);
+
+        ebpf_create_chart(NETDATA_CPU_FAMILY,
+                          name,
+                          "Interval between a call for the either <code>ttwu_do_wakeup</code> or"
+                          "<code>wake_up_new_task</code> and a call for the function <code>finish_task_switch</code>"
+                          "in microseconds.",
+                          EBPF_COMMON_DIMENSION_CALL,
+                          NETDATA_LATENCY_CPU_SCHEDULER,
+                          order,
+                          ebpf_create_global_dimension,
+                          latency_hist_publish_aggregated,
+                          NETDATA_LATENCY_HIST_BINS);
+    }
+}
+
+/**
  * Create global charts
  *
  * Call ebpf_create_chart to create the charts for the collector.
@@ -203,8 +322,27 @@ static void ebpf_create_global_charts()
                       "Calls to internal function that writes data to disk.", EBPF_COMMON_DIMENSION_CALL,
                       NETDATA_LATENCY_BLOCK_IO, 21101, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_CALLS_BLOCK_RQ_ISSUE], 2);
+
+    ebpf_create_cpu_charts();
 }
 
+/**
+ * Fill Histogram dimension
+ *
+ * Fill the histogram dimension with the specified ranges
+ */
+void ebpf_latency_fill_histogram_dimension()
+{
+    uint32_t now = 1, previous = 0;
+    uint32_t selector;
+    char range[64];
+    for (selector = 0; selector < NETDATA_LATENCY_HIST_BINS; selector++) {
+        snprintf(range, 63, "%u_%u", previous, now);
+        latency_hist_dimensions[selector] = strdupz(range);
+        previous = (now < 2)?now:now + 1;
+        now <<= 1;
+    }
+}
 
 /**
  * Allocate vectors used with this thread.
@@ -219,7 +357,14 @@ static void ebpf_latency_allocate_global_vectors(size_t length)
     latency_counter_aggregated_data = callocz(length, sizeof(netdata_syscall_stat_t));
     latency_counter_publish_aggregated = callocz(length, sizeof(netdata_publish_syscall_t));
 
+    latency_hist_aggregated_data = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(netdata_syscall_stat_t));
+    latency_hist_publish_aggregated = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(netdata_publish_syscall_t));
+
     latency_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
+
+    ebpf_latency_fill_histogram_dimension();
+
+    schedule_core = callocz(ebpf_nprocs,sizeof(struct netdata_hist_per_core));
 }
 
 /*****************************************************************
@@ -262,14 +407,22 @@ void *ebpf_latency_thread(void *ptr)
         goto endlatency;
     }
 
-    int algorithms[NETDATA_LATENCY_COUNTER] = {
+    int algorithms[NETDATA_LATENCY_HIST_BINS] = {
                 NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
-                NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX
+                NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
+                NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
+                NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
+                NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
+                NETDATA_EBPF_INCREMENTAL_IDX
     };
 
     ebpf_global_labels(latency_counter_aggregated_data, latency_counter_publish_aggregated,
                        latency_counter_dimension_name, latency_counter_id_names,
                        algorithms, NETDATA_LATENCY_COUNTER);
+
+    ebpf_global_labels(latency_hist_aggregated_data, latency_hist_publish_aggregated,
+                       latency_hist_dimensions, latency_hist_dimensions,
+                       algorithms, NETDATA_LATENCY_HIST_BINS);
 
     ebpf_create_global_charts();
 

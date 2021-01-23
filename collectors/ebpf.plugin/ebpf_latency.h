@@ -9,7 +9,10 @@
 #define NETDATA_LATENCY_SCHEDULER "Scheduler"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
+#define NETDATA_LATENCY_CPU_SCHEDULER "scheduler"
+
 #define NETDATA_LATENCY_READ_SLEEP_MS 700000ULL
+#define NETDATA_LATENCY_HIST_BINS 16
 
 enum latency_tables {
     NETDATA_LATENCY_CPU_STATS,
@@ -20,7 +23,6 @@ enum latency_tables {
     NETDATA_LATENCY_END
 };
 
-
 enum latency_counters {
     NETDATA_KEY_TRY_TO_WAKE_UP,
     NETDATA_KEY_WAKE_UP,
@@ -29,6 +31,13 @@ enum latency_counters {
     NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE,
 
     NETDATA_LATENCY_COUNTER
+};
+
+struct netdata_hist_per_core {
+    uint32_t core;
+    char *chart;
+    char *family;
+    uint64_t histogram[NETDATA_LATENCY_HIST_BINS];
 };
 
 extern void *ebpf_latency_thread(void *ptr);
