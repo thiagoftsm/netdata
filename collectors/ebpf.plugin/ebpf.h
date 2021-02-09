@@ -70,8 +70,12 @@ typedef struct netdata_error_report {
 } netdata_error_report_t;
 
 extern ebpf_module_t ebpf_modules[];
-#define EBPF_MODULE_PROCESS_IDX 0
-#define EBPF_MODULE_SOCKET_IDX 1
+enum ebpf_module_indexes {
+    EBPF_MODULE_PROCESS_IDX,
+    EBPF_MODULE_SOCKET_IDX,
+    EBPF_MODULE_CACHESTAT_IDX,
+    EBPF_MODULE_IO_LATENCY_IDX
+};
 
 // Copied from musl header
 #ifndef offsetof

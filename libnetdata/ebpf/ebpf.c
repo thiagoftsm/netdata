@@ -295,7 +295,7 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
         return NULL;
 
     // We use BPF_PROG_TYPE_UNSPEC instead specific types to allow the library to define the eBPF program type
-    // whne they are loaded.
+    // when they are loaded.
     snprintf(lpath, 4096, "%s/%s", plugins_dir, lname);
     if (bpf_prog_load(lpath, BPF_PROG_TYPE_UNSPEC, obj, &prog_fd)) {
         em->enabled = CONFIG_BOOLEAN_NO;
