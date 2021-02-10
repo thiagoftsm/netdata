@@ -5,6 +5,155 @@
 #include "ebpf.h"
 #include "ebpf_io_latency.h"
 
+static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startIO", "write", "read" };
+static char *latency_counter_id_names[NETDATA_LATENCY_COUNTER] = { "block_rq_issue", "block_rq_complete_write",
+                                                                   "block_rq_complete_read" };
+
+
+static ebpf_data_t io_latency_data;
+
+static netdata_syscall_stat_t *latency_counter_aggregated_data = NULL;
+static netdata_publish_syscall_t *latency_counter_publish_aggregated = NULL;
+
+static avl_tree_lock disk_tree;
+netdata_latency_disks_t *disk_list = NULL;
+
+static struct bpf_link **probe_links = NULL;
+static struct bpf_object *objects = NULL;
+
+static int *map_fd = NULL;
+
+static int read_thread_closed = 1;
+static netdata_idx_t *latency_hash_values = NULL;
+
+/*****************************************************************
+ *
+ *  FUNCTIONS TO PUBLISH CHARTS
+ *
+ *****************************************************************/
+
+/**
+ * Read global counter
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_global_table()
+{
+    uint64_t idx;
+    netdata_idx_t *val = latency_hash_values;
+    int fd = map_fd[NETDATA_IO_LATENCY_GLOBAL_STATS];
+
+    netdata_publish_syscall_t *lc ;
+    for (idx = 0, lc = latency_counter_publish_aggregated; lc; idx++, lc = lc->next) {
+        uint64_t total = 0;
+        if (!bpf_map_lookup_elem(fd, &idx, val)) {
+            int i;
+            int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+            for (i = 0; i < end; i++)
+                total += val[i];
+        }
+
+        lc->ncall = (long long)total;
+    }
+}
+
+/**
+ * Socket read hash
+ *
+ * This is the thread callback.
+ * This thread is necessary, because we cannot freeze the whole plugin to read the data on very busy socket.
+ *
+ * @param ptr It is a NULL value for this thread.
+ *
+ * @return It always returns NULL.
+ */
+void *ebpf_latency_read_hash(void *ptr)
+{
+    heartbeat_t hb;
+    UNUSED(ptr);
+
+    read_thread_closed = 0;
+    heartbeat_init(&hb);
+    usec_t step = NETDATA_LATENCY_READ_SLEEP_MS;
+    while (!close_ebpf_plugin) {
+        usec_t dt = heartbeat_next(&hb, step);
+        (void)dt;
+
+        read_global_table();
+    }
+
+    read_thread_closed = 1;
+    return NULL;
+}
+
+struct netdata_static_thread io_latency_threads = {"IO LATENCY KERNEL",
+                                                NULL, NULL, 1, NULL,
+                                                NULL, ebpf_latency_read_hash };
+
+/**
+ * Send data to Netdata calling auxiliar functions.
+ *
+ * @param em the structure with thread information
+ */
+static void ebpf_latency_send_global_data()
+{
+    write_count_chart(NETDATA_LATENCY_IO_COUNT, NETDATA_EBPF_FAMILY,
+                      latency_counter_publish_aggregated, NETDATA_LATENCY_COUNTER);
+
+    // hard disk latency is created on the fly, so we dispatch any possbile chart creation
+    fflush(stdout);
+}
+
+
+/**
+* Main loop for this collector.
+*/
+static void latency_collector(ebpf_module_t *em)
+{
+    io_latency_threads.thread = mallocz(sizeof(netdata_thread_t));
+
+    netdata_thread_create(
+        io_latency_threads.thread, io_latency_threads.name, NETDATA_THREAD_OPTION_JOINABLE, ebpf_latency_read_hash, em);
+
+    while (!close_ebpf_plugin) {
+        pthread_mutex_lock(&collect_data_mutex);
+        pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        pthread_mutex_lock(&lock);
+
+        ebpf_latency_send_global_data();
+
+        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&collect_data_mutex);
+    }
+}
+
+/*****************************************************************
+ *
+ *  FUNCTIONS TO MAKE CHARTS
+ *
+ *****************************************************************/
+
+/**
+ * Create global charts
+ *
+ * Call ebpf_create_chart to create the charts for the collector.
+ */
+static inline void ebpf_create_global_charts()
+{
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_IO_COUNT,
+                      "Calls to internal function that writes data to disk.", EBPF_COMMON_DIMENSION_CALL,
+                      NETDATA_LATENCY_BLOCK_IO, 21101, ebpf_create_global_dimension,
+                      latency_counter_publish_aggregated, NETDATA_LATENCY_COUNTER);
+}
+
+
+/*****************************************************************
+ *
+ *  FUNCTIONS TO CLOSE THE THREAD
+ *
+ *****************************************************************/
+
 /**
  * Clean up the main thread.
  *
@@ -15,6 +164,197 @@ static void ebpf_latency_cleanup(void *ptr)
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     if (!em->enabled)
         return;
+
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+    uint32_t tick = 2*USEC_PER_MS;
+    while (!read_thread_closed) {
+        usec_t dt = heartbeat_next(&hb, tick);
+        UNUSED(dt);
+    }
+
+    freez(latency_counter_aggregated_data);
+    ebpf_cleanup_publish_syscall(latency_counter_publish_aggregated);
+    freez(latency_counter_publish_aggregated);
+
+    freez(io_latency_data.map_fd);
+    freez(io_latency_threads.thread);
+
+    freez(latency_hash_values);
+
+    struct bpf_program *prog;
+    size_t i = 0 ;
+    bpf_object__for_each_program(prog, objects) {
+        bpf_link__destroy(probe_links[i]);
+        i++;
+    }
+    bpf_object__close(objects);
+}
+
+/*****************************************************************
+ *
+ *  EBPF START THREAD
+ *
+ *****************************************************************/
+
+/**
+* Set local function pointers, this function will never be compiled with static libraries
+*/
+static inline void set_local_pointers(int *algorithms)
+{
+    map_fd = io_latency_data.map_fd;
+
+    int i;
+    for (i = 0; i < NETDATA_LATENCY_HIST_BINS; i++) {
+        algorithms[i] = NETDATA_EBPF_INCREMENTAL_IDX;
+    }
+}
+
+/**
+ * Allocate vectors used with this thread.
+ *
+ * We are not testing the return, because callocz does this and shutdown the software
+ * case it was not possible to allocate.
+ *
+ * @param length is the length for the vectors used inside the collector.
+ */
+static void ebpf_latency_allocate_global_vectors(size_t length)
+{
+    latency_counter_aggregated_data = callocz(length, sizeof(netdata_syscall_stat_t));
+    latency_counter_publish_aggregated = callocz(length, sizeof(netdata_publish_syscall_t));
+
+    latency_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
+}
+
+/**
+ * COmpare Major minor
+ *
+ * Compare either major values or minor values of hard disk.
+ *
+ * @param first
+ * @param second
+ * @return
+ */
+static inline int compare_major_minor(uint32_t first, uint32_t second) {
+    if (first == second)
+        return 0;
+    if (first > second )
+        return 1;
+
+    return -1;
+}
+
+/**
+ * Compare disks
+ *
+ * Compare major and minor values to add disks to tree.
+ *
+ * @param a pointer to netdata_latency_disks
+ * @param b pointer to netdata_latency_disks
+ *
+ * @return It returns 0 case the values are equal, 1 case a is bigger than b and -1 case a is smaller than b.
+*/
+static int compare_disks(void *a, void *b)
+{
+    netdata_latency_disks_t *ptr1 = a;
+    netdata_latency_disks_t *ptr2 = b;
+
+    int major, minor;
+
+    major = compare_major_minor(ptr1->major, ptr2->major);
+    minor = compare_major_minor(ptr1->minor, ptr2->minor);
+
+    if (major)
+        return major;
+    if (minor)
+        return minor;
+
+    return 0;
+}
+
+/**
+ * Update listen table
+ *
+ * Update link list when it is necessary.
+ *
+ * @param name the disk name
+ */
+static void update_disk_table(char *name, int major, int minor)
+{
+    netdata_latency_disks_t *w;
+    netdata_latency_disks_t *store = disk_list;
+    if (likely(disk_list)) {
+        netdata_latency_disks_t *move = disk_list;
+        while (move) {
+            if (!strcmp(name, move->family))
+                return;
+
+            store = move;
+            move = move->next;
+        }
+
+        w = callocz(1, sizeof(netdata_latency_disks_t));
+        strcpy(w->family, name);
+        w->major = major;
+        w->minor = minor;
+        store->next = w;
+    } else {
+        disk_list = callocz(1, sizeof(netdata_latency_disks_t));
+        strcpy(disk_list->family, name);
+        disk_list->major = major;
+        disk_list->minor = minor;
+
+        w = disk_list;
+    }
+
+    // We are always inserting as new, because there is not repeated values inside /proc/partitions
+    netdata_latency_disks_t *check;
+    check = (netdata_latency_disks_t *) avl_insert_lock(&disk_tree, (avl *)w);
+    if (check != w)
+        error("Internal error, cannot insert the AVL tree.");
+
+#ifdef NETDATA_INTERNAL_CHECKS
+    info("The Latency is monitoring the hard disk %s (%d, %d)", name, major, minor);
+#endif
+}
+
+
+/**
+ *  Read Local Ports
+ *
+ *  Parse /proc/partitions to get block disks used to measure latency.
+ *
+ *  @return It returns 0 on success and -1 otherwise
+ */
+static int read_local_disks()
+{
+    procfile *ff = procfile_open(NETDATA_LATENCY_PROC_PARTITIONS, " \t:", PROCFILE_FLAG_DEFAULT);
+    if (!ff)
+        return -1;
+
+    ff = procfile_readall(ff);
+    if (!ff)
+        return -1;
+
+    size_t lines = procfile_lines(ff), l;
+    for(l = 2; l < lines ;l++) {
+        size_t words = procfile_linewords(ff, l);
+        // This is header or end of file
+        if (unlikely(words < 4))
+            continue;
+
+        int major = (int)strtol(procfile_lineword(ff, l, 0), NULL, 10);
+        // The main goal of this thread is to measure block devices, cosindering this any block device with major number
+        // smaller than 7 according /proc/devices is not "important".
+        if (major > 7) {
+            int minor = (int)strtol(procfile_lineword(ff, l, 1), NULL, 10);
+            update_disk_table(procfile_lineword(ff, l, 3), major, minor);
+        }
+    }
+
+    procfile_close(ff);
+
+    return 0;
 }
 
 /*****************************************************************
@@ -36,6 +376,47 @@ void *ebpf_io_latency_thread(void *ptr)
 {
     netdata_thread_cleanup_push(ebpf_latency_cleanup, ptr);
 
+    int algorithms[NETDATA_LATENCY_HIST_BINS];
+
+    ebpf_module_t *em = (ebpf_module_t *)ptr;
+    fill_ebpf_data(&io_latency_data);
+
+    if (!em->enabled)
+        goto end_io_latency;
+
+    avl_init_lock(&disk_tree, compare_disks);
+
+    if (read_local_disks()) {
+        em->enabled = CONFIG_BOOLEAN_NO;
+        goto end_io_latency;
+    }
+
+    pthread_mutex_lock(&lock);
+
+    ebpf_latency_allocate_global_vectors(NETDATA_LATENCY_COUNTER);
+    if (ebpf_update_kernel(&io_latency_data)) {
+        pthread_mutex_unlock(&lock);
+        goto end_io_latency;
+    }
+
+    set_local_pointers(algorithms);
+    probe_links = ebpf_load_program(ebpf_plugin_dir, em, kernel_string, &objects, io_latency_data.map_fd);
+    if (!probe_links) {
+        pthread_mutex_unlock(&lock);
+        goto end_io_latency;
+    }
+
+    ebpf_global_labels(latency_counter_aggregated_data, latency_counter_publish_aggregated,
+                               latency_counter_dimension_name, latency_counter_id_names,
+                               algorithms, NETDATA_LATENCY_COUNTER);
+
+    ebpf_create_global_charts();
+
+    pthread_mutex_unlock(&lock);
+
+    latency_collector(em);
+
+end_io_latency:
     netdata_thread_cleanup_pop(1);
     return NULL;
 }

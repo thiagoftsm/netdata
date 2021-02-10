@@ -1977,7 +1977,7 @@ int main(int argc, char **argv)
         {"EBPF PROCESS", NULL, NULL, 1,
           NULL, NULL, ebpf_modules[EBPF_MODULE_PROCESS_IDX].start_routine},
         {"EBPF SOCKET" , NULL, NULL, 1,
-         NULL, NULL, ebpf_modules[EBPF_MODULE_CACHESTAT_IDX].start_routine},
+         NULL, NULL, ebpf_modules[EBPF_MODULE_SOCKET_IDX].start_routine},
         {"EBPF CACHESTAT" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_CACHESTAT_IDX].start_routine},
         {"EBPF IOL" , NULL, NULL, 1,
