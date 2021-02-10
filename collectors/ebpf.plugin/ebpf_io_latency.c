@@ -15,6 +15,10 @@ static ebpf_data_t io_latency_data;
 static netdata_syscall_stat_t *latency_counter_aggregated_data = NULL;
 static netdata_publish_syscall_t *latency_counter_publish_aggregated = NULL;
 
+static char *latency_hist_dimensions[NETDATA_LATENCY_HIST_BINS] = { };
+static netdata_syscall_stat_t *latency_hist_aggregated_data = NULL;
+static netdata_publish_syscall_t *latency_hist_publish_aggregated = NULL;
+
 static avl_tree_lock disk_tree;
 netdata_latency_disks_t *disk_list = NULL;
 
@@ -31,6 +35,49 @@ static netdata_idx_t *latency_hash_values = NULL;
  *  FUNCTIONS TO PUBLISH CHARTS
  *
  *****************************************************************/
+
+/**
+ * Read hard disk table
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_hard_disk_table()
+{
+    netdata_idx_t *values = latency_hash_values;
+    int fd = map_fd[NETDATA_IO_LATENCY_READ_HISTOGRAM];
+    block_key_t key = {};
+    block_key_t next_key;
+    netdata_latency_disks_t *ret = NULL;
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        int test = bpf_map_lookup_elem(fd, &key, values);
+        if (test < 0) {
+            key = next_key;
+            continue;
+        }
+
+        netdata_latency_disks_t find;
+        find.dev = key.dev;
+
+        if (ret) {
+            if (find.dev != ret->dev)
+                ret = (netdata_latency_disks_t *) avl_search_lock(&disk_tree, (avl *)&find);
+        } else
+            ret = (netdata_latency_disks_t *) avl_search_lock(&disk_tree, (avl *)&find);
+
+        if (ret) {
+            uint64_t total = 0;
+            int i;
+            int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+            for (i = 0; i < end; i++)
+                total += values[i];
+
+            ret->histogram[key.bin] = total;
+            ret->flags |= NETDATA_DISK_PLOT;
+        }
+
+        key = next_key;
+    }
+}
 
 /**
  * Read global counter
@@ -80,6 +127,7 @@ void *ebpf_latency_read_hash(void *ptr)
         (void)dt;
 
         read_global_table();
+        read_hard_disk_table();
     }
 
     read_thread_closed = 1;
@@ -104,6 +152,71 @@ static void ebpf_latency_send_global_data()
     fflush(stdout);
 }
 
+/**
+ * Create Hard Disk charts
+ *
+ * @param w the structure with necessary information to create the chart
+ *
+ * Make Hard disk charts and fill chart name
+ */
+static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
+{
+    char name[128];
+    int order = 2021;
+    char *family = w->family;
+    snprintfz(name, 127, "latency_%s", family);
+    w->chart = strdupz(name);
+
+    ebpf_create_chart(
+        name, family,
+        "Interval between calls for function that starts IO and the function that ends the IO."
+        " Netdata is attaching to tracepoints.",
+        EBPF_COMMON_DIMENSION_CALL, family, order, ebpf_create_global_dimension, latency_hist_publish_aggregated,
+        NETDATA_LATENCY_HIST_BINS);
+    w->flags |= NETDATA_DISK_CREATED;
+}
+
+/**
+ * Call the necessary functions to create a name.
+ *
+ *  @param family the name family
+ *  @param name the name name
+ *  @param histogram the histogram values
+ *
+ * @return It returns a variable tha maps the charts that did not have zero values.
+ */
+void write_histogram_chart(char *family, char *name, netdata_idx_t *histogram, uint32_t end)
+{
+    write_begin_chart(family, name);
+    uint32_t i;
+    for (i = 0 ; i < end; i++) {
+        write_chart_dimension(latency_hist_dimensions[i], histogram[i]);
+    }
+
+    write_end_chart();
+}
+
+/**
+ * Send Hard disk data
+ *
+ * Send hard disk information to Netdata.
+ */
+static void ebpf_latency_send_hd_data()
+{
+    netdata_latency_disks_t *ld = disk_list;
+    while (ld) {
+        uint32_t flags = ld->flags;
+        if (flags & NETDATA_DISK_PLOT)
+        {
+            if (!(flags & NETDATA_DISK_CREATED))
+                ebpf_create_hd_charts(ld);
+
+            write_histogram_chart(ld->chart, ld->family, ld->histogram, NETDATA_LATENCY_HIST_BINS);
+        }
+
+        ld = ld->next;
+    }
+}
 
 /**
 * Main loop for this collector.
@@ -122,6 +235,7 @@ static void latency_collector(ebpf_module_t *em)
         pthread_mutex_lock(&lock);
 
         ebpf_latency_send_global_data();
+        ebpf_latency_send_hd_data();
 
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
@@ -177,6 +291,10 @@ static void ebpf_latency_cleanup(void *ptr)
     ebpf_cleanup_publish_syscall(latency_counter_publish_aggregated);
     freez(latency_counter_publish_aggregated);
 
+    freez(latency_hist_aggregated_data);
+    ebpf_cleanup_publish_syscall(latency_hist_publish_aggregated);
+    freez(latency_hist_publish_aggregated);
+
     freez(io_latency_data.map_fd);
     freez(io_latency_threads.thread);
 
@@ -211,6 +329,53 @@ static inline void set_local_pointers(int *algorithms)
 }
 
 /**
+ * Fill Histogram dimension
+ *
+ * Fill the histogram dimension with the specified ranges
+ */
+static void ebpf_latency_fill_histogram_dimension()
+{
+    char *dimensions[] = { "us", "ms", "s"};
+    int dim = 0;
+    uint32_t level = 1000;
+    uint32_t divisor = 1;
+    uint32_t now = 1, previous = 0;
+    uint32_t selector;
+    char range[64];
+    for (selector = 0; selector < NETDATA_LATENCY_HIST_BINS; selector++) {
+        snprintf(range, 63, "%u->%u%s", previous/divisor, now/divisor, dimensions[dim]);
+        //snprintf(range, 63, "%u->%u", previous/divisor, now/divisor);
+        latency_hist_dimensions[selector] = strdupz(range);
+        previous = (now < 2)?now:now + 1;
+        now <<= 1;
+
+        if (previous > level) {
+            divisor *= 1000;
+            level *= 1000;
+
+            if (dim != 2)
+                dim++;
+        }
+    }
+}
+
+/**
+ *  Allocate Histogram
+ *
+ *  Allocate histograms that measure the disk latencies
+ */
+static void ebpf_latency_allocate_io_histogram() {
+    netdata_latency_disks_t *move = disk_list;
+    while (move) {
+        move->histogram = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
+
+        move = move->next;
+    }
+
+    ebpf_latency_fill_histogram_dimension();
+}
+
+/**
  * Allocate vectors used with this thread.
  *
  * We are not testing the return, because callocz does this and shutdown the software
@@ -223,25 +388,12 @@ static void ebpf_latency_allocate_global_vectors(size_t length)
     latency_counter_aggregated_data = callocz(length, sizeof(netdata_syscall_stat_t));
     latency_counter_publish_aggregated = callocz(length, sizeof(netdata_publish_syscall_t));
 
+    latency_hist_aggregated_data = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(netdata_syscall_stat_t));
+    latency_hist_publish_aggregated = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(netdata_publish_syscall_t));
+
+    ebpf_latency_allocate_io_histogram();
+
     latency_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
-}
-
-/**
- * COmpare Major minor
- *
- * Compare either major values or minor values of hard disk.
- *
- * @param first
- * @param second
- * @return
- */
-static inline int compare_major_minor(uint32_t first, uint32_t second) {
-    if (first == second)
-        return 0;
-    if (first > second )
-        return 1;
-
-    return -1;
 }
 
 /**
@@ -259,15 +411,10 @@ static int compare_disks(void *a, void *b)
     netdata_latency_disks_t *ptr1 = a;
     netdata_latency_disks_t *ptr2 = b;
 
-    int major, minor;
-
-    major = compare_major_minor(ptr1->major, ptr2->major);
-    minor = compare_major_minor(ptr1->minor, ptr2->minor);
-
-    if (major)
-        return major;
-    if (minor)
-        return minor;
+    if (ptr1->dev > ptr2->dev)
+        return 1;
+    if (ptr1->dev < ptr2->dev)
+        return -1;
 
     return 0;
 }
@@ -297,12 +444,14 @@ static void update_disk_table(char *name, int major, int minor)
         strcpy(w->family, name);
         w->major = major;
         w->minor = minor;
+        w->dev = netdata_new_encode_dev(major, minor);
         store->next = w;
     } else {
         disk_list = callocz(1, sizeof(netdata_latency_disks_t));
         strcpy(disk_list->family, name);
         disk_list->major = major;
         disk_list->minor = minor;
+        disk_list->dev = netdata_new_encode_dev(major, minor);
 
         w = disk_list;
     }
@@ -314,7 +463,7 @@ static void update_disk_table(char *name, int major, int minor)
         error("Internal error, cannot insert the AVL tree.");
 
 #ifdef NETDATA_INTERNAL_CHECKS
-    info("The Latency is monitoring the hard disk %s (%d, %d)", name, major, minor);
+    info("The Latency is monitoring the hard disk %s (Major = %d, Minor = %d, Device = %u)", name, major, minor,w->dev);
 #endif
 }
 
@@ -409,6 +558,10 @@ void *ebpf_io_latency_thread(void *ptr)
     ebpf_global_labels(latency_counter_aggregated_data, latency_counter_publish_aggregated,
                                latency_counter_dimension_name, latency_counter_id_names,
                                algorithms, NETDATA_LATENCY_COUNTER);
+
+    ebpf_global_labels(latency_hist_aggregated_data, latency_hist_publish_aggregated,
+                       latency_hist_dimensions, latency_hist_dimensions,
+                       algorithms, NETDATA_LATENCY_HIST_BINS);
 
     ebpf_create_global_charts();
 

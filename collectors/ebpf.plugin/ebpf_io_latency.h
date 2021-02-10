@@ -28,6 +28,11 @@ enum io_latency_tables {
     NETDATA_IO_LATENCY_GLOBAL_STATS
 };
 
+enum netdata_latency_disks_flags {
+    NETDATA_DISK_CREATED = 1,
+    NETDATA_DISK_PLOT = 2,
+};
+
 /*
  * The definition (DISK_NAME_LEN) has been a stable value since Kernel 3.0,
  * I decided to bring it as internal definition, to avoid include linux/genhd.h.
@@ -36,6 +41,7 @@ enum io_latency_tables {
 typedef struct netdata_latency_disks {
     // Search
     avl avl;
+    uint32_t dev;
     uint32_t major;
     uint32_t minor;
 
@@ -46,6 +52,32 @@ typedef struct netdata_latency_disks {
     uint32_t flags;
     struct netdata_latency_disks *next;
 } netdata_latency_disks_t;
+
+typedef struct block_key {
+    uint32_t bin;
+    uint32_t dev;
+} block_key_t;
+
+// Decode function extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L46
+static inline uint32_t netdata_new_encode_dev(uint32_t major, uint32_t minor) {
+    return (minor & 0xff) | (major << 8) | ((minor & ~0xff) << 12);;
+}
+/*
+static inline uint32_t netdata_decode_major_dev(uint32_t dev)
+{
+    return ((dev & 0xfff00) >> 8);
+}
+
+static inline uint32_t netdata_decode_minor_dev(uint32_t dev)
+{
+    return ((dev & 0xff) | ((dev >> 12) & 0xfff00));
+}
+*/
+
+// MACROS extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L7-L12
+#define NETDATA_MINORBITS	20
+#define NETDATA_MKDEV(ma,mi)	(((ma) << NETDATA_MINORBITS) | (mi))
+
 
 extern void *ebpf_io_latency_thread(void *ptr);
 
