@@ -3353,6 +3353,10 @@ netdataDashboard.context = {
         info: 'Difference between the number of process created and the number of threads created per period(<code>process</code> dimension), it also shows the number of possible zombie process running on system.'
     },
 
+    'ebpf.iops': {
+        title : 'IOPs',
+        info: 'Difference between the number of process created and the number of threads created per period(<code>process</code> dimension), it also shows the number of possible zombie process running on system.'
+    },
     // ------------------------------------------------------------------------
     // ACLK Internal Stats
     'netdata.aclk_status': {

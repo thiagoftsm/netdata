@@ -190,6 +190,8 @@ If you want to _disable_ the integration with `apps.plugin` along with the above
 
 The eBPF collector enables and runs the following eBPF programs by default:
 
+-   `io latency`: This eBPF program creates charts to measure IOPs and it also adds latency information for each disk
+    installed inside the host.
 -   `process`: This eBPF program creates charts that show information about process creation, VFS IO, and files removed.
     When in `return` mode, it also creates charts showing errors when these operations are executed.
 -   `network viewer`: This eBPF program creates charts with information about `TCP` and `UDP` functions, including the

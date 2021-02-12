@@ -11,7 +11,7 @@
 #define NETDATA_LATENCY_HIST_BINS 32
 
 // Global chart name
-#define NETDATA_LATENCY_IO_COUNT "latency_io_counter"
+#define NETDATA_LATENCY_IO_COUNT "iops"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
 enum io_latency_counters {
