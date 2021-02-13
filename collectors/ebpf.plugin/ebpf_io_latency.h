@@ -66,22 +66,6 @@ typedef struct block_key {
 static inline uint32_t netdata_new_encode_dev(uint32_t major, uint32_t minor) {
     return (minor & 0xff) | (major << 8) | ((minor & ~0xff) << 12);;
 }
-/*
-static inline uint32_t netdata_decode_major_dev(uint32_t dev)
-{
-    return ((dev & 0xfff00) >> 8);
-}
-
-static inline uint32_t netdata_decode_minor_dev(uint32_t dev)
-{
-    return ((dev & 0xff) | ((dev >> 12) & 0xfff00));
-}
-*/
-
-// MACROS extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L7-L12
-#define NETDATA_MINORBITS	20
-#define NETDATA_MKDEV(ma,mi)	(((ma) << NETDATA_MINORBITS) | (mi))
-
 
 extern void *ebpf_io_latency_thread(void *ptr);
 

@@ -404,8 +404,9 @@ void ebpf_create_global_dimension(void *ptr, int end)
 /**
  *  Call write_chart_cmd to create the charts
  *
- * @param type   the chart type
- * @param id     the chart id
+ * @param type   Chart type
+ * @param id     Chart id
+ * @param title  Chart title
  * @param units   the axis label
  * @param family the group name used to attach the chart on dashaboard
  * @param order  the order number of the specified chart

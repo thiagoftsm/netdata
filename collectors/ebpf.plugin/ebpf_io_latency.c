@@ -32,9 +32,133 @@ static netdata_idx_t *latency_hash_values = NULL;
 
 /*****************************************************************
  *
+ *  FUNCTIONS TO MANIPULATE HARD DISKS
+ *
+ *****************************************************************/
+
+/**
+ * Compare disks
+ *
+ * Compare major and minor values to add disks to tree.
+ *
+ * @param a pointer to netdata_latency_disks
+ * @param b pointer to netdata_latency_disks
+ *
+ * @return It returns 0 case the values are equal, 1 case a is bigger than b and -1 case a is smaller than b.
+*/
+static int compare_disks(void *a, void *b)
+{
+    netdata_latency_disks_t *ptr1 = a;
+    netdata_latency_disks_t *ptr2 = b;
+
+    if (ptr1->dev > ptr2->dev)
+        return 1;
+    if (ptr1->dev < ptr2->dev)
+        return -1;
+
+    return 0;
+}
+
+/**
+ * Update listen table
+ *
+ * Update link list when it is necessary.
+ *
+ * @param name the disk name
+ */
+static void update_disk_table(char *name, int major, int minor)
+{
+    netdata_latency_disks_t find;
+    netdata_latency_disks_t *w;
+    netdata_latency_disks_t *store = disk_list;
+
+    find.dev = netdata_new_encode_dev(major, minor);
+    netdata_latency_disks_t *ret = (netdata_latency_disks_t *) avl_search_lock(&disk_tree, (avl *)&find);
+    if (ret) // Disk is already present
+        return;
+
+    if (likely(disk_list)) {
+        netdata_latency_disks_t *move = disk_list;
+        while (move) {
+            if (!strcmp(name, move->family))
+                return;
+
+            store = move;
+            move = move->next;
+        }
+
+        w = callocz(1, sizeof(netdata_latency_disks_t));
+        strcpy(w->family, name);
+        w->major = major;
+        w->minor = minor;
+        w->dev = netdata_new_encode_dev(major, minor);
+        store->next = w;
+    } else {
+        disk_list = callocz(1, sizeof(netdata_latency_disks_t));
+        strcpy(disk_list->family, name);
+        disk_list->major = major;
+        disk_list->minor = minor;
+        disk_list->dev = netdata_new_encode_dev(major, minor);
+
+        w = disk_list;
+    }
+
+    netdata_latency_disks_t *check;
+    check = (netdata_latency_disks_t *) avl_insert_lock(&disk_tree, (avl *)w);
+    if (check != w)
+        error("Internal error, cannot insert the AVL tree.");
+
+#ifdef NETDATA_INTERNAL_CHECKS
+    info("The Latency is monitoring the hard disk %s (Major = %d, Minor = %d, Device = %u)", name, major, minor,w->dev);
+#endif
+}
+
+
+/**
+ *  Read Local Ports
+ *
+ *  Parse /proc/partitions to get block disks used to measure latency.
+ *
+ *  @return It returns 0 on success and -1 otherwise
+ */
+static int read_local_disks()
+{
+    procfile *ff = procfile_open(NETDATA_LATENCY_PROC_PARTITIONS, " \t:", PROCFILE_FLAG_DEFAULT);
+    if (!ff)
+        return -1;
+
+    ff = procfile_readall(ff);
+    if (!ff)
+        return -1;
+
+    size_t lines = procfile_lines(ff), l;
+    for(l = 2; l < lines ;l++) {
+        size_t words = procfile_linewords(ff, l);
+        // This is header or end of file
+        if (unlikely(words < 4))
+            continue;
+
+        int major = (int)strtol(procfile_lineword(ff, l, 0), NULL, 10);
+        // The main goal of this thread is to measure block devices, so any block device with major number
+        // smaller than 7 according /proc/devices is not "important".
+        if (major > 7) {
+            int minor = (int)strtol(procfile_lineword(ff, l, 1), NULL, 10);
+            update_disk_table(procfile_lineword(ff, l, 3), major, minor);
+        }
+    }
+
+    procfile_close(ff);
+
+    return 0;
+}
+
+
+/*****************************************************************
+ *
  *  FUNCTIONS TO PUBLISH CHARTS
  *
  *****************************************************************/
+
 
 /**
  * Read hard disk table
@@ -64,16 +188,29 @@ static void read_hard_disk_table()
         } else
             ret = (netdata_latency_disks_t *) avl_search_lock(&disk_tree, (avl *)&find);
 
-        if (ret) {
-            uint64_t total = 0;
-            int i;
-            int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
-            for (i = 0; i < end; i++)
-                total += values[i];
+        // Disk was inserted after we parse /proc/partitions
+        if (!ret) {
+            if (read_local_disks()) {
+                key = next_key;
+                continue;
+            }
 
-            ret->histogram[key.bin] = total;
-            ret->flags |= NETDATA_DISK_PLOT;
+            ret = (netdata_latency_disks_t *) avl_search_lock(&disk_tree, (avl *)&find);
+            if (!ret) {
+                // We should never reach this point, but we are adding it to keep code safe
+                key = next_key;
+                continue;
+            }
         }
+
+        uint64_t total = 0;
+        int i;
+        int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+        for (i = 0; i < end; i++)
+            total += values[i];
+
+        ret->histogram[key.bin] = total;
+        ret->flags |= NETDATA_DISK_PLOT;
 
         key = next_key;
     }
@@ -161,33 +298,6 @@ static void ebpf_latency_send_global_data()
 }
 
 /**
- * Create Hard Disk charts
- *
- * @param w the structure with necessary information to create the chart
- *
- * Make Hard disk charts and fill chart name
- */
-static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
-{
-    char name[128];
-    int order = 2021;
-    char *family = w->family;
-    snprintfz(name, 127, "latency_%s", family);
-    w->chart = strdupz(name);
-    char *title = {
-        "Latency is the time it takes for the I/O request to be completed. "
-        "The vertical axis display number of IO events that"
-        "happened, while the horizontal axis shows the interval of time."
-    };
-
-    ebpf_create_chart(
-        name, family, title,
-        EBPF_COMMON_DIMENSION_CALL, family, order, ebpf_create_global_dimension, latency_hist_publish_aggregated,
-        NETDATA_LATENCY_HIST_BINS);
-    w->flags |= NETDATA_DISK_CREATED;
-}
-
-/**
  * Call the necessary functions to create a name.
  *
  *  @param family the name family
@@ -205,6 +315,34 @@ void write_histogram_chart(char *family, char *name, netdata_idx_t *histogram, u
     }
 
     write_end_chart();
+}
+
+/**
+ * Create Hard Disk charts
+ *
+ * @param w the structure with necessary information to create the chart
+ *
+ * Make Hard disk charts and fill chart name
+ */
+static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
+{
+    char name[128];
+    static int order = 2021;
+    char *family = w->family;
+    snprintfz(name, 127, "latency_%s", family);
+    w->chart = strdupz(name);
+    char *title = {
+        "Latency is the time it takes for the I/O request to be completed. "
+        "The vertical axis display number of IO events that"
+        "happened, while the horizontal axis shows the interval of time."
+    };
+
+    ebpf_create_chart(
+        name, family, title,
+        EBPF_COMMON_DIMENSION_CALL, family, order, ebpf_create_global_dimension, latency_hist_publish_aggregated,
+        NETDATA_LATENCY_HIST_BINS);
+    w->flags |= NETDATA_DISK_CREATED;
+    order++;
 }
 
 /**
@@ -413,116 +551,6 @@ static void ebpf_latency_allocate_global_vectors(size_t length)
     ebpf_latency_allocate_io_histogram();
 
     latency_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
-}
-
-/**
- * Compare disks
- *
- * Compare major and minor values to add disks to tree.
- *
- * @param a pointer to netdata_latency_disks
- * @param b pointer to netdata_latency_disks
- *
- * @return It returns 0 case the values are equal, 1 case a is bigger than b and -1 case a is smaller than b.
-*/
-static int compare_disks(void *a, void *b)
-{
-    netdata_latency_disks_t *ptr1 = a;
-    netdata_latency_disks_t *ptr2 = b;
-
-    if (ptr1->dev > ptr2->dev)
-        return 1;
-    if (ptr1->dev < ptr2->dev)
-        return -1;
-
-    return 0;
-}
-
-/**
- * Update listen table
- *
- * Update link list when it is necessary.
- *
- * @param name the disk name
- */
-static void update_disk_table(char *name, int major, int minor)
-{
-    netdata_latency_disks_t *w;
-    netdata_latency_disks_t *store = disk_list;
-    if (likely(disk_list)) {
-        netdata_latency_disks_t *move = disk_list;
-        while (move) {
-            if (!strcmp(name, move->family))
-                return;
-
-            store = move;
-            move = move->next;
-        }
-
-        w = callocz(1, sizeof(netdata_latency_disks_t));
-        strcpy(w->family, name);
-        w->major = major;
-        w->minor = minor;
-        w->dev = netdata_new_encode_dev(major, minor);
-        store->next = w;
-    } else {
-        disk_list = callocz(1, sizeof(netdata_latency_disks_t));
-        strcpy(disk_list->family, name);
-        disk_list->major = major;
-        disk_list->minor = minor;
-        disk_list->dev = netdata_new_encode_dev(major, minor);
-
-        w = disk_list;
-    }
-
-    // We are always inserting as new, because there is not repeated values inside /proc/partitions
-    netdata_latency_disks_t *check;
-    check = (netdata_latency_disks_t *) avl_insert_lock(&disk_tree, (avl *)w);
-    if (check != w)
-        error("Internal error, cannot insert the AVL tree.");
-
-#ifdef NETDATA_INTERNAL_CHECKS
-    info("The Latency is monitoring the hard disk %s (Major = %d, Minor = %d, Device = %u)", name, major, minor,w->dev);
-#endif
-}
-
-
-/**
- *  Read Local Ports
- *
- *  Parse /proc/partitions to get block disks used to measure latency.
- *
- *  @return It returns 0 on success and -1 otherwise
- */
-static int read_local_disks()
-{
-    procfile *ff = procfile_open(NETDATA_LATENCY_PROC_PARTITIONS, " \t:", PROCFILE_FLAG_DEFAULT);
-    if (!ff)
-        return -1;
-
-    ff = procfile_readall(ff);
-    if (!ff)
-        return -1;
-
-    size_t lines = procfile_lines(ff), l;
-    for(l = 2; l < lines ;l++) {
-        size_t words = procfile_linewords(ff, l);
-        // This is header or end of file
-        if (unlikely(words < 4))
-            continue;
-
-        int major = (int)strtol(procfile_lineword(ff, l, 0), NULL, 10);
-        // The main goal of this thread is to measure block devices, cosindering this any block device with major number
-        // smaller than 7 according /proc/devices is not "important".
-        if (major > 7) {
-            int minor = (int)strtol(procfile_lineword(ff, l, 1), NULL, 10);
-            update_disk_table(procfile_lineword(ff, l, 3), major, minor);
-        }
-    }
-
-    procfile_close(ff);
-
-    return 0;
 }
 
 /*****************************************************************
