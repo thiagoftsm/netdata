@@ -5,9 +5,9 @@
 #include "ebpf.h"
 #include "ebpf_io_latency.h"
 
-static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startIO", "write", "read" };
-static char *latency_counter_id_names[NETDATA_LATENCY_COUNTER] = { "block_rq_issue", "block_rq_complete_write",
-                                                                   "block_rq_complete_read" };
+static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startIO", "read", "write", "read", "write" };
+static char *latency_counter_id_names[NETDATA_LATENCY_COUNTER] = { "block_rq_issue", "block_rq_complete_read",
+                                                                   "block_rq_complete_write", "read", "write" };
 
 
 static ebpf_data_t io_latency_data;
@@ -98,9 +98,15 @@ static void read_global_table()
             int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
             for (i = 0; i < end; i++)
                 total += val[i];
-        }
 
-        lc->ncall = (long long)total;
+            if (idx <= NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE)
+                lc->ncall = (long long)total;
+            else {
+                lc->ncall = (lc->pcall)?(long long)total - lc->pcall:0;
+                lc->pcall = total;
+            }
+        } else
+            lc->ncall = 0;
     }
 }
 
@@ -145,10 +151,12 @@ struct netdata_static_thread io_latency_threads = {"IO LATENCY KERNEL",
  */
 static void ebpf_latency_send_global_data()
 {
-    write_count_chart(NETDATA_LATENCY_IO_COUNT, NETDATA_EBPF_FAMILY,
-                      latency_counter_publish_aggregated, NETDATA_LATENCY_COUNTER);
+    write_count_chart(NETDATA_LATENCY_IOPS, NETDATA_EBPF_FAMILY,
+                      latency_counter_publish_aggregated, 3);
 
-    // hard disk latency is created on the fly, so we dispatch any possbile chart creation
+    write_count_chart(NETDATA_LATENCY_BYTES, NETDATA_EBPF_FAMILY,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
+
     fflush(stdout);
 }
 
@@ -262,9 +270,14 @@ static inline void ebpf_create_global_charts()
         "Input and output operations per second. The dimension <code>startIO</code> counts the number of events that "
         "block the hard disks, while <code>write</code> and <code>read</code> describes the action."
     };
-    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_IO_COUNT, iops_title,
+
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_IOPS, iops_title,
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO, 21101, ebpf_create_global_dimension,
-                      latency_counter_publish_aggregated, NETDATA_LATENCY_COUNTER);
+                      latency_counter_publish_aggregated, 3);
+
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_BYTES, iops_title,
+                      EBPF_COMMON_DIMENSION_BYTES, NETDATA_LATENCY_BLOCK_IO, 21102, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
 }
 
 
@@ -561,10 +574,12 @@ void *ebpf_io_latency_thread(void *ptr)
         goto end_io_latency;
     }
 
+    algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_ABSOLUTE_IDX;
     ebpf_global_labels(latency_counter_aggregated_data, latency_counter_publish_aggregated,
                                latency_counter_dimension_name, latency_counter_id_names,
                                algorithms, NETDATA_LATENCY_COUNTER);
 
+    algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_INCREMENTAL_IDX;
     ebpf_global_labels(latency_hist_aggregated_data, latency_hist_publish_aggregated,
                        latency_hist_dimensions, latency_hist_dimensions,
                        algorithms, NETDATA_LATENCY_HIST_BINS);

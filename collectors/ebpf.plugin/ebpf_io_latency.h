@@ -11,13 +11,17 @@
 #define NETDATA_LATENCY_HIST_BINS 32
 
 // Global chart name
-#define NETDATA_LATENCY_IO_COUNT "iops"
+#define NETDATA_LATENCY_IOPS "iops"
+#define NETDATA_LATENCY_BYTES "iops_bytes"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
+// This enum cannot have its order changed, this will affect the chart results.
 enum io_latency_counters {
     NETDATA_KEY_CALLS_BLOCK_RQ_ISSUE,
-    NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE,
     NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_READ,
+    NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE,
+    NETDATA_KEY_BYTES_READ,
+    NETDATA_KEY_BYTES_WRITE,
 
     NETDATA_LATENCY_COUNTER
 };
