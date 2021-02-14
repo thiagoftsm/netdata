@@ -27,8 +27,10 @@ enum io_latency_counters {
 };
 
 enum io_latency_tables {
-    NETDATA_IO_LATENCY_READ_HISTOGRAM,
-    NETDATA_IO_LATENCY_WRITE_HISTOGRAM,
+    NETDATA_IO_LATENCY_READ_BYTES_HISTOGRAM,
+    NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM,
+    NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM,
+    NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM,
     NETDATA_IO_LATENCY_GLOBAL_STATS
 };
 
@@ -52,7 +54,10 @@ typedef struct netdata_latency_disks {
     // Print information
     char family[NETDATA_DISK_NAME_LEN];
     char *chart;
-    uint64_t *histogram;
+    uint64_t *histogram_read_calls;
+    uint64_t *histogram_read_bytes;
+    uint64_t *histogram_write_calls;
+    uint64_t *histogram_write_bytes;
     uint32_t flags;
     struct netdata_latency_disks *next;
 } netdata_latency_disks_t;
