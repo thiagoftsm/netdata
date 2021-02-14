@@ -1371,6 +1371,10 @@ netdataDashboard.context = {
         height: 0.5,
         info: 'The average service time for completed I/O operations. This metric is calculated using the total busy time of the disk and the number of completed operations. If the disk is able to execute multiple parallel operations the reporting average service time will be misleading.'
     },
+    'disk.latency': {
+        height: 0.5,
+        info: 'Latency is the time an event takes for the I/O request to be completed. The vertical axis display number of IO events that happened during a period of time shown on horizontal axis. These charts are enabled when tracepoints block:block_rq_issue and block:block_rq_complete are present.'
+    },
     'disk.avgsz': {
         height: 0.5,
         info: 'The average I/O operation size.'

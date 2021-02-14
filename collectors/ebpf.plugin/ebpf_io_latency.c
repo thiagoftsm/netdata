@@ -388,13 +388,9 @@ static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
     static int order = 2021;
     char *family = w->family;
     w->chart = strdupz("disk_latency");
-    char *iops_title = {
-        "Latency is the time it takes for the I/O request to be completed. "
-        "The vertical axis display number of IO events that"
-        "happened, while the horizontal axis shows the interval of time."
-    };
 
-    ebpf_create_chart(w->chart, family, iops_title, EBPF_COMMON_DIMENSION_CALL, family, order,
+    ebpf_create_chart(w->chart, family, "Disk latency", EBPF_COMMON_DIMENSION_CALL,
+                      family, "disk.latency", order,
                       ebpf_create_global_dimension, latency_hist_publish_aggregated, NETDATA_LATENCY_HIST_BINS);
     w->flags |= NETDATA_DISK_CREATED;
     order++;
@@ -472,12 +468,12 @@ static inline void ebpf_create_global_charts()
 
     ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_IOPS, iops_title,
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
-                      21101, ebpf_create_global_dimension,
+                      "''", 21101, ebpf_create_global_dimension,
                       latency_counter_publish_aggregated, 3);
 
     ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_BYTES, rw_title,
                       EBPF_COMMON_DIMENSION_KILOBYTES, NETDATA_LATENCY_BLOCK_IO,
-                      21102, ebpf_create_global_dimension,
+                      "''", 21102, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
 }
 

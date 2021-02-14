@@ -357,14 +357,16 @@ void write_io_chart(char *chart, char *family, char *dwrite, long long vwrite, c
  * @param charttype the chart type
  * @param order     the chart order
  */
-void ebpf_write_chart_cmd(char *type, char *id, char *title, char *units, char *family, char *charttype, int order)
+void ebpf_write_chart_cmd(char *type, char *id, char *title, char *units, char *family,
+                          char *charttype, char *context, int order)
 {
-    printf("CHART %s.%s '' '%s' '%s' '%s' '' %s %d %d\n",
+    printf("CHART %s.%s '' '%s' '%s' '%s' %s %s %d %d\n",
            type,
            id,
            title,
            units,
            family,
+           context,
            charttype,
            order,
            update_every);
@@ -419,12 +421,13 @@ void ebpf_create_chart(char *type,
                        char *title,
                        char *units,
                        char *family,
+                       char *context,
                        int order,
                        void (*ncd)(void *, int),
                        void *move,
                        int end)
 {
-    ebpf_write_chart_cmd(type, id, title, units, family, "line", order);
+    ebpf_write_chart_cmd(type, id, title, units, family, "line", context, order);
 
     ncd(move, end);
 }
@@ -444,7 +447,7 @@ void ebpf_create_charts_on_apps(char *id, char *title, char *units, char *family
                                 char *algorithm, struct target *root)
 {
     struct target *w;
-    ebpf_write_chart_cmd(NETDATA_APPS_FAMILY, id, title, units, family, "stacked", order);
+    ebpf_write_chart_cmd(NETDATA_APPS_FAMILY, id, title, units, family, "stacked", "''", order);
 
     for (w = root; w; w = w->next) {
         if (unlikely(w->exposed))
