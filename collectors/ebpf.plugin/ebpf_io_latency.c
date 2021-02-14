@@ -213,7 +213,7 @@ static void read_hard_disk_tables(int table)
 
         switch (table) {
             case NETDATA_IO_LATENCY_READ_BYTES_HISTOGRAM: {
-                ret->histogram_read_bytes[key.bin] = total;
+                ret->read_bytes = total;
                 break;
             }
             case NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM: {
@@ -221,7 +221,7 @@ static void read_hard_disk_tables(int table)
                 break;
             }
             case NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM: {
-                ret->histogram_write_bytes[key.bin] = total;
+                ret->written_bytes = total;
                 break;
             }
             case NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM: {
@@ -385,18 +385,16 @@ void write_histogram_chart(char *family, char *name, const netdata_idx_t *hist0,
  */
 static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
 {
-    char name[128];
     static int order = 2021;
     char *family = w->family;
-    snprintfz(name, 127, "latency_%s", family);
-    w->chart = strdupz(name);
+    w->chart = strdupz("disk_latency");
     char *iops_title = {
         "Latency is the time it takes for the I/O request to be completed. "
         "The vertical axis display number of IO events that"
         "happened, while the horizontal axis shows the interval of time."
     };
 
-    ebpf_create_chart(name, family, iops_title, EBPF_COMMON_DIMENSION_CALL, family, order,
+    ebpf_create_chart(w->chart, family, iops_title, EBPF_COMMON_DIMENSION_CALL, family, order,
                       ebpf_create_global_dimension, latency_hist_publish_aggregated, NETDATA_LATENCY_HIST_BINS);
     w->flags |= NETDATA_DISK_CREATED;
     order++;
@@ -501,12 +499,11 @@ static void ebpf_latency_cleanup_disk_list() {
         netdata_latency_disks_t *next = move->next;
         freez(move->chart);
         freez(move->histogram_read_calls);
-        freez(move->histogram_read_bytes);
         freez(move->histogram_write_calls);
-        freez(move->histogram_write_bytes);
         freez(move);
 
-        move = next;
+        move = next
+            ;
     }
 }
 
@@ -611,9 +608,7 @@ static void ebpf_latency_allocate_io_histograms() {
     netdata_latency_disks_t *move = disk_list;
     while (move) {
         move->histogram_read_calls = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
-        move->histogram_read_bytes = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
         move->histogram_write_calls = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
-        move->histogram_write_bytes = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
 
         move = move->next;
     }

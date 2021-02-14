@@ -55,9 +55,9 @@ typedef struct netdata_latency_disks {
     char family[NETDATA_DISK_NAME_LEN];
     char *chart;
     uint64_t *histogram_read_calls;
-    uint64_t *histogram_read_bytes;
+    uint64_t read_bytes;
     uint64_t *histogram_write_calls;
-    uint64_t *histogram_write_bytes;
+    uint64_t written_bytes;
     uint32_t flags;
     struct netdata_latency_disks *next;
 } netdata_latency_disks_t;
