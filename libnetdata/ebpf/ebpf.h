@@ -6,7 +6,7 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
-#define NETDATA_DEBUGFS "/sys/kernel/debug/tracing/"
+#define NETDATA_DEBUGFS "/sys/kernel/debug/tracing"
 
 /**
  * The next magic number is got doing the following math:
@@ -101,5 +101,8 @@ extern struct bpf_link **ebpf_load_program(char *plugins_dir,
                              char *kernel_string,
                              struct bpf_object **obj,
                              int *map_fd);
+extern int ebpf_enable_tracing_values(char *type, char *tracepoint);
+extern int ebpf_disable_tracing_values(char *type, char *tracepoint);
+int ebpf_is_tracepoint_enabled(char *type, char *tracepoint);
 
 #endif /* NETDATA_EBPF_H */

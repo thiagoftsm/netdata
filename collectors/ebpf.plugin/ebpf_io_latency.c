@@ -9,6 +9,8 @@ static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startI
 static char *latency_counter_id_names[NETDATA_LATENCY_COUNTER] = { "block_rq_issue", "block_rq_complete_read",
                                                                    "block_rq_complete_write", "read", "write" };
 
+// /sys/block/sda/sda1/uevent
+// /sys/block/sda/sda1/start
 
 static ebpf_data_t io_latency_data;
 
@@ -29,6 +31,13 @@ static int *map_fd = NULL;
 
 static int read_thread_closed = 1;
 static netdata_idx_t *latency_hash_values = NULL;
+
+char *tracepoint_block_type = { "block"} ;
+char *tracepoint_block_issue = { "block_rq_issue" };
+char *tracepoint_block_rq_complete = { "block_rq_complete" };
+
+static int was_block_issue_enabled = 0;
+static int was_block_rq_complete_enabled = 0;
 
 /*****************************************************************
  *
@@ -484,6 +493,20 @@ static inline void ebpf_create_global_charts()
  *
  *****************************************************************/
 
+static void ebpf_latency_disable_tracepoints()
+{
+    char *default_message = { "Cannot disable the tracepoint" };
+    if (!was_block_issue_enabled) {
+        if (ebpf_disable_tracing_values(tracepoint_block_type, tracepoint_block_issue))
+            error("%s %s/%s.", default_message, tracepoint_block_type, tracepoint_block_issue);
+    }
+
+    if (!was_block_rq_complete_enabled) {
+        if (ebpf_disable_tracing_values(tracepoint_block_type, tracepoint_block_rq_complete))
+            error("%s %s/%s.", default_message, tracepoint_block_type, tracepoint_block_rq_complete);
+    }
+}
+
 /**
  *  Cleanup Disk List
  *
@@ -544,6 +567,8 @@ static void ebpf_latency_cleanup(void *ptr)
         i++;
     }
     bpf_object__close(objects);
+
+    ebpf_latency_disable_tracepoints();
 }
 
 /*****************************************************************
@@ -551,6 +576,34 @@ static void ebpf_latency_cleanup(void *ptr)
  *  EBPF START THREAD
  *
  *****************************************************************/
+
+/**
+ * Enable tracepoints
+ *
+ * Enable necessary tracepoints for thread.
+ *
+ * @return  It returns 0 on sucess and -1 otherwise
+ */
+static int ebpf_latency_enable_tracepoints()
+{
+    was_block_issue_enabled = ebpf_is_tracepoint_enabled(tracepoint_block_type, tracepoint_block_issue);
+    if (was_block_issue_enabled == -1)
+        return -1;
+    else if (!was_block_issue_enabled) {
+        if (ebpf_enable_tracing_values(tracepoint_block_type, tracepoint_block_issue))
+            return -1;
+    }
+
+    was_block_rq_complete_enabled = ebpf_is_tracepoint_enabled(tracepoint_block_type, tracepoint_block_rq_complete);
+    if (was_block_rq_complete_enabled == -1)
+        return -1;
+    else if (!was_block_rq_complete_enabled) {
+        if (ebpf_enable_tracing_values(tracepoint_block_type, tracepoint_block_rq_complete))
+            return -1;
+    }
+
+    return 0;
+}
 
 /**
 * Set local function pointers, this function will never be compiled with static libraries
@@ -659,6 +712,11 @@ void *ebpf_io_latency_thread(void *ptr)
 
     if (!em->enabled)
         goto end_io_latency;
+
+    if (ebpf_latency_enable_tracepoints()) {
+        em->enabled = false;
+        goto end_io_latency;
+    }
 
     avl_init_lock(&disk_tree, compare_disks);
 

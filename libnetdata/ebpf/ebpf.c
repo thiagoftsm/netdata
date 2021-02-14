@@ -61,6 +61,59 @@ int clean_kprobe_events(FILE *out, int pid, netdata_ebpf_events_t *ptr)
 
 //----------------------------------------------------------------------------------------------------------------------
 
+static inline int ebpf_open_tracepoint_path(char *filename, size_t length, char *type, char *tracepoint, int flags)
+{
+    snprintfz(filename, length, "%s/events/%s/%s/enable", NETDATA_DEBUGFS, type, tracepoint);
+    return open(filename, flags, 0);
+}
+
+static int ebpf_change_tracing_values(char *type, char *tracepoint, char *value)
+{
+    char filename[1024];
+    int fd = ebpf_open_tracepoint_path(filename, 1023, type, tracepoint, O_WRONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t written = write(fd, value, strlen(value));
+    if (written < 0) {
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+int ebpf_is_tracepoint_enabled(char *type, char *tracepoint)
+{
+    char text[1024];
+    int fd = ebpf_open_tracepoint_path(text, 1023, type, tracepoint, O_RDONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t length = read(fd, text, 1);
+    if (length != 1) {
+        close(fd);
+        return -1;
+    }
+
+    return (text[0] == '1')?1:0;
+}
+
+int ebpf_enable_tracing_values(char *type, char *tracepoint)
+{
+    return ebpf_change_tracing_values(type, tracepoint, "1");
+}
+
+int ebpf_disable_tracing_values(char *type, char *tracepoint)
+{
+    return ebpf_change_tracing_values(type, tracepoint, "0");
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+
 int get_kernel_version(char *out, int size)
 {
     char major[16], minor[16], patch[16];
