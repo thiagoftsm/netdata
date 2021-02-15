@@ -9,9 +9,6 @@ static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startI
 static char *latency_counter_id_names[NETDATA_LATENCY_COUNTER] = { "block_rq_issue", "block_rq_complete_read",
                                                                    "block_rq_complete_write", "read", "write" };
 
-// /sys/block/sda/sda1/uevent
-// /sys/block/sda/sda1/start
-
 static ebpf_data_t io_latency_data;
 
 static netdata_syscall_stat_t *latency_counter_aggregated_data = NULL;
@@ -68,6 +65,74 @@ static int compare_disks(void *a, void *b)
     return 0;
 }
 
+static void ebpf_latency_read_disk_info(netdata_latency_disks_t *w, char *name)
+{
+    char *path = { "/sys/block" };
+    char disk[NETDATA_DISK_NAME_LEN + 1];
+    char text[4096];
+    snprintfz(disk, NETDATA_DISK_NAME_LEN, "%s", name);
+    size_t length = strlen(disk);
+    if (!length) {
+        return;
+    }
+
+    length--;
+    size_t curr = length;
+    while (isdigit((int)disk[length])) {
+        disk[length--] = '\0';
+    }
+
+    // We are looking for partition information, if it is a device we will ignore it.
+    if (curr == length)
+        return;
+
+    snprintfz(text, 4095, "%s/%s/%s/uevent", path, disk, name );
+
+    int fd = open(text, O_RDONLY, 0);
+    if (fd < 0) {
+        return;
+    }
+
+    ssize_t file_length = read(fd, text, 4095);
+    if (file_length > 0) {
+        text[file_length] = '\0';
+
+        char *s = strstr(text, "PARTNAME=EFI");
+        if (s) {
+            w->flags |= NETDATA_DISK_HAS_EFI;
+        }
+    }
+    close(fd);
+
+    snprintfz(text, 4095, "%s/%s/%s/start", path, disk, name );
+    fd = open(text, O_RDONLY, 0);
+    if (fd < 0) {
+        return;
+    }
+
+    file_length = read(fd, text, 4095);
+    if (file_length > 0) {
+        text[file_length] = '\0';
+        w->start = str2uint64_t(text);
+    }
+
+    close(fd);
+
+    snprintfz(text, 4095, "%s/%s/%s/size", path, disk, name );
+    fd = open(text, O_RDONLY, 0);
+    if (fd < 0) {
+        return;
+    }
+
+    file_length = read(fd, text, 4095);
+    if (file_length > 0) {
+        text[file_length] = '\0';
+        w->end = w->start + str2uint64_t(text) -1;
+    }
+
+    close(fd);
+}
+
 /**
  * Update listen table
  *
@@ -86,9 +151,9 @@ static void update_disk_table(char *name, int major, int minor)
     if (ret) // Disk is already present
         return;
 
+    netdata_latency_disks_t *update_next = disk_list;
     if (likely(disk_list)) {
         netdata_latency_disks_t *move = disk_list;
-        netdata_latency_disks_t *update_next = disk_list;
         while (move) {
             if (dev == move->dev)
                 return;
@@ -112,6 +177,8 @@ static void update_disk_table(char *name, int major, int minor)
 
         w = disk_list;
     }
+
+    ebpf_latency_read_disk_info(w, name);
 
     netdata_latency_disks_t *check;
     check = (netdata_latency_disks_t *) avl_insert_lock(&disk_tree, (avl *)w);
@@ -429,6 +496,20 @@ static void ebpf_latency_send_hd_data()
 }
 
 /**
+ * Send Hard disk data
+ *
+ * Send hard disk information to Netdata.
+ */
+static void ebpf_latency_send_efi_data()
+{
+    write_begin_chart(NETDATA_EBPF_FAMILY, NETDATA_EFI_MONITORING);
+
+    write_chart_dimension("sda1", 0);
+
+    write_end_chart();
+}
+
+/**
 * Main loop for this collector.
 */
 static void latency_collector(ebpf_module_t *em)
@@ -447,6 +528,7 @@ static void latency_collector(ebpf_module_t *em)
 
         ebpf_latency_send_global_data();
         ebpf_latency_send_hd_data();
+        ebpf_latency_send_efi_data();
 
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
@@ -458,6 +540,24 @@ static void latency_collector(ebpf_module_t *em)
  *  FUNCTIONS TO MAKE CHARTS
  *
  *****************************************************************/
+
+static inline void ebpf_create_efi_charts()
+{
+    netdata_latency_disks_t *ld = disk_list;
+    while (ld) {
+        uint32_t flags = ld->flags;
+        if (flags & NETDATA_DISK_HAS_EFI) {
+            ebpf_write_chart_cmd(NETDATA_EBPF_FAMILY, NETDATA_EFI_MONITORING, "Monitor EFI changes",
+                                 "EBPF_COMMON_DIMENSION_CHANGES", NETDATA_EFI_CHANGING, "line",
+                                 "''", 21203);
+            ebpf_write_global_dimension(ld->family, ld->family, "absolute");
+
+            // TAKE A LOOK AT user_socket3.c and insert data here
+        }
+
+        ld = ld->next;
+    }
+}
 
 /**
  * Create global charts
@@ -484,6 +584,8 @@ static inline void ebpf_create_global_charts()
                       EBPF_COMMON_DIMENSION_KILOBYTES, NETDATA_LATENCY_BLOCK_IO,
                       "''", 21102, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
+
+    ebpf_create_efi_charts();
 }
 
 

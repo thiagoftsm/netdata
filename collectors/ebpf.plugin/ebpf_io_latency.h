@@ -15,6 +15,9 @@
 #define NETDATA_LATENCY_BYTES "iops_bytes"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
+#define NETDATA_EFI_MONITORING "efi_monitor"
+#define NETDATA_EFI_CHANGING "EFI_MBR"
+
 // This enum cannot have its order changed, this will affect the chart results.
 enum io_latency_counters {
     NETDATA_KEY_CALLS_BLOCK_RQ_ISSUE,
@@ -37,6 +40,7 @@ enum io_latency_tables {
 enum netdata_latency_disks_flags {
     NETDATA_DISK_CREATED = 1,
     NETDATA_DISK_PLOT = 2,
+    NETDATA_DISK_HAS_EFI = 4
 };
 
 /*
@@ -59,6 +63,8 @@ typedef struct netdata_latency_disks {
     uint64_t *histogram_write_calls;
     uint64_t written_bytes;
     uint32_t flags;
+    uint64_t start; // start sector
+    uint64_t end;   // end sectpr
     struct netdata_latency_disks *next;
 } netdata_latency_disks_t;
 
