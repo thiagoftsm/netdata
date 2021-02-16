@@ -15,8 +15,8 @@
 #define NETDATA_LATENCY_BYTES "iops_bytes"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
-#define NETDATA_EFI_MONITORING "efi_monitor"
-#define NETDATA_EFI_CHANGING "EFI_MBR"
+#define NETDATA_BOOTSECTOR_MONITORING "bootsector"
+#define NETDATA_EFI_SECURITY "Security"
 
 // This enum cannot have its order changed, this will affect the chart results.
 enum io_latency_counters {
@@ -34,8 +34,19 @@ enum io_latency_tables {
     NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM,
     NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM,
     NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM,
-    NETDATA_IO_LATENCY_GLOBAL_STATS
+    NETDATA_IO_LATENCY_GLOBAL_STATS,
+    NETDATA_IO_MD_FLUSH,
+    NETDATA_IO_LATENCY_TEMPORARY_TABLE,
+    NETDATA_BOOTSECTOR_INFO
 };
+
+typedef struct netdata_bootsector {
+    uint64_t start_sector;
+    uint64_t end_sector;
+    uint64_t timestamp;
+    uint64_t changed_sector;
+    uint64_t size;
+} netdata_bootsector_t;
 
 enum netdata_latency_disks_flags {
     NETDATA_DISK_CREATED = 1,
@@ -63,6 +74,7 @@ typedef struct netdata_latency_disks {
     uint64_t *histogram_write_calls;
     uint64_t written_bytes;
     uint32_t flags;
+    uint32_t bootsector_key;
     uint64_t start; // start sector
     uint64_t end;   // end sectpr
     struct netdata_latency_disks *next;
@@ -73,10 +85,18 @@ typedef struct block_key {
     uint32_t dev;
 } block_key_t;
 
+typedef struct netdata_flush_key {
+    char key[NETDATA_DISK_NAME_LEN];
+} netdata_flush_key_t;
+
 // Decode function extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L46
 static inline uint32_t netdata_new_encode_dev(uint32_t major, uint32_t minor) {
-    return (minor & 0xff) | (major << 8) | ((minor & ~0xff) << 12);;
+    return (minor & 0xff) | (major << 8) | ((minor & ~0xff) << 12);
 }
+
+// Decode function extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L7
+#define MINORBITS	20
+#define MKDEV(ma,mi)	(((ma) << MINORBITS) | (mi))
 
 extern void *ebpf_io_latency_thread(void *ptr);
 

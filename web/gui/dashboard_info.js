@@ -3361,6 +3361,11 @@ netdataDashboard.context = {
         title : 'IOPs',
         info: 'Difference between the number of process created and the number of threads created per period(<code>process</code> dimension), it also shows the number of possible zombie process running on system.'
     },
+
+    'ebpf.bootsector': {
+        title : 'Boot Sector',
+        info: 'This chart monitors changes on <a href="https://www.trendmicro.com/vinfo/us/security/definition/boot-sector-virus">MBR</a> and <a href="https://media.kaspersky.com/en/business-security/Threats_to_UEFI.pdf">UEFI</a>.'
+    },
     // ------------------------------------------------------------------------
     // ACLK Internal Stats
     'netdata.aclk_status': {

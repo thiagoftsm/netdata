@@ -36,6 +36,9 @@ char *tracepoint_block_rq_complete = { "block_rq_complete" };
 static int was_block_issue_enabled = 0;
 static int was_block_rq_complete_enabled = 0;
 
+netdata_bootsector_t previous_status = { .start_sector = 0, .end_sector = 0, .timestamp = 0,
+    .changed_sector = 0, .size = 0};
+
 /*****************************************************************
  *
  *  FUNCTIONS TO MANIPULATE HARD DISKS
@@ -67,6 +70,7 @@ static int compare_disks(void *a, void *b)
 
 static void ebpf_latency_read_disk_info(netdata_latency_disks_t *w, char *name)
 {
+    static uint32_t key = 0;
     char *path = { "/sys/block" };
     char disk[NETDATA_DISK_NAME_LEN + 1];
     char text[4096];
@@ -83,8 +87,12 @@ static void ebpf_latency_read_disk_info(netdata_latency_disks_t *w, char *name)
     }
 
     // We are looking for partition information, if it is a device we will ignore it.
-    if (curr == length)
+    if (curr == length) {
+        key = MKDEV(w->major, w->minor);
+        w->bootsector_key = key;
         return;
+    }
+    w->bootsector_key = key;
 
     snprintfz(text, 4095, "%s/%s/%s/uevent", path, disk, name );
 
@@ -236,9 +244,27 @@ static int read_local_disks()
  *
  *****************************************************************/
 
+/**
+ * Read hard disk table (RAID)
+ *
+ * Read the table with number of calls for all functions
+static void read_flush_table()
+{
+    netdata_flush_key_t key = {};
+    netdata_flush_key_t next_key;
+    int fd = map_fd[NETDATA_IO_MD_FLUSH];
+
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        error("KILLME %s", key.key);
+        key = next_key;
+    }
+}
+ */
 
 /**
  * Read hard disk table
+ *
+ * @param table index for the hash table
  *
  * Read the table with number of calls for all functions
  */
@@ -372,6 +398,7 @@ void *ebpf_latency_read_hash(void *ptr)
         read_hard_disk_tables(NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM);
+        read_flush_table();
     }
 
     read_thread_closed = 1;
@@ -502,11 +529,37 @@ static void ebpf_latency_send_hd_data()
  */
 static void ebpf_latency_send_efi_data()
 {
-    write_begin_chart(NETDATA_EBPF_FAMILY, NETDATA_EFI_MONITORING);
+    write_begin_chart(NETDATA_EBPF_FAMILY, NETDATA_BOOTSECTOR_MONITORING);
 
-    write_chart_dimension("sda1", 0);
+    // IF ACCEPTED WE SHOULD HAVE A SMALL LIST FOR THIS
+    int changed = 0;
+    netdata_latency_disks_t *ld = disk_list;
+    while (ld) {
+        uint32_t flags = ld->flags;
+        if (flags & NETDATA_DISK_HAS_EFI) {
+            netdata_bootsector_t data;
+
+            if (!bpf_map_lookup_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &ld->bootsector_key, &data)) {
+                if (previous_status.timestamp != data.timestamp) {
+                    previous_status.timestamp = data.timestamp;
+                    changed++;
+                    write_chart_dimension("sda1", 1);
+                } else {
+                    write_chart_dimension("sda1", 0);
+                }
+            } else {
+                write_chart_dimension("sda1", 0);
+            }
+        }
+        ld = ld->next;
+    }
 
     write_end_chart();
+    fflush(stdout);
+
+    if (changed)
+        error("BOOT SECTOR CHANGED BY: SECTOR=%lu BYTES=%lu",
+              previous_status.changed_sector, previous_status.size);
 }
 
 /**
@@ -541,18 +594,22 @@ static void latency_collector(ebpf_module_t *em)
  *
  *****************************************************************/
 
-static inline void ebpf_create_efi_charts()
+static inline void ebpf_create_bootsector_charts()
 {
     netdata_latency_disks_t *ld = disk_list;
     while (ld) {
         uint32_t flags = ld->flags;
         if (flags & NETDATA_DISK_HAS_EFI) {
-            ebpf_write_chart_cmd(NETDATA_EBPF_FAMILY, NETDATA_EFI_MONITORING, "Monitor EFI changes",
-                                 "EBPF_COMMON_DIMENSION_CHANGES", NETDATA_EFI_CHANGING, "line",
+            ebpf_write_chart_cmd(NETDATA_EBPF_FAMILY, NETDATA_BOOTSECTOR_MONITORING, "Monitor boot sector changes",
+                                 EBPF_COMMON_DIMENSION_CHANGES, NETDATA_EFI_SECURITY, "line",
                                  "''", 21203);
             ebpf_write_global_dimension(ld->family, ld->family, "absolute");
 
-            // TAKE A LOOK AT user_socket3.c and insert data here
+            // we need to store the initial value for this
+            previous_status.start_sector = ld->start;
+            previous_status.end_sector = ld->end;
+
+            bpf_map_update_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &ld->bootsector_key, &previous_status, BPF_ANY);
         }
 
         ld = ld->next;
@@ -585,7 +642,7 @@ static inline void ebpf_create_global_charts()
                       "''", 21102, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
 
-    ebpf_create_efi_charts();
+    ebpf_create_bootsector_charts();
 }
 
 
@@ -623,8 +680,7 @@ static void ebpf_latency_cleanup_disk_list() {
         freez(move->histogram_write_calls);
         freez(move);
 
-        move = next
-            ;
+        move = next;
     }
 }
 
