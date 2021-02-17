@@ -5,9 +5,11 @@
 #include "ebpf.h"
 #include "ebpf_io_latency.h"
 
-static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startIO", "read", "write", "read", "write" };
+static char *latency_counter_dimension_name[NETDATA_LATENCY_COUNTER] = { "startIO", "read", "write", "read", "write",
+                                                                         "sync", "mount", "umount", "mount", "umount"};
 static char *latency_counter_id_names[NETDATA_LATENCY_COUNTER] = { "block_rq_issue", "block_rq_complete_read",
-                                                                   "block_rq_complete_write", "read", "write" };
+                                                                   "block_rq_complete_write", "read", "write",
+                                                                   "sync",  "mount", "umount", "mount", "umount"};
 
 static ebpf_data_t io_latency_data;
 
@@ -360,7 +362,7 @@ static void read_global_table()
             for (i = 0; i < end; i++)
                 total += val[i];
 
-            if (idx <= NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE)
+            if (idx <= NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE || idx >= NETDATA_KEY_CALL_SYNC)
                 lc->ncall = (long long)total;
             else {
                 lc->ncall = (lc->pcall)?(long long)total - lc->pcall:0;
@@ -398,7 +400,7 @@ void *ebpf_latency_read_hash(void *ptr)
         read_hard_disk_tables(NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM);
-        read_flush_table();
+        //read_flush_table();
     }
 
     read_thread_closed = 1;
@@ -421,6 +423,15 @@ static void ebpf_latency_send_global_data()
 
     write_count_chart(NETDATA_LATENCY_BYTES, NETDATA_EBPF_FAMILY,
                       &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
+
+    write_count_chart(NETDATA_LATENCY_SYNC, NETDATA_EBPF_FAMILY,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC], 1);
+
+    write_count_chart(NETDATA_MOUNT_CALLS, NETDATA_EBPF_FAMILY,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_CALL], 2);
+
+    write_count_chart(NETDATA_MOUNT_ERROR, NETDATA_EBPF_FAMILY,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_ERR], 2);
 
     fflush(stdout);
 }
@@ -527,7 +538,7 @@ static void ebpf_latency_send_hd_data()
  *
  * Send hard disk information to Netdata.
  */
-static void ebpf_latency_send_efi_data()
+static void ebpf_latency_send_bootsector_data()
 {
     write_begin_chart(NETDATA_EBPF_FAMILY, NETDATA_BOOTSECTOR_MONITORING);
 
@@ -581,7 +592,7 @@ static void latency_collector(ebpf_module_t *em)
 
         ebpf_latency_send_global_data();
         ebpf_latency_send_hd_data();
-        ebpf_latency_send_efi_data();
+        ebpf_latency_send_bootsector_data();
 
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
@@ -601,7 +612,7 @@ static inline void ebpf_create_bootsector_charts()
         uint32_t flags = ld->flags;
         if (flags & NETDATA_DISK_HAS_EFI) {
             ebpf_write_chart_cmd(NETDATA_EBPF_FAMILY, NETDATA_BOOTSECTOR_MONITORING, "Monitor boot sector changes",
-                                 EBPF_COMMON_DIMENSION_CHANGES, NETDATA_EFI_SECURITY, "line",
+                                 EBPF_COMMON_DIMENSION_CHANGES, NETDATA_EBPF_SECURITY, "line",
                                  "''", 21203);
             ebpf_write_global_dimension(ld->family, ld->family, "absolute");
 
@@ -628,19 +639,35 @@ static inline void ebpf_create_global_charts()
         "block the hard disks, while <code>write</code> and <code>read</code> describes the action."
     };
 
-    char *rw_title = {
-        "Bytes read and written per second."
-    };
-
     ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_IOPS, iops_title,
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
                       "''", 21101, ebpf_create_global_dimension,
                       latency_counter_publish_aggregated, 3);
 
-    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_BYTES, rw_title,
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_BYTES,
+                      "Bytes read and written per second.",
                       EBPF_COMMON_DIMENSION_KILOBYTES, NETDATA_LATENCY_BLOCK_IO,
                       "''", 21102, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
+
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_SYNC,
+                      "Trace calls to <code>sync()</code> which flushes file system cache to storage.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
+                      "''", 21103, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC], 1);
+
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_MOUNT_CALLS,
+                      "Trace calls to <code>mount()</code> and <code>umount()</code> syscalls.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_MOUNT_MENU,
+                      "''", 21104, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_CALL], 2);
+
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_MOUNT_ERROR,
+                      "Trace errors when  <code>mount()</code>  and <code>umount()</code> are called.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_MOUNT_MENU,
+                      "''", 21105, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_ERR], 2);
+
 
     ebpf_create_bootsector_charts();
 }

@@ -15,8 +15,16 @@
 #define NETDATA_LATENCY_BYTES "iops_bytes"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
+// Sync chart
+#define NETDATA_LATENCY_SYNC "Sync"
+
 #define NETDATA_BOOTSECTOR_MONITORING "bootsector"
-#define NETDATA_EFI_SECURITY "Security"
+#define NETDATA_EBPF_SECURITY "Security"
+
+// Mount calls monitoring
+#define NETDATA_MOUNT_CALLS "mount_calls"
+#define NETDATA_MOUNT_ERROR "mount_errors"
+#define NETDATA_MOUNT_MENU "Mount"
 
 // This enum cannot have its order changed, this will affect the chart results.
 enum io_latency_counters {
@@ -25,6 +33,11 @@ enum io_latency_counters {
     NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE,
     NETDATA_KEY_BYTES_READ,
     NETDATA_KEY_BYTES_WRITE,
+    NETDATA_KEY_CALL_SYNC,
+    NETDATA_KEY_CALL_MOUNT_CALL,
+    NETDATA_KEY_CALL_UMOUNT_CALL,
+    NETDATA_KEY_CALL_MOUNT_ERR,
+    NETDATA_KEY_CALL_UMOUNT_ERR,
 
     NETDATA_LATENCY_COUNTER
 };
@@ -35,7 +48,7 @@ enum io_latency_tables {
     NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM,
     NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM,
     NETDATA_IO_LATENCY_GLOBAL_STATS,
-    NETDATA_IO_MD_FLUSH,
+//   NETDATA_IO_MD_FLUSH,
     NETDATA_IO_LATENCY_TEMPORARY_TABLE,
     NETDATA_BOOTSECTOR_INFO
 };
