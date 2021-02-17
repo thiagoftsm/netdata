@@ -811,24 +811,31 @@ static inline void set_local_pointers(int *algorithms)
 static void ebpf_latency_fill_histogram_dimension()
 {
     char *dimensions[] = { "us", "ms", "s"};
-    int dim = 0;
-    uint32_t level = 1000;
-    uint32_t divisor = 1;
+    int previous_dim = 0, now_dim = 0;
+    uint32_t previous_level = 1000, now_level = 1000;
+    uint32_t previous_divisor = 1, now_divisor = 1;
     uint32_t now = 1, previous = 0;
     uint32_t selector;
-    char range[64];
+    char range[128];
     for (selector = 0; selector < NETDATA_LATENCY_HIST_BINS; selector++) {
-        snprintf(range, 63, "%u->%u%s", previous/divisor, now/divisor, dimensions[dim]);
+        snprintf(range, 127, "%u%s->%u%s", previous/previous_divisor, dimensions[previous_dim],
+                 now/now_divisor, dimensions[now_dim]);
         latency_hist_dimensions[selector] = strdupz(range);
         previous = (now < 2)?now:now + 1;
         now <<= 1;
 
-        if (previous > level) {
-            divisor *= 1000;
-            level *= 1000;
+        if (previous_dim != 2 && previous > previous_level) {
+            previous_dim++;
 
-            if (dim != 2)
-                dim++;
+            previous_divisor *= 1000;
+            previous_level *= 1000;
+        }
+
+        if (now_dim != 2 && now > now_level) {
+            now_dim++;
+
+            now_divisor *= 1000;
+            now_level *= 1000;
         }
     }
 }
