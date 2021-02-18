@@ -11,8 +11,8 @@
 #define NETDATA_LATENCY_HIST_BINS 21
 
 // Global chart name
-#define NETDATA_LATENCY_IOPS "iops"
-#define NETDATA_LATENCY_BYTES "iops_bytes"
+#define NETDATA_LATENCY_IOPS "iops_tracepoint"
+#define NETDATA_LATENCY_BYTES "iops"
 #define NETDATA_LATENCY_BLOCK_IO "Block IO"
 
 // Sync chart
@@ -23,7 +23,7 @@
 #define NETDATA_EBPF_SECURITY "Security"
 
 // Mount calls monitoring
-#define NETDATA_MOUNT_CALLS "mount_calls"
+#define NETDATA_MOUNT_CALLS "mount"
 #define NETDATA_MOUNT_ERROR "mount_errors"
 #define NETDATA_MOUNT_MENU "Mount"
 
@@ -66,7 +66,8 @@ typedef struct netdata_bootsector {
 enum netdata_latency_disks_flags {
     NETDATA_DISK_CREATED = 1,
     NETDATA_DISK_PLOT = 2,
-    NETDATA_DISK_HAS_EFI = 4
+    NETDATA_DISK_HAS_EFI = 4,
+    NETDATA_DISK_EFI_CHART_CREATED = 8
 };
 
 /*
@@ -84,6 +85,7 @@ typedef struct netdata_latency_disks {
     // Print information
     char family[NETDATA_DISK_NAME_LEN];
     char *chart;
+    char *boot_chart;
     uint64_t *histogram_read_calls;
     uint64_t read_bytes;
     uint64_t *histogram_write_calls;

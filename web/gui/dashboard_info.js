@@ -1373,7 +1373,11 @@ netdataDashboard.context = {
     },
     'disk.latency': {
         height: 0.5,
-        info: 'Latency is the time an event takes for the I/O request to be completed. The vertical axis display number of IO events that happened during a period of time shown on horizontal axis. These charts are enabled when tracepoints block:block_rq_issue and block:block_rq_complete are present.'
+        info: 'Latency is the time it takes for an I/O request to be completed. Latency is the single most important metric to focus on when it comes to storage performance, under most circumstances. For hard drives, an average latency somewhere between 10 to 20 ms can be considered acceptable. For SSD (Solid State Drives), depending on the workload it should never reach higher than 1-3 ms. In most cases, workloads will experience less than 1ms latency numbers. The dimensions refer to time intervals. This chart is based on the <a href="https://github.com/cloudflare/ebpf_exporter/blob/master/examples/bio-tracepoints.yaml" target="_blank">bio_tracepoints</a> tool of the ebpf_exporter.'
+    },
+    'disk.bootsector': {
+        title : 'Boot Sector',
+        info: 'Monitoring writes on <a href="https://en.wikipedia.org/wiki/Master_boot_record" target="_blank">MBR</a> (Master-Boot-Record) and <a href="https://en.wikipedia.org/wiki/Unified_Extensible_Firmware_Interface" target="_blank">UEFI</a> (Unified Extensible Firmware Interface) areas. When Netdata starts it identifies if the hard disk has one of these areas and it starts to monitor input events on them. Changes are expected when the Linux Kernel is updated. But when this isn’t the case, changes could be attempts to compromise the OS or cases of malfunction.'
     },
     'disk.avgsz': {
         height: 0.5,
@@ -3357,15 +3361,26 @@ netdataDashboard.context = {
         info: 'Difference between the number of process created and the number of threads created per period(<code>process</code> dimension), it also shows the number of possible zombie process running on system.'
     },
 
-    'ebpf.iops': {
-        title : 'IOPs',
-        info: 'Difference between the number of process created and the number of threads created per period(<code>process</code> dimension), it also shows the number of possible zombie process running on system.'
+    'ebpf.iops_tracepoint': {
+        title : 'I/OPs calls',
+        info: 'I/O Operations per Second(IOPs) from internal Linux Kernel <a href="https://www.kernel.org/doc/html/v4.13/core-api/tracepoint.html" target="_blank">functions</a> for reads and writes on disks. This chart is based on the <a href="https://github.com/cloudflare/ebpf_exporter/blob/master/examples/bio-tracepoints.yaml">bio_tracepoints</a> tool of the ebpf_exporter.'
     },
 
-    'ebpf.bootsector': {
-        title : 'Boot Sector',
-        info: 'This chart monitors changes on <a href="https://www.trendmicro.com/vinfo/us/security/definition/boot-sector-virus">MBR</a> and <a href="https://media.kaspersky.com/en/business-security/Threats_to_UEFI.pdf">UEFI</a>.'
+    'ebpf.iops': {
+        title : 'IOPs',
+        info: 'Bytes per second from reads and writes counted within the <a href="https://www.kernel.org/doc/html/v4.13/core-api/tracepoint.html" target="_blank">Linux Kernel</a> while the disk was blocked for these operations. This chart is based on the  <a href="https://github.com/cloudflare/ebpf_exporter/blob/master/examples/bio-tracepoints.yaml">bio_tracepoints</a> tool of the ebpf_exporter.'
     },
+
+    'ebpf.sync': {
+        title : 'Sync syscalls',
+        info: 'System calls for <a href="https://linux.die.net/man/2/sync" target="_blank">sync()</a> which flushes file system buffers to storage devices. These calls can cause performance perturbations, and it can be useful to know if they are happening and how frequently. Based on the eBPF <a href="https://linux.die.net/man/2/sync" target="_blank">syncsnoop</a> from BCC tools.'
+    },
+
+    'ebpf.mount': {
+        title : 'Mount syscalls',
+        info: 'System calls for <a href="https://man7.org/linux/man-pages/man2/mount.2.html" target="_blank">mount()</a> and <a href="https://man7.org/linux/man-pages/man2/mount.2.html" target="_blank">umount()</a> which makes devices available to read and write. Based on the eBPF syncsnoop from BCC tools.'
+    },
+
     // ------------------------------------------------------------------------
     // ACLK Internal Stats
     'netdata.aclk_status': {
