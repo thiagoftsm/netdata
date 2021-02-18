@@ -2,7 +2,7 @@
 
 #include <sys/resource.h>
 
-#include "ebpf.h"
+#include "ebpf_plugin.h"
 #include "ebpf_socket.h"
 
 /*****************************************************************

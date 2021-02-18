@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "ebpf.h"
+#include "ebpf_plugin.h"
 #include "ebpf_socket.h"
 #include "ebpf_apps.h"
 
