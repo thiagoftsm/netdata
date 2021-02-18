@@ -362,7 +362,7 @@ static void read_global_table()
             for (i = 0; i < end; i++)
                 total += val[i];
 
-            if (idx <= NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE || idx >= NETDATA_KEY_CALL_SYNC)
+            if (idx <= NETDATA_KEY_CALLS_BLOCK_RQ_COMPLETE_WRITE || idx >= NETDATA_KEY_CALL_SYNC_CALL)
                 lc->ncall = (long long)total;
             else {
                 lc->ncall = (lc->pcall)?(long long)total - lc->pcall:0;
@@ -425,7 +425,10 @@ static void ebpf_latency_send_global_data()
                       &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
 
     write_count_chart(NETDATA_LATENCY_SYNC, NETDATA_EBPF_FAMILY,
-                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC], 1);
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC_CALL], 1);
+
+    write_count_chart(NETDATA_LATENCY_SYNC_ERROR, NETDATA_EBPF_FAMILY,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC_ERROR], 1);
 
     write_count_chart(NETDATA_MOUNT_CALLS, NETDATA_EBPF_FAMILY,
                       &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_CALL], 2);
@@ -654,18 +657,24 @@ static inline void ebpf_create_global_charts()
                       "Trace calls to <code>sync()</code> which flushes file system cache to storage.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
                       "''", 21103, ebpf_create_global_dimension,
-                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC], 1);
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC_CALL], 1);
+
+    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_SYNC_ERROR,
+                      "Trace errors for <code>sync()</code>.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
+                      "''", 21104, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_CALL_SYNC_ERROR], 1);
 
     ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_MOUNT_CALLS,
                       "Trace calls to <code>mount()</code> and <code>umount()</code> syscalls.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_MOUNT_MENU,
-                      "''", 21104, ebpf_create_global_dimension,
+                      "''", 21105, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_CALL], 2);
 
     ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_MOUNT_ERROR,
                       "Trace errors when  <code>mount()</code>  and <code>umount()</code> are called.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_MOUNT_MENU,
-                      "''", 21105, ebpf_create_global_dimension,
+                      "''", 21106, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_ERR], 2);
 
 
