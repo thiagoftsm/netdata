@@ -94,6 +94,8 @@ typedef struct netdata_latency_disks {
     uint32_t bootsector_key;
     uint64_t start; // start sector
     uint64_t end;   // end sectpr
+
+    struct netdata_latency_disks *main;
     struct netdata_latency_disks *next;
 } netdata_latency_disks_t;
 

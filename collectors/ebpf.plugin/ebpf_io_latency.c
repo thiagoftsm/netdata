@@ -70,8 +70,65 @@ static int compare_disks(void *a, void *b)
     return 0;
 }
 
+static inline int ebpf_latency_parse_start(netdata_latency_disks_t *w, char *text)
+{
+    int fd = open(text, O_RDONLY, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t file_length = read(fd, text, 4095);
+    if (file_length > 0) {
+        text[file_length] = '\0';
+        w->start = str2uint64_t(text);
+    }
+    close(fd);
+
+    return 0;
+}
+
+static inline int ebpf_latency_parse_uevent(netdata_latency_disks_t *w, char *text)
+{
+    int fd = open(text, O_RDONLY, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t file_length = read(fd, text, 4095);
+    if (file_length > 0) {
+        text[file_length] = '\0';
+
+        char *s = strstr(text, "PARTNAME=EFI");
+        if (s) {
+            w->flags |= NETDATA_DISK_HAS_EFI;
+            w->boot_chart = strdupz("disk_bootsector");
+        }
+    }
+    close(fd);
+
+    return 0;
+}
+
+static inline int ebpf_latency_parse_size(netdata_latency_disks_t *w, char *text)
+{
+    int fd = open(text, O_RDONLY, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t file_length = read(fd, text, 4095);
+    if (file_length > 0) {
+        text[file_length] = '\0';
+        w->end = w->start + str2uint64_t(text) -1;
+    }
+    close(fd);
+
+    return 0;
+}
+
 static void ebpf_latency_read_disk_info(netdata_latency_disks_t *w, char *name)
 {
+    static netdata_latency_disks_t *main_disk = NULL;
     static uint32_t key = 0;
     char *path = { "/sys/block" };
     char disk[NETDATA_DISK_NAME_LEN + 1];
@@ -90,58 +147,24 @@ static void ebpf_latency_read_disk_info(netdata_latency_disks_t *w, char *name)
 
     // We are looking for partition information, if it is a device we will ignore it.
     if (curr == length) {
+        main_disk = w;
         key = MKDEV(w->major, w->minor);
         w->bootsector_key = key;
         return;
     }
     w->bootsector_key = key;
+    w->main = main_disk;
 
     snprintfz(text, 4095, "%s/%s/%s/uevent", path, disk, name );
-
-    int fd = open(text, O_RDONLY, 0);
-    if (fd < 0) {
+    if (ebpf_latency_parse_uevent(w, text))
         return;
-    }
-
-    ssize_t file_length = read(fd, text, 4095);
-    if (file_length > 0) {
-        text[file_length] = '\0';
-
-        char *s = strstr(text, "PARTNAME=EFI");
-        if (s) {
-            w->flags |= NETDATA_DISK_HAS_EFI;
-            w->boot_chart = strdupz("disk_bootsector");
-        }
-    }
-    close(fd);
 
     snprintfz(text, 4095, "%s/%s/%s/start", path, disk, name );
-    fd = open(text, O_RDONLY, 0);
-    if (fd < 0) {
+    if (ebpf_latency_parse_start(w, text))
         return;
-    }
-
-    file_length = read(fd, text, 4095);
-    if (file_length > 0) {
-        text[file_length] = '\0';
-        w->start = str2uint64_t(text);
-    }
-
-    close(fd);
 
     snprintfz(text, 4095, "%s/%s/%s/size", path, disk, name );
-    fd = open(text, O_RDONLY, 0);
-    if (fd < 0) {
-        return;
-    }
-
-    file_length = read(fd, text, 4095);
-    if (file_length > 0) {
-        text[file_length] = '\0';
-        w->end = w->start + str2uint64_t(text) -1;
-    }
-
-    close(fd);
+    ebpf_latency_parse_size(w, text);
 }
 
 /**
