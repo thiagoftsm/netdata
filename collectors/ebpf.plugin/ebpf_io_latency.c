@@ -100,6 +100,7 @@ static inline int ebpf_latency_parse_uevent(netdata_latency_disks_t *w, char *te
 
         char *s = strstr(text, "PARTNAME=EFI");
         if (s) {
+            w->main->boot_partition = w;
             w->flags |= NETDATA_DISK_HAS_EFI;
             w->boot_chart = strdupz("disk_bootsector");
         }
@@ -224,6 +225,88 @@ static void update_disk_table(char *name, int major, int minor)
 #endif
 }
 
+static char *strdupz_decoding_octal(const char *string) {
+    char *buffer = strdupz(string);
+
+    char *d = buffer;
+    const char *s = string;
+
+    while(*s) {
+        if(unlikely(*s == '\\')) {
+            s++;
+            if(likely(isdigit(*s) && isdigit(s[1]) && isdigit(s[2]))) {
+                char c = *s++ - '0';
+                c <<= 3;
+                c |= *s++ - '0';
+                c <<= 3;
+                c |= *s++ - '0';
+                *d++ = c;
+            }
+            else *d++ = '_';
+        }
+        else *d++ = *s++;
+    }
+    *d = '\0';
+
+    return buffer;
+}
+
+static void ebpf_latency_change_partition_bar(netdata_latency_disks_t *w)
+{
+    char *move = strdupz(w->mount_info);
+    w->mount_dim = move;
+    while (*move) {
+        if (*move == '/')
+            *move = '_';
+
+        move++;
+    }
+}
+
+static void read_local_partitions()
+{
+    char filename[FILENAME_MAX + 1];
+    snprintfz(filename, FILENAME_MAX, "%s/proc/self/mountinfo", netdata_configured_host_prefix);
+    procfile *ff = procfile_open(filename, " \t", PROCFILE_FLAG_DEFAULT);
+    if(unlikely(!ff)) {
+        snprintfz(filename, FILENAME_MAX, "%s/proc/1/mountinfo", netdata_configured_host_prefix);
+        ff = procfile_open(filename, " \t", PROCFILE_FLAG_DEFAULT);
+        if(unlikely(!ff)) return;
+    }
+
+    ff = procfile_readall(ff);
+    if(unlikely(!ff))
+        return;
+
+    unsigned long l, lines = procfile_lines(ff);
+    for(l = 0; l < lines ;l++) {
+        char *major = procfile_lineword(ff, l, 2), *minor;
+        for (minor = major; *minor && *minor != ':' ;minor++) ;
+
+        if(unlikely(!*minor)) {
+            continue;
+        }
+
+        *minor = '\0';
+        minor++;
+
+        unsigned long ulmajor = str2ul(major);
+        if (ulmajor < 7)
+            continue;
+
+        unsigned long ulminor = str2ul(minor);
+        uint32_t dev = netdata_new_encode_dev(ulmajor, ulminor);
+        netdata_latency_disks_t find;
+        find.dev = dev;
+
+        netdata_latency_disks_t *ret = (netdata_latency_disks_t *) avl_search_lock(&disk_tree, (avl *)&find);
+        if (!ret) // Was the disk inserted?
+            continue;
+
+        ret->mount_info = strdupz_decoding_octal(procfile_lineword(ff, l, 4));
+        ebpf_latency_change_partition_bar(ret);
+    }
+}
 
 /**
  *  Read Local Ports
@@ -234,7 +317,9 @@ static void update_disk_table(char *name, int major, int minor)
  */
 static int read_local_disks()
 {
-    procfile *ff = procfile_open(NETDATA_LATENCY_PROC_PARTITIONS, " \t:", PROCFILE_FLAG_DEFAULT);
+    char filename[FILENAME_MAX + 1];
+    snprintfz(filename, FILENAME_MAX, "%s/%s", netdata_configured_host_prefix, NETDATA_LATENCY_PROC_PARTITIONS);
+    procfile *ff = procfile_open(filename, " \t:", PROCFILE_FLAG_DEFAULT);
     if (!ff)
         return -1;
 
@@ -260,6 +345,8 @@ static int read_local_disks()
 
     procfile_close(ff);
 
+    read_local_partitions();
+
     return 0;
 }
 
@@ -269,23 +356,6 @@ static int read_local_disks()
  *  FUNCTIONS TO PUBLISH CHARTS
  *
  *****************************************************************/
-
-/**
- * Read hard disk table (RAID)
- *
- * Read the table with number of calls for all functions
-static void read_flush_table()
-{
-    netdata_flush_key_t key = {};
-    netdata_flush_key_t next_key;
-    int fd = map_fd[NETDATA_IO_MD_FLUSH];
-
-    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
-        error("KILLME %s", key.key);
-        key = next_key;
-    }
-}
- */
 
 /**
  * Read hard disk table
@@ -341,7 +411,7 @@ static void read_hard_disk_tables(int table)
 
         switch (table) {
             case NETDATA_IO_LATENCY_READ_BYTES_HISTOGRAM: {
-                ret->read_bytes = total;
+                ret->read_bytes += total;
                 break;
             }
             case NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM: {
@@ -349,7 +419,7 @@ static void read_hard_disk_tables(int table)
                 break;
             }
             case NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM: {
-                ret->written_bytes = total;
+                ret->written_bytes += total;
                 break;
             }
             case NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM: {
@@ -439,7 +509,6 @@ struct netdata_static_thread io_latency_threads = {"IO LATENCY KERNEL",
  * Send data to Netdata calling auxiliar functions.
  *
  * @param em the structure with thread information
- */
 static void ebpf_latency_send_global_data()
 {
     write_count_chart(NETDATA_LATENCY_IOPS, NETDATA_EBPF_FAMILY,
@@ -462,6 +531,7 @@ static void ebpf_latency_send_global_data()
 
     fflush(stdout);
 }
+ */
 
 /**
  * Write one histogram
@@ -505,7 +575,8 @@ static inline void write_sum_of_histograms(const netdata_idx_t *hist0, const net
  *
  * @return It returns a variable tha maps the charts that did not have zero values.
  */
-void write_histogram_chart(char *family, char *name, const netdata_idx_t *hist0, const netdata_idx_t *hist1, uint32_t end)
+static void write_histogram_chart(char *family, char *name, const netdata_idx_t *hist0, const netdata_idx_t *hist1,
+                                  uint32_t end)
 {
     write_begin_chart(family, name);
 
@@ -517,51 +588,27 @@ void write_histogram_chart(char *family, char *name, const netdata_idx_t *hist0,
     write_end_chart();
 }
 
+static void write_local_io_chart(char *family, char *name, long long read_bytes, long long written_bytes)
+{
+    write_begin_chart(family, name);
+
+    write_chart_dimension(latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ].dimension, read_bytes);
+    write_chart_dimension(latency_counter_publish_aggregated[NETDATA_KEY_BYTES_WRITE].dimension, written_bytes);
+
+    write_end_chart();
+}
+
 static inline void ebpf_create_bootsector_charts(netdata_latency_disks_t *w)
 {
-    /*
-    if (w->flags & NETDATA_DISK_EFI_CHART_CREATED)
-        return;
-
-    char *family = w->family;
- //   w->boot_chart = strdupz("disk_bootsector");
-
-    ebpf_write_chart_cmd(w->boot_chart, family, "Monitor boot sector changes",
-                         EBPF_COMMON_DIMENSION_CHANGES, family, "line",
+    ebpf_write_chart_cmd(w->boot_chart, w->mount_dim, "Monitor boot sector changes",
+                         EBPF_COMMON_DIMENSION_CHANGES, w->mount_info, "line",
                          "disk.boot_sector", 2023);
     ebpf_write_global_dimension("uefi", "uefi", "absolute");
     previous_status.start_sector = w->start;
     previous_status.end_sector = w->end;
 
     bpf_map_update_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &w->bootsector_key, &previous_status, BPF_ANY);
-
     w->flags |= NETDATA_DISK_EFI_CHART_CREATED;
-     */
-
-    netdata_latency_disks_t *ld = disk_list;
-    while (ld) {
-        uint32_t flags = ld->flags;
-        if (flags & NETDATA_DISK_HAS_EFI) {
-            ebpf_write_chart_cmd(ld->boot_chart, "sda", "Monitor boot sector changes",
-                                 EBPF_COMMON_DIMENSION_CHANGES, "sda", "line",
-                                 "disk.bootsector", 2023);
-            /*
-            ebpf_write_chart_cmd(NETDATA_EBPF_FAMILY, NETDATA_BOOTSECTOR_MONITORING, "Monitor boot sector changes",
-                                 EBPF_COMMON_DIMENSION_CHANGES, NETDATA_EBPF_SECURITY, "line",
-                                 "''", 21203);
-                                 */
-            ebpf_write_global_dimension("uefi", "uefi", "absolute");
-
-            // we need to store the initial value for this
-            previous_status.start_sector = ld->start;
-            previous_status.end_sector = ld->end;
-
-            bpf_map_update_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &ld->bootsector_key, &previous_status, BPF_ANY);
-            ld->flags |= NETDATA_DISK_EFI_CHART_CREATED;
-        }
-
-        ld = ld->next;
-    }
 }
 
 
@@ -576,12 +623,19 @@ static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
 {
     static int order = 2021;
     char *family = w->family;
-    w->chart = strdupz("disk_latency");
+    w->histogram_chart = strdupz("disk_latency");
 
-    ebpf_create_chart(w->chart, family, "Disk latency", EBPF_COMMON_DIMENSION_CALL,
+    ebpf_create_chart(w->histogram_chart, family, "Disk latency", EBPF_COMMON_DIMENSION_CALL,
                       family, "disk.latency", order,
                       ebpf_create_global_dimension, latency_hist_publish_aggregated, NETDATA_LATENCY_HIST_BINS);
     w->flags |= NETDATA_DISK_CREATED;
+    order++;
+
+    w->bytes_chart = strdupz("disk_latency_bytes");
+    ebpf_create_chart(w->bytes_chart, family,  "Bytes read and written per second.",
+                      EBPF_COMMON_DIMENSION_KILOBYTES, family,
+                      "disk.latency_bytes", order, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
     order++;
 }
 
@@ -592,8 +646,7 @@ static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
  */
 static void ebpf_latency_send_bootsector_data(netdata_latency_disks_t *w)
 {
-    /*
-    write_begin_chart(w->boot_chart, "sda");
+    write_begin_chart(w->boot_chart, w->mount_dim);
     netdata_bootsector_t data;
     if (!bpf_map_lookup_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &w->bootsector_key, &data)) {
         if (previous_status.timestamp != data.timestamp) {
@@ -606,36 +659,6 @@ static void ebpf_latency_send_bootsector_data(netdata_latency_disks_t *w)
         write_chart_dimension("uefi", 0);
     }
     write_end_chart();
-     */
-    netdata_bootsector_t data;
-    netdata_latency_disks_t *ld = disk_list;
-    while (ld) {
-        uint32_t flags = ld->flags;
-        if (flags & NETDATA_DISK_EFI_CHART_CREATED) {
-            write_begin_chart(ld->boot_chart, "sda");
-            if (!bpf_map_lookup_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &ld->bootsector_key, &data)) {
-                if (previous_status.timestamp != data.timestamp) {
-                    previous_status.timestamp = data.timestamp;
-                    write_chart_dimension("uefi", 1);
-                } else {
-                    write_chart_dimension("uefi", 0);
-                }
-            } else {
-                write_chart_dimension("uefi", 0);
-            }
-            write_end_chart();
-        }
-        ld = ld->next;
-    }
-    fflush(stdout);
-
-    /*
-                    changed++;
-    int changed = 0;
-    if (changed)
-        error("BOOT SECTOR CHANGED BY: SECTOR=%lu BYTES=%lu",
-              previous_status.changed_sector, previous_status.size);
-              */
 }
 
 /**
@@ -654,15 +677,19 @@ static void ebpf_latency_send_hd_data()
                 ebpf_create_hd_charts(ld);
             }
 
-            /*
-            if (flags & NETDATA_DISK_HAS_EFI)
-                ebpf_create_bootsector_charts(ld);
-                */
+            netdata_latency_disks_t *boot = ld->boot_partition;
+            if (boot)
+                if (boot->flags  & NETDATA_DISK_HAS_EFI)
+                    ebpf_create_bootsector_charts(boot);
 
-            write_histogram_chart(ld->chart, ld->family, ld->histogram_read_calls,
+            write_histogram_chart(ld->histogram_chart, ld->family, ld->histogram_read_calls,
                                   ld->histogram_write_calls, NETDATA_LATENCY_HIST_BINS);
 
+            write_local_io_chart(ld->bytes_chart, ld->family, ld->read_bytes, ld->written_bytes);
+
             fflush(stdout);
+            if (boot)
+                ebpf_latency_send_bootsector_data(boot);
         }
 
         ld = ld->next;
@@ -687,10 +714,11 @@ static void latency_collector(ebpf_module_t *em)
 
         pthread_mutex_lock(&lock);
 
-        ebpf_latency_send_global_data();
         fflush(stdout);
         ebpf_latency_send_hd_data();
-        ebpf_latency_send_bootsector_data(NULL);
+        /*
+        ebpf_latency_send_global_data();
+         */
 
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
@@ -707,20 +735,8 @@ static void latency_collector(ebpf_module_t *em)
  * Create global charts
  *
  * Call ebpf_create_chart to create the charts for the collector.
- */
 static inline void ebpf_create_global_charts()
 {
-    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_IOPS, "I/O calls",
-                      EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
-                      "''", 21101, ebpf_create_global_dimension,
-                      latency_counter_publish_aggregated, 3);
-
-    ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_BYTES,
-                      "Bytes read and written per second.",
-                      EBPF_COMMON_DIMENSION_KILOBYTES, NETDATA_LATENCY_BLOCK_IO,
-                      "''", 21102, ebpf_create_global_dimension,
-                      &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
-
     ebpf_create_chart(NETDATA_EBPF_FAMILY, NETDATA_LATENCY_SYNC,
                       "Trace calls to <code>sync()</code> which flushes file system cache to storage.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_LATENCY_BLOCK_IO,
@@ -744,9 +760,8 @@ static inline void ebpf_create_global_charts()
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_MOUNT_MENU,
                       "''", 21106, ebpf_create_global_dimension,
                       &latency_counter_publish_aggregated[NETDATA_KEY_CALL_MOUNT_ERR], 2);
-
-    ebpf_create_bootsector_charts(NULL);
 }
+     */
 
 
 /*****************************************************************
@@ -778,8 +793,11 @@ static void ebpf_latency_cleanup_disk_list() {
     netdata_latency_disks_t *move = disk_list;
     while (move) {
         netdata_latency_disks_t *next = move->next;
-        freez(move->chart);
+        freez(move->histogram_chart);
+        freez(move->bytes_chart);
         freez(move->boot_chart);
+        freez(move->mount_info);
+        freez(move->mount_dim);
         freez(move->histogram_read_calls);
         freez(move->histogram_write_calls);
         freez(move);
@@ -1009,17 +1027,15 @@ void *ebpf_io_latency_thread(void *ptr)
         goto end_io_latency;
     }
 
-    algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_ABSOLUTE_IDX;
+    //algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_ABSOLUTE_IDX;
     ebpf_global_labels(latency_counter_aggregated_data, latency_counter_publish_aggregated,
                                latency_counter_dimension_name, latency_counter_id_names,
                                algorithms, NETDATA_LATENCY_COUNTER);
 
-    algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_INCREMENTAL_IDX;
+    //algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_INCREMENTAL_IDX;
     ebpf_global_labels(latency_hist_aggregated_data, latency_hist_publish_aggregated,
                        latency_hist_dimensions, latency_hist_dimensions,
                        algorithms, NETDATA_LATENCY_HIST_BINS);
-
-    ebpf_create_global_charts();
 
     pthread_mutex_unlock(&lock);
 

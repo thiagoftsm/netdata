@@ -5,6 +5,7 @@
 
 // Proc file
 #define NETDATA_LATENCY_PROC_PARTITIONS "/proc/partitions"
+#define NETDATA_LATENCY_PROC_MOUNTPOINT "/proc/self/mountinfo"
 
 // Global defintions
 #define NETDATA_LATENCY_READ_SLEEP_MS 700000ULL
@@ -84,8 +85,11 @@ typedef struct netdata_latency_disks {
 
     // Print information
     char family[NETDATA_DISK_NAME_LEN];
-    char *chart;
+    char *histogram_chart;
+    char *bytes_chart;
     char *boot_chart;
+    char *mount_info;
+    char *mount_dim;
     uint64_t *histogram_read_calls;
     uint64_t read_bytes;
     uint64_t *histogram_write_calls;
@@ -96,12 +100,15 @@ typedef struct netdata_latency_disks {
     uint64_t end;   // end sectpr
 
     struct netdata_latency_disks *main;
+    struct netdata_latency_disks *boot_partition;
     struct netdata_latency_disks *next;
 } netdata_latency_disks_t;
 
 typedef struct block_key {
     uint32_t bin;
     uint32_t dev;
+    //uint32_t major;
+    //uint32_t minor;
 } block_key_t;
 
 typedef struct netdata_flush_key {
