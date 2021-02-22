@@ -50,7 +50,8 @@ enum io_latency_tables {
     NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM,
     NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM,
     NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM,
-    NETDATA_IO_LATENCY_GLOBAL_STATS,
+    NETDATA_IO_ERROR_HISTOGRAM,
+//    NETDATA_IO_LATENCY_GLOBAL_STATS,
 //   NETDATA_IO_MD_FLUSH,
     NETDATA_BOOTSECTOR_INFO,
     NETDATA_IO_LATENCY_TEMPORARY_TABLE,
@@ -71,6 +72,16 @@ enum netdata_latency_disks_flags {
     NETDATA_DISK_EFI_CHART_CREATED = 8
 };
 
+// Expected values for error can be found:
+// https://elixir.bootlin.com/linux/latest/source/include/linux/blk_types.h#L80
+// https://elixir.bootlin.com/linux/latest/source/block/blk-core.c#L173
+typedef struct netdata_disk_error {
+    char *name;
+    int error;
+    int created;
+    struct netdata_disk_error *next;
+} netdata_disk_error_t;
+
 /*
  * The definition (DISK_NAME_LEN) has been a stable value since Kernel 3.0,
  * I decided to bring it as internal definition, to avoid include linux/genhd.h.
@@ -82,6 +93,9 @@ typedef struct netdata_latency_disks {
     uint32_t dev;
     uint32_t major;
     uint32_t minor;
+    uint32_t bootsector_key;
+    uint64_t start; // start sector
+    uint64_t end;   // end sector
 
     // Print information
     char family[NETDATA_DISK_NAME_LEN];
@@ -94,10 +108,10 @@ typedef struct netdata_latency_disks {
     uint64_t read_bytes;
     uint64_t *histogram_write_calls;
     uint64_t written_bytes;
+    uint64_t *histogram_errors;
+    netdata_disk_error_t *dimension_errors;
+
     uint32_t flags;
-    uint32_t bootsector_key;
-    uint64_t start; // start sector
-    uint64_t end;   // end sectpr
 
     struct netdata_latency_disks *main;
     struct netdata_latency_disks *boot_partition;

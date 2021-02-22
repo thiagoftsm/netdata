@@ -16,7 +16,8 @@ static ebpf_data_t io_latency_data;
 static netdata_syscall_stat_t *latency_counter_aggregated_data = NULL;
 static netdata_publish_syscall_t *latency_counter_publish_aggregated = NULL;
 
-static char *latency_hist_dimensions[NETDATA_LATENCY_HIST_BINS] = { };
+static char *latency_temporal_hist_dimensions[NETDATA_LATENCY_HIST_BINS] = { };
+
 static netdata_syscall_stat_t *latency_hist_aggregated_data = NULL;
 static netdata_publish_syscall_t *latency_hist_publish_aggregated = NULL;
 
@@ -426,6 +427,11 @@ static void read_hard_disk_tables(int table)
                 ret->histogram_write_calls[key.bin] = total;
                 break;
             }
+            case NETDATA_IO_ERROR_HISTOGRAM: {
+                // selection must be done using function
+                ret->histogram_errors[key.bin] = total;
+                break;
+            }
             default: {
                 break;
             }
@@ -440,7 +446,6 @@ static void read_hard_disk_tables(int table)
  * Read global counter
  *
  * Read the table with number of calls for all functions
- */
 static void read_global_table()
 {
     uint64_t idx;
@@ -466,6 +471,7 @@ static void read_global_table()
             lc->ncall = 0;
     }
 }
+ */
 
 /**
  * Socket read hash
@@ -489,11 +495,12 @@ void *ebpf_latency_read_hash(void *ptr)
         usec_t dt = heartbeat_next(&hb, step);
         (void)dt;
 
-        read_global_table();
+        //read_global_table();
         read_hard_disk_tables(NETDATA_IO_LATENCY_READ_BYTES_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_READ_CALL_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_WRITE_BYTES_HISTOGRAM);
         read_hard_disk_tables(NETDATA_IO_LATENCY_WRITE_CALL_HISTOGRAM);
+        read_hard_disk_tables(NETDATA_IO_ERROR_HISTOGRAM);
         //read_flush_table();
     }
 
@@ -544,7 +551,7 @@ static void ebpf_latency_send_global_data()
 static inline void write_one_histogram(const netdata_idx_t *hist0, uint32_t end) {
     uint32_t i;
     for (i = 0 ; i < end; i++) {
-        write_chart_dimension(latency_hist_dimensions[i], hist0[i]);
+        write_chart_dimension(latency_temporal_hist_dimensions[i], hist0[i]);
     }
 }
 
@@ -560,7 +567,7 @@ static inline void write_sum_of_histograms(const netdata_idx_t *hist0, const net
     uint32_t i;
     for (i = 0 ; i < end; i++) {
         netdata_idx_t total = hist0[i] + hist1[i];
-        write_chart_dimension(latency_hist_dimensions[i], total);
+        write_chart_dimension(latency_temporal_hist_dimensions[i], total);
     }
 }
 
@@ -793,6 +800,15 @@ static void ebpf_latency_cleanup_disk_list() {
     netdata_latency_disks_t *move = disk_list;
     while (move) {
         netdata_latency_disks_t *next = move->next;
+
+        struct netdata_disk_error *errors = move->dimension_errors;
+        while (errors) {
+            struct netdata_disk_error *next_error = errors->next;
+            freez(errors->name);
+            freez(errors);
+            errors = next_error;
+        }
+
         freez(move->histogram_chart);
         freez(move->bytes_chart);
         freez(move->boot_chart);
@@ -800,6 +816,7 @@ static void ebpf_latency_cleanup_disk_list() {
         freez(move->mount_dim);
         freez(move->histogram_read_calls);
         freez(move->histogram_write_calls);
+        freez(move->histogram_errors);
         freez(move);
 
         move = next;
@@ -915,7 +932,7 @@ static void ebpf_latency_fill_histogram_dimension()
     for (selector = 0; selector < NETDATA_LATENCY_HIST_BINS; selector++) {
         snprintf(range, 127, "%u%s->%u%s", previous/previous_divisor, dimensions[previous_dim],
                  now/now_divisor, dimensions[now_dim]);
-        latency_hist_dimensions[selector] = strdupz(range);
+        latency_temporal_hist_dimensions[selector] = strdupz(range);
         previous = (now < 2)?now:now + 1;
         now <<= 1;
 
@@ -935,6 +952,12 @@ static void ebpf_latency_fill_histogram_dimension()
     }
 }
 
+static void ebpf_latency_default_dimension(netdata_latency_disks_t *w)
+{
+    w->dimension_errors = callocz(1, sizeof(netdata_disk_error_t));
+    w->dimension_errors->name = strdupz(strerror(0));
+}
+
 /**
  *  Allocate Histogram
  *
@@ -945,6 +968,8 @@ static void ebpf_latency_allocate_io_histograms() {
     while (move) {
         move->histogram_read_calls = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
         move->histogram_write_calls = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
+        move->histogram_errors = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
+        ebpf_latency_default_dimension(move);
 
         move = move->next;
     }
@@ -1033,8 +1058,8 @@ void *ebpf_io_latency_thread(void *ptr)
                                algorithms, NETDATA_LATENCY_COUNTER);
 
     //algorithms[NETDATA_KEY_BYTES_READ] = algorithms[NETDATA_KEY_BYTES_WRITE] = NETDATA_EBPF_INCREMENTAL_IDX;
-    ebpf_global_labels(latency_hist_aggregated_data, latency_hist_publish_aggregated,
-                       latency_hist_dimensions, latency_hist_dimensions,
+    ebpf_global_labels(latency_hist_aggregated_data, latency_hist_publish_aggregated, latency_temporal_hist_dimensions,
+        latency_temporal_hist_dimensions,
                        algorithms, NETDATA_LATENCY_HIST_BINS);
 
     pthread_mutex_unlock(&lock);
