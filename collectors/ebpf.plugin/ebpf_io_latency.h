@@ -69,7 +69,8 @@ enum netdata_latency_disks_flags {
     NETDATA_DISK_CREATED = 1,
     NETDATA_DISK_PLOT = 2,
     NETDATA_DISK_HAS_EFI = 4,
-    NETDATA_DISK_EFI_CHART_CREATED = 8
+    NETDATA_DISK_EFI_CHART_CREATED = 8,
+    NETDATA_DISK_EFI_RECREATE_CHART = 16
 };
 
 // Expected values for error can be found:
@@ -78,7 +79,8 @@ enum netdata_latency_disks_flags {
 typedef struct netdata_disk_error {
     char *name;
     int error;
-    int created;
+    int index;
+    uint64_t value;
     struct netdata_disk_error *next;
 } netdata_disk_error_t;
 
@@ -99,8 +101,10 @@ typedef struct netdata_latency_disks {
 
     // Print information
     char family[NETDATA_DISK_NAME_LEN];
-    char *histogram_chart;
+    char *calls_chart;
     char *bytes_chart;
+    char *error_chart;
+
     char *boot_chart;
     char *mount_info;
     char *mount_dim;
@@ -108,7 +112,6 @@ typedef struct netdata_latency_disks {
     uint64_t read_bytes;
     uint64_t *histogram_write_calls;
     uint64_t written_bytes;
-    uint64_t *histogram_errors;
     netdata_disk_error_t *dimension_errors;
 
     uint32_t flags;

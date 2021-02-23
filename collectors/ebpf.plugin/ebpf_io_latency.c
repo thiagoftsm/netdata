@@ -48,6 +48,63 @@ netdata_bootsector_t previous_status = { .start_sector = 0, .end_sector = 0, .ti
  *
  *****************************************************************/
 
+static inline void ebpf_create_bootsector_charts(netdata_latency_disks_t *w)
+{
+    ebpf_write_chart_cmd(w->boot_chart, w->mount_dim, "Monitor boot sector changes",
+                         EBPF_COMMON_DIMENSION_CHANGES, w->mount_info, "line",
+                         "disk.boot_sector", 2023);
+    ebpf_write_global_dimension("uefi", "uefi", "absolute");
+    previous_status.start_sector = w->start;
+    previous_status.end_sector = w->end;
+
+    bpf_map_update_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &w->bootsector_key, &previous_status, BPF_ANY);
+    w->flags |= NETDATA_DISK_EFI_CHART_CREATED;
+}
+
+static inline void ebpf_create_error_charts(netdata_latency_disks_t *w, char *family, int order)
+{
+    w->error_chart = strdupz("disk_io_error");
+    ebpf_write_chart_cmd(w->error_chart, family, "Error reported when files are read and written on disk.",
+                         EBPF_COMMON_DIMENSION_CHANGES, family, "line",
+                         "disk.latency_io_error", order);
+    netdata_disk_error_t *derrors = w->dimension_errors;
+    while (derrors) {
+        char *value = derrors->name;
+        ebpf_write_global_dimension(value, value, "incremental");
+        derrors = derrors->next;
+    }
+}
+
+/**
+ * Create Hard Disk charts
+ *
+ * @param w the structure with necessary information to create the chart
+ *
+ * Make Hard disk charts and fill chart name
+ */
+static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
+{
+    static int order = 2021;
+    char *family = w->family;
+    w->calls_chart = strdupz("disk_latency");
+
+    ebpf_create_chart(w->calls_chart, family, "Disk latency", EBPF_COMMON_DIMENSION_CALL,
+                      family, "disk.latency", order,
+                      ebpf_create_global_dimension, latency_hist_publish_aggregated, NETDATA_LATENCY_HIST_BINS);
+    w->flags |= NETDATA_DISK_CREATED;
+    order++;
+
+    w->bytes_chart = strdupz("disk_latency_bytes");
+    ebpf_create_chart(w->bytes_chart, family,  "Bytes read and written per second.",
+                      EBPF_COMMON_DIMENSION_KILOBYTES, family,
+                      "disk.latency_bytes", order, ebpf_create_global_dimension,
+                      &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
+    order++;
+    ebpf_create_error_charts(w, family, order);
+
+    order++;
+}
+
 /**
  * Compare disks
  *
@@ -358,6 +415,29 @@ static int read_local_disks()
  *
  *****************************************************************/
 
+netdata_disk_error_t *netdata_latency_select_index(netdata_latency_disks_t *ret, int error)
+{
+    netdata_disk_error_t *derrors = ret->dimension_errors;
+    netdata_disk_error_t *save;
+    while (derrors)  {
+        if (derrors->error == error)
+            return derrors;
+
+        save = derrors;
+        derrors = derrors->next;
+    }
+
+    ret->flags |= NETDATA_DISK_EFI_RECREATE_CHART;
+    derrors = callocz(1, sizeof(netdata_disk_error_t));
+    save->next = derrors;
+
+    derrors->index = save->index + 1;
+    derrors->error = error;
+    derrors->name = strdupz(strerror(error));
+
+    return derrors;
+}
+
 /**
  * Read hard disk table
  *
@@ -428,8 +508,8 @@ static void read_hard_disk_tables(int table)
                 break;
             }
             case NETDATA_IO_ERROR_HISTOGRAM: {
-                // selection must be done using function
-                ret->histogram_errors[key.bin] = total;
+                netdata_disk_error_t *selector =  netdata_latency_select_index(ret, key.bin);
+                selector->value = total;
                 break;
             }
             default: {
@@ -605,45 +685,17 @@ static void write_local_io_chart(char *family, char *name, long long read_bytes,
     write_end_chart();
 }
 
-static inline void ebpf_create_bootsector_charts(netdata_latency_disks_t *w)
+static void write_local_io_error(netdata_latency_disks_t *w)
 {
-    ebpf_write_chart_cmd(w->boot_chart, w->mount_dim, "Monitor boot sector changes",
-                         EBPF_COMMON_DIMENSION_CHANGES, w->mount_info, "line",
-                         "disk.boot_sector", 2023);
-    ebpf_write_global_dimension("uefi", "uefi", "absolute");
-    previous_status.start_sector = w->start;
-    previous_status.end_sector = w->end;
+    write_begin_chart(w->error_chart, w->family);
 
-    bpf_map_update_elem(map_fd[NETDATA_BOOTSECTOR_INFO], &w->bootsector_key, &previous_status, BPF_ANY);
-    w->flags |= NETDATA_DISK_EFI_CHART_CREATED;
-}
+    netdata_disk_error_t *derrors = w->dimension_errors;
+    while (derrors)  {
+        write_chart_dimension(derrors->name, derrors->value);
+        derrors = derrors->next;
+    }
 
-
-/**
- * Create Hard Disk charts
- *
- * @param w the structure with necessary information to create the chart
- *
- * Make Hard disk charts and fill chart name
- */
-static void ebpf_create_hd_charts(netdata_latency_disks_t *w)
-{
-    static int order = 2021;
-    char *family = w->family;
-    w->histogram_chart = strdupz("disk_latency");
-
-    ebpf_create_chart(w->histogram_chart, family, "Disk latency", EBPF_COMMON_DIMENSION_CALL,
-                      family, "disk.latency", order,
-                      ebpf_create_global_dimension, latency_hist_publish_aggregated, NETDATA_LATENCY_HIST_BINS);
-    w->flags |= NETDATA_DISK_CREATED;
-    order++;
-
-    w->bytes_chart = strdupz("disk_latency_bytes");
-    ebpf_create_chart(w->bytes_chart, family,  "Bytes read and written per second.",
-                      EBPF_COMMON_DIMENSION_KILOBYTES, family,
-                      "disk.latency_bytes", order, ebpf_create_global_dimension,
-                      &latency_counter_publish_aggregated[NETDATA_KEY_BYTES_READ], 2);
-    order++;
+    write_end_chart();
 }
 
 /**
@@ -680,7 +732,7 @@ static void ebpf_latency_send_hd_data()
         uint32_t flags = ld->flags;
         if (flags & NETDATA_DISK_PLOT)
         {
-            if (!(flags & NETDATA_DISK_CREATED)) {
+            if (!(flags & NETDATA_DISK_CREATED) || (flags & NETDATA_DISK_EFI_RECREATE_CHART)) {
                 ebpf_create_hd_charts(ld);
             }
 
@@ -689,10 +741,12 @@ static void ebpf_latency_send_hd_data()
                 if (boot->flags  & NETDATA_DISK_HAS_EFI)
                     ebpf_create_bootsector_charts(boot);
 
-            write_histogram_chart(ld->histogram_chart, ld->family, ld->histogram_read_calls,
+            write_histogram_chart(ld->calls_chart, ld->family, ld->histogram_read_calls,
                                   ld->histogram_write_calls, NETDATA_LATENCY_HIST_BINS);
 
             write_local_io_chart(ld->bytes_chart, ld->family, ld->read_bytes, ld->written_bytes);
+
+            write_local_io_error(ld);
 
             fflush(stdout);
             if (boot)
@@ -809,14 +863,13 @@ static void ebpf_latency_cleanup_disk_list() {
             errors = next_error;
         }
 
-        freez(move->histogram_chart);
+        freez(move->calls_chart);
         freez(move->bytes_chart);
         freez(move->boot_chart);
         freez(move->mount_info);
         freez(move->mount_dim);
         freez(move->histogram_read_calls);
         freez(move->histogram_write_calls);
-        freez(move->histogram_errors);
         freez(move);
 
         move = next;
@@ -968,7 +1021,6 @@ static void ebpf_latency_allocate_io_histograms() {
     while (move) {
         move->histogram_read_calls = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
         move->histogram_write_calls = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
-        move->histogram_errors = callocz(NETDATA_LATENCY_HIST_BINS, sizeof(uint64_t));
         ebpf_latency_default_dimension(move);
 
         move = move->next;
