@@ -418,7 +418,7 @@ static int read_local_disks()
 netdata_disk_error_t *netdata_latency_select_index(netdata_latency_disks_t *ret, int error)
 {
     netdata_disk_error_t *derrors = ret->dimension_errors;
-    netdata_disk_error_t *save;
+    netdata_disk_error_t *save = derrors;
     while (derrors)  {
         if (derrors->error == error)
             return derrors;
@@ -745,6 +745,7 @@ static void ebpf_latency_send_hd_data()
                                   ld->histogram_write_calls, NETDATA_LATENCY_HIST_BINS);
 
             write_local_io_chart(ld->bytes_chart, ld->family, ld->read_bytes, ld->written_bytes);
+            ld->read_bytes = ld->written_bytes = 0;
 
             write_local_io_error(ld);
 
