@@ -86,7 +86,7 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "cachestat", .config_name = "cachestat", .enabled = 0, .start_routine = NULL,
         .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
         .optional = 0  },
-    { .thread_name = "io_latency", .config_name = "io_latency", .enabled = 0, .start_routine = ebpf_io_latency_thread,
+    { .thread_name = "io_latency_kp", .config_name = "io_latency", .enabled = 0, .start_routine = ebpf_io_latency_thread,
         .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
         .optional = 0  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,

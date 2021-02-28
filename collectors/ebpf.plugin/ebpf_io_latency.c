@@ -448,6 +448,10 @@ netdata_disk_error_t *netdata_latency_select_index(netdata_latency_disks_t *ret,
 static void read_hard_disk_tables(int table)
 {
     netdata_idx_t *values = latency_hash_values;
+    /*
+    block_key_t key = {};
+    block_key_t next_key;
+     */
     block_key_t key = {};
     block_key_t next_key;
     netdata_latency_disks_t *ret = NULL;
