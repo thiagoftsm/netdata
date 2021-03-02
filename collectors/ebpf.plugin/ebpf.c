@@ -83,6 +83,9 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "socket", .config_name = "socket", .enabled = 0, .start_routine = ebpf_socket_thread,
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = ebpf_socket_create_apps_charts  },
+    { .thread_name = "filesystem", .config_name = "filesystem", .enabled = 0, .start_routine = ebpf_filesystem_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0, .apps_routine = NULL  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL },
@@ -585,21 +588,23 @@ void ebpf_print_help()
             "\n"
             " Available command line options:\n"
             "\n"
-            " SECONDS           set the data collection frequency.\n"
+            " SECONDS               Set the data collection frequency.\n"
             "\n"
-            " --help or -h      show this help.\n"
+            " --help or -h          Show this help.\n"
             "\n"
-            " --version or -v   show software version.\n"
+            " --version or -v       Show software version.\n"
             "\n"
-            " --global or -g    disable charts per application.\n"
+            " --global or -g        Disable charts per application.\n"
             "\n"
-            " --all or -a       Enable all chart groups (global and apps), unless -g is also given.\n"
+            " --all or -a           Enable all chart groups (global and apps), unless -g is also given.\n"
             "\n"
-            " --net or -n       Enable network viewer charts.\n"
+            " --filesystem or -f    Enable filesystem charts.\n"
             "\n"
-            " --process or -p   Enable charts related to process run time.\n"
+            " --net or -n           Enable network viewer charts.\n"
             "\n"
-            " --return or -r    Run the collector in return mode.\n"
+            " --process or -p       Enable charts related to process run time.\n"
+            "\n"
+            " --return or -r        Run the collector in return mode.\n"
             "\n",
             VERSION,
             (year >= 116) ? year + 1900 : 2020);
@@ -1687,6 +1692,13 @@ static void read_collector_values(int *disable_apps)
                                         CONFIG_BOOLEAN_NO);
     ebpf_modules[1].optional = enabled;
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "filesystem",
+                                    CONFIG_BOOLEAN_NO);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_FILESYSTEM_IDX, *disable_apps);
+        started++;
+    }
+
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
         // Read network viewer section
@@ -1766,6 +1778,7 @@ static void parse_args(int argc, char **argv)
         {"global",   no_argument,    0,  'g' },
         {"all",      no_argument,    0,  'a' },
         {"net",      no_argument,    0,  'n' },
+        {"filesystem",  no_argument,    0,  'f' },
         {"process",  no_argument,    0,  'p' },
         {"return",   no_argument,    0,  'r' },
         {0, 0, 0, 0}
@@ -1953,9 +1966,14 @@ int main(int argc, char **argv)
     read_local_ports("/proc/net/udp6", IPPROTO_UDP);
 
     struct netdata_static_thread ebpf_threads[] = {
-        {"EBPF PROCESS", NULL, NULL, 1, NULL, NULL, ebpf_modules[0].start_routine},
-        {"EBPF SOCKET" , NULL, NULL, 1, NULL, NULL, ebpf_modules[1].start_routine},
-        {NULL          , NULL, NULL, 0, NULL, NULL, NULL}
+        {"EBPF PROCESS", NULL, NULL, 1,
+          NULL, NULL, ebpf_modules[0].start_routine},
+        {"EBPF SOCKET" , NULL, NULL, 1,
+          NULL, NULL, ebpf_modules[1].start_routine},
+        {"EBPF FILESYSTEM" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[2].start_routine},
+        {NULL          , NULL, NULL, 0,
+          NULL, NULL, NULL}
     };
 
     //clean_loaded_events();
