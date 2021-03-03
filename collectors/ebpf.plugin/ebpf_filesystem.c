@@ -14,6 +14,35 @@ static netdata_publish_syscall_t *filesystem_publish_aggregated = NULL;
 
 /*****************************************************************
  *
+ *  CHART FUNCTIONS
+ *
+ *****************************************************************/
+
+/**
+* Create File Systems charts
+*/
+static void ebpf_create_fs_charts()
+{
+    static int order = 21200;
+    char chart_name[64];
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (efp->flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION) {
+            snprintfz(chart_name, 63, "%s_latency", efp->filesystem);
+            efp->chart_name = strdupz(chart_name);
+            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->chart_name,
+                              "CHANGE ME",
+                              EBPF_COMMON_DIMENSION_CALL, "fs latency",
+                              NULL, order, ebpf_create_global_dimension,
+                              filesystem_publish_aggregated, NETDATA_EXT4_MAX_BINS);
+            order++;
+        }
+    }
+}
+
+/*****************************************************************
+ *
  *  CLEANUP FUNCTIONS
  *
  *****************************************************************/
@@ -22,11 +51,13 @@ void ebpf_filesystem_cleanup_ebpf_data()
 {
     int i;
     for (i = 0; localfs[i].filesystem; i++) {
-        if (localfs[i].partitions) {
-            freez(localfs[i].kernel_info.map_fd);
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (efp->partitions) {
+            freez(efp->kernel_info.map_fd);
+
+            freez(efp->chart_name);
 
             struct bpf_program *prog;
-            ebpf_filesystem_partitions_t *efp = &localfs[i];
             struct bpf_link **probe_links = efp->probe_links;
             size_t j = 0 ;
             bpf_object__for_each_program(prog, efp->objects) {
@@ -117,6 +148,7 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
                 em->thread_name = save_name;
                 return -1;
             }
+            efp->flags |= NETDATA_FILESYSTEM_FLAG_HAS_PARTITION;
         }
     }
     em->thread_name = save_name;
@@ -161,6 +193,7 @@ void *ebpf_filesystem_thread(void *ptr)
     ebpf_global_labels(filesystem_aggregated_data, filesystem_publish_aggregated, dimensions, dimensions,
                 algorithms, NETDATA_EXT4_MAX_BINS);
 
+    ebpf_create_fs_charts();
     pthread_mutex_unlock(&lock);
 
 endfilesystem:
