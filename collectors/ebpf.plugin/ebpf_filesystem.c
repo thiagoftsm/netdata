@@ -1,17 +1,56 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "ebpf.h"
 #include "ebpf_filesystem.h"
 
-static ebpf_data_t io_latency_data;
 ebpf_filesystem_partitions_t localfs[] = {
-    {.filesystem = "ext4", .partitions = 0},
-    {.filesystem = NULL, .partitions = 0}
+    {.filesystem = "ext4", .partitions = 0, .objects = NULL, .probe_links = NULL},
+    {.filesystem = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL}
 };
+
 
 /*****************************************************************
  *
- *  COMMON FUNCTIONS
+ *  CLEANUP FUNCTIONS
+ *
+ *****************************************************************/
+
+void ebpf_filesystem_cleanup_ebpf_data()
+{
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        if (localfs[i].partitions) {
+            freez(localfs[i].kernel_info.map_fd);
+
+            struct bpf_program *prog;
+            ebpf_filesystem_partitions_t *efp = &localfs[i];
+            struct bpf_link **probe_links = efp->probe_links;
+            size_t j = 0 ;
+            bpf_object__for_each_program(prog, efp->objects) {
+                bpf_link__destroy(probe_links[j]);
+                j++;
+            }
+            bpf_object__close(efp->objects);
+        }
+    }
+}
+
+/**
+ * Clean up the main thread.
+ *
+ * @param ptr thread data.
+ */
+static void ebpf_filesystem_cleanup(void *ptr)
+{
+    ebpf_module_t *em = (ebpf_module_t *)ptr;
+    if (!em->enabled)
+        return;
+
+    ebpf_filesystem_cleanup_ebpf_data();
+}
+
+/*****************************************************************
+ *
+ *  EBPF FILESYSTEM THREAD
  *
  *****************************************************************/
 
@@ -34,7 +73,6 @@ static int read_local_partitions()
     unsigned long l, i, lines = procfile_lines(ff);
     for(l = 0; l < lines ;l++) {
         char *fs = procfile_lineword(ff, l, 7);
-        error("KILLME %s", fs);
         for (i = 0; localfs[i].filesystem; i++) {
             if (!strcmp(fs, localfs[i].filesystem)) {
                 localfs[i].partitions++;
@@ -43,33 +81,39 @@ static int read_local_partitions()
             }
         }
     }
+    procfile_close(ff);
 
     return count;
 }
 
-/*****************************************************************
- *
- *  CLEANUP FUNCTIONS
- *
- *****************************************************************/
-
-/**
- * Clean up the main thread.
- *
- * @param ptr thread data.
- */
-static void ebpf_filesystem_cleanup(void *ptr)
+int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
 {
-    ebpf_module_t *em = (ebpf_module_t *)ptr;
-    if (!em->enabled)
-        return;
-}
+    int i;
+    const char *save_name = em->thread_name;
+    for (i = 0; localfs[i].filesystem; i++) {
+        if (localfs[i].partitions) {
+            ebpf_filesystem_partitions_t *efp = &localfs[i];
+            ebpf_data_t *ed = &efp->kernel_info;
+            fill_ebpf_data(ed);
 
-/*****************************************************************
- *
- *  EBPF FILESYSTEM THREAD
- *
- *****************************************************************/
+            if (ebpf_update_kernel(ed)) {
+                em->thread_name = save_name;
+                return -1;
+            }
+
+            em->thread_name = efp->filesystem;
+            efp->probe_links = ebpf_load_program(ebpf_plugin_dir, em, kernel_string,
+                                                 &efp->objects, ed->map_fd);
+            if (!efp->probe_links) {
+                em->thread_name = save_name;
+                return -1;
+            }
+        }
+    }
+    em->thread_name = save_name;
+
+    return 0;
+}
 
 /**
  * Filesystem thread
@@ -88,12 +132,19 @@ void *ebpf_filesystem_thread(void *ptr)
     if (!em->enabled)
         goto endfilesystem;
 
-    fill_ebpf_data(&io_latency_data);
     if (!read_local_partitions()) {
         em->enabled = 0;
         info("Netdata cannot monitor the filesystems used on this host.");
         goto endfilesystem;
     }
+
+    if (ebpf_filesystem_initialize_ebpf_data(em)) {
+        goto endfilesystem;
+    }
+
+    pthread_mutex_lock(&lock);
+
+    pthread_mutex_unlock(&lock);
 
 endfilesystem:
     netdata_thread_cleanup_pop(1);
