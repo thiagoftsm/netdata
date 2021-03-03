@@ -7,6 +7,10 @@ ebpf_filesystem_partitions_t localfs[] = {
     {.filesystem = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL}
 };
 
+char **dimensions = NULL;
+
+static netdata_syscall_stat_t *filesystem_aggregated_data = NULL;
+static netdata_publish_syscall_t *filesystem_publish_aggregated = NULL;
 
 /*****************************************************************
  *
@@ -45,6 +49,11 @@ static void ebpf_filesystem_cleanup(void *ptr)
     if (!em->enabled)
         return;
 
+    freez(filesystem_aggregated_data);
+    ebpf_cleanup_publish_syscall(filesystem_publish_aggregated);
+    freez(filesystem_publish_aggregated);
+
+    ebpf_histogram_dimension_cleanup(dimensions, NETDATA_EXT4_MAX_BINS);
     ebpf_filesystem_cleanup_ebpf_data();
 }
 
@@ -112,6 +121,10 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     }
     em->thread_name = save_name;
 
+    dimensions = ebpf_fill_histogram_dimension(NETDATA_EXT4_MAX_BINS);
+    filesystem_aggregated_data = callocz(NETDATA_EXT4_MAX_BINS, sizeof(netdata_syscall_stat_t));
+    filesystem_publish_aggregated = callocz(NETDATA_EXT4_MAX_BINS, sizeof(netdata_publish_syscall_t));
+
     return 0;
 }
 
@@ -127,6 +140,7 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
 void *ebpf_filesystem_thread(void *ptr)
 {
     netdata_thread_cleanup_push(ebpf_filesystem_cleanup, ptr);
+    int algorithms[NETDATA_EXT4_MAX_BINS];
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     if (!em->enabled)
@@ -143,6 +157,9 @@ void *ebpf_filesystem_thread(void *ptr)
     }
 
     pthread_mutex_lock(&lock);
+    ebpf_set_dimension_algorithm(algorithms, NETDATA_EXT4_MAX_BINS, NETDATA_EBPF_INCREMENTAL_IDX);
+    ebpf_global_labels(filesystem_aggregated_data, filesystem_publish_aggregated, dimensions, dimensions,
+                algorithms, NETDATA_EXT4_MAX_BINS);
 
     pthread_mutex_unlock(&lock);
 

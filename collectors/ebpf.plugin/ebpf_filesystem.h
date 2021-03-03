@@ -5,6 +5,8 @@
 
 #include "ebpf.h"
 
+#define NETDATA_EXT4_MAX_BINS 32UL
+
 typedef struct ebpf_filesystem_partitions {
     char *filesystem;
     uint32_t partitions;
@@ -15,6 +17,5 @@ typedef struct ebpf_filesystem_partitions {
 }ebpf_filesystem_partitions_t;
 
 extern void *ebpf_filesystem_thread(void *ptr);
-extern void ebpf_filesystem_create_apps_charts(struct ebpf_module *em, void *ptr);
 
 #endif  /* NETDATA_EBPF_FILESYSTEM_H */

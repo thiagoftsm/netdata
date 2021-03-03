@@ -103,5 +103,7 @@ extern struct bpf_link **ebpf_load_program(char *plugins_dir,
                              struct bpf_object **obj,
                              int *map_fd);
 extern char **ebpf_fill_histogram_dimension(size_t maximum);
+extern void ebpf_histogram_dimension_cleanup(char **ptr, size_t length);
+extern void ebpf_set_dimension_algorithm(int *algorithms, size_t length, int algorithm);
 
 #endif /* NETDATA_EBPF_H */

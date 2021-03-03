@@ -366,3 +366,28 @@ char **ebpf_fill_histogram_dimension(size_t maximum)
 
     return out;
 }
+
+void ebpf_histogram_dimension_cleanup(char **ptr, size_t length)
+{
+    size_t i;
+    for (i = 0; i < length; i++) {
+        freez(ptr[i]);
+    }
+    freez(ptr);
+}
+
+/**
+* Set dimension algorithm
+ *
+ * @param algorithms the output vector
+ * @param length     number of elements of algorithms vector
+ * @param algortihm  algorithm used on charts.
+*/
+void ebpf_set_dimension_algorithm(int *algorithms, size_t length, int algorithm)
+{
+    size_t i;
+    for (i = 0; i < length; i++) {
+        algorithms[i] = algorithm;
+    }
+}
+
