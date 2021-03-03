@@ -102,5 +102,6 @@ extern struct bpf_link **ebpf_load_program(char *plugins_dir,
                              char *kernel_string,
                              struct bpf_object **obj,
                              int *map_fd);
+extern char **ebpf_fill_histogram_dimension(size_t maximum);
 
 #endif /* NETDATA_EBPF_H */
