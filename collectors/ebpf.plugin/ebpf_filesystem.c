@@ -220,8 +220,8 @@ static void ebpf_create_fs_charts()
             snprintfz(chart_name, 63, "%s_read_latency", efp->filesystem);
             efp->hread.name = strdupz(chart_name);
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
-                              "CHANGE ME",
-                              EBPF_COMMON_DIMENSION_CALL, "fs latency",
+                              "Latency is the time it takes for an output request to be completed.",
+                              EBPF_COMMON_DIMENSION_CALL, "FS latency",
                               NULL, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
@@ -229,8 +229,8 @@ static void ebpf_create_fs_charts()
             snprintfz(chart_name, 63, "%s_write_latency", efp->filesystem);
             efp->hwrite.name = strdupz(chart_name);
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
-                              "CHANGE ME",
-                              EBPF_COMMON_DIMENSION_CALL, "fs latency",
+                              "Latency is the time it takes for an input request to be completed.",
+                              EBPF_COMMON_DIMENSION_CALL, "FS latency",
                               NULL, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
@@ -238,8 +238,8 @@ static void ebpf_create_fs_charts()
             snprintfz(chart_name, 63, "%s_open_latency", efp->filesystem);
             efp->hopen.name = strdupz(chart_name);
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
-                              "CHANGE ME",
-                              EBPF_COMMON_DIMENSION_CALL, "fs latency",
+                              "Latency is the time it takes for an open request to be completed.",
+                              EBPF_COMMON_DIMENSION_CALL, "FS latency",
                               NULL, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
