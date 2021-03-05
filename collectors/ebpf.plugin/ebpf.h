@@ -141,12 +141,13 @@ extern void ebpf_write_global_dimension(char *name, char *id, char *algorithm);
 
 extern void ebpf_create_global_dimension(void *ptr, int end);
 
-extern void ebpf_create_chart(char *type,
+extern void ebpf_create_chart(char *family,
                               char *id,
                               char *title,
                               char *units,
-                              char *family,
+                              char *dashboard,
                               char *context,
+                              char *type,
                               int order,
                               void (*ncd)(void *, int),
                               void *move,
@@ -187,6 +188,9 @@ extern void ebpf_cleanup_publish_syscall(netdata_publish_syscall_t *nps);
 #define EBPF_COMMON_DIMENSION_BYTES "bytes/s"
 #define EBPF_COMMON_DIMENSION_DIFFERENCE "difference"
 #define EBPF_COMMON_DIMENSION_PACKETS "packets"
+
+#define EBPF_CHART_TYPE_LINE "line"
+#define EBPF_CHART_TYPE_STACKED "stacked"
 
 // Common variables
 extern char *ebpf_user_config_dir;

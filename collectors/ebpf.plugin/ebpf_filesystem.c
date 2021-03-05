@@ -222,7 +222,7 @@ static void ebpf_create_fs_charts()
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
                               "Latency is the time it takes for an output request to be completed.",
                               EBPF_COMMON_DIMENSION_CALL, "FS latency",
-                              NULL, order, ebpf_create_global_dimension,
+                              NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
 
@@ -231,7 +231,7 @@ static void ebpf_create_fs_charts()
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
                               "Latency is the time it takes for an input request to be completed.",
                               EBPF_COMMON_DIMENSION_CALL, "FS latency",
-                              NULL, order, ebpf_create_global_dimension,
+                              NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
 
@@ -240,7 +240,7 @@ static void ebpf_create_fs_charts()
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
                               "Latency is the time it takes for an open request to be completed.",
                               EBPF_COMMON_DIMENSION_CALL, "FS latency",
-                              NULL, order, ebpf_create_global_dimension,
+                              NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
 

@@ -404,28 +404,29 @@ void ebpf_create_global_dimension(void *ptr, int end)
 /**
  *  Call write_chart_cmd to create the charts
  *
- * @param type    chart type
- * @param id      chart id
- * @param units   axis label
- * @param family  group name used to attach the chart on dashaboard
- * @param order   order number of the specified chart
- * @param context chart context
- * @param ncd     a pointer to a function called to create dimensions
- * @param move    a pointer for a structure that has the dimensions
- * @param end     number of dimensions for the chart created
+ * @param family     chart type
+ * @param id         chart id
+ * @param units      axis label
+ * @param dashboard  group name used to attach the chart on dashaboard
+ * @param order      order number of the specified chart
+ * @param context    chart context
+ * @param ncd        a pointer to a function called to create dimensions
+ * @param move       a pointer for a structure that has the dimensions
+ * @param end        number of dimensions for the chart created
  */
-void ebpf_create_chart(char *type,
+void ebpf_create_chart(char *family,
                        char *id,
                        char *title,
                        char *units,
-                       char *family,
+                       char *dashboard,
                        char *context,
+                       char *type,
                        int order,
                        void (*ncd)(void *, int),
                        void *move,
                        int end)
 {
-    ebpf_write_chart_cmd(type, id, title, units, family, "line", context, order);
+    ebpf_write_chart_cmd(family, id, title, units, dashboard, type, context, order);
 
     ncd(move, end);
 }
