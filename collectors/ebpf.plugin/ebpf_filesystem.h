@@ -36,6 +36,7 @@ typedef struct netdata_ebpf_histogram {
 
 typedef struct ebpf_filesystem_partitions {
     char *filesystem;
+    char *family;
     uint32_t partitions;
     struct bpf_object *objects;
     struct bpf_link **probe_links;

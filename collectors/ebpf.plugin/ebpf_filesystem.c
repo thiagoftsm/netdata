@@ -3,8 +3,8 @@
 #include "ebpf_filesystem.h"
 
 ebpf_filesystem_partitions_t localfs[] = {
-    {.filesystem = "ext4", .partitions = 0, .objects = NULL, .probe_links = NULL},
-    {.filesystem = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL}
+    {.filesystem = "ext4", .family = "EXT4", .partitions = 0, .objects = NULL, .probe_links = NULL},
+    {.filesystem = NULL, .family = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL}
 };
 
 char **dimensions = NULL;
@@ -212,34 +212,39 @@ static void filesystem_collector(usec_t step, ebpf_module_t *em)
 static void ebpf_create_fs_charts()
 {
     static int order = 21200;
-    char chart_name[64];
+    char chart_name[64], title[256], family[64];
     int i;
     for (i = 0; localfs[i].filesystem; i++) {
         ebpf_filesystem_partitions_t *efp = &localfs[i];
         if (efp->flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION) {
+            snprintfz(title, 255, "%s latency for each read request.", efp->filesystem);
+            snprintfz(family, 63, "%s latency", efp->family);
             snprintfz(chart_name, 63, "%s_read_latency", efp->filesystem);
             efp->hread.name = strdupz(chart_name);
+
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
-                              "Latency is the time it takes for an output request to be completed.",
-                              EBPF_COMMON_DIMENSION_CALL, "FS latency",
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
 
+            snprintfz(title, 255, "%s latency for each write request.", efp->filesystem);
             snprintfz(chart_name, 63, "%s_write_latency", efp->filesystem);
             efp->hwrite.name = strdupz(chart_name);
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
-                              "Latency is the time it takes for an input request to be completed.",
-                              EBPF_COMMON_DIMENSION_CALL, "FS latency",
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
 
+            snprintfz(title, 255, "%s latency for each open request.", efp->filesystem);
             snprintfz(chart_name, 63, "%s_open_latency", efp->filesystem);
             efp->hopen.name = strdupz(chart_name);
             ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
-                              "Latency is the time it takes for an open request to be completed.",
-                              EBPF_COMMON_DIMENSION_CALL, "FS latency",
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
