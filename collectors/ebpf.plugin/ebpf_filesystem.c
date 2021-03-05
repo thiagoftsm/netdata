@@ -49,8 +49,8 @@ static netdata_ebpf_histogram_t *select_hist(ebpf_filesystem_partitions_t *efp, 
 static void read_filesystem_table(ebpf_filesystem_partitions_t *efp)
 {
     netdata_idx_t *values = filesystem_hash_values;
-    netdata_ext4_hist_t key = {};
-    netdata_ext4_hist_t next_key;
+    netdata_fs_hist_t key = {};
+    netdata_fs_hist_t next_key;
     int fd = efp->kernel_info.map_fd[NETDATA_MAIN_TABLE];
     while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
         int test = bpf_map_lookup_elem(fd, &key, values);

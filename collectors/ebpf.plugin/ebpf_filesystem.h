@@ -10,10 +10,10 @@
 
 #define NETDATA_MAIN_TABLE 0ULL
 
-typedef struct netdata_ext4_hist {
+typedef struct netdata_fs_hist {
     uint32_t hist_id;
     uint32_t bin;
-} netdata_ext4_hist_t;
+} netdata_fs_hist_t;
 
 enum ext4_counters {
     NETDATA_KEY_CALLS_READ,
