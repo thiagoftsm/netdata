@@ -33,6 +33,9 @@ static netdata_ebpf_histogram_t *select_hist(ebpf_filesystem_partitions_t *efp, 
         case NETDATA_KEY_CALLS_OPEN: {
             return &efp->hopen;
         }
+        case NETDATA_KEY_CALLS_SYNC: {
+            return &efp->hsync;
+        }
         default: {
             return NULL;
         }
@@ -169,6 +172,9 @@ static void ebpf_histogram_send_data()
 
             write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
                                   efp->hopen.histogram, NETDATA_FILESYSTEM_MAX_BINS);
+
+            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hsync.name,
+                                  efp->hsync.histogram, NETDATA_FILESYSTEM_MAX_BINS);
         }
     }
 }
@@ -249,6 +255,15 @@ static void ebpf_create_fs_charts()
                               filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
             order++;
 
+            snprintfz(title, 255, "%s latency for each sync request.", efp->filesystem);
+            snprintfz(chart_name, 63, "%s_sync_latency", efp->filesystem);
+            efp->hsync.name = strdupz(chart_name);
+            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hsync.name,
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
+                              NULL, EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
+                              filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
+            order++;
         }
     }
 }
@@ -270,6 +285,7 @@ void ebpf_filesystem_cleanup_ebpf_data()
             freez(efp->hread.name);
             freez(efp->hwrite.name);
             freez(efp->hopen.name);
+            freez(efp->hsync.name);
 
             struct bpf_program *prog;
             struct bpf_link **probe_links = efp->probe_links;
