@@ -4,6 +4,8 @@
 
 ebpf_filesystem_partitions_t localfs[] = {
     {.filesystem = "ext4", .family = "EXT4", .partitions = 0, .objects = NULL, .probe_links = NULL},
+    {.filesystem = "xfs", .family = "XFS", .partitions = 0, .objects = NULL, .probe_links = NULL},
+    {.filesystem = "nfs", .family = "NFS", .partitions = 0, .objects = NULL, .probe_links = NULL},
     {.filesystem = NULL, .family = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL}
 };
 
