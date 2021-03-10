@@ -803,7 +803,6 @@ static void ebpf_update_table_size()
     }
 }
 
-
 /**
  * Read collector values
  *
