@@ -38,6 +38,7 @@ static struct bpf_object *objects = NULL;
 static struct bpf_link **probe_links = NULL;
 
 struct config process_config = { .first_section = NULL,
+static struct config process_config = { .first_section = NULL,
     .last_section = NULL,
     .mutex = NETDATA_MUTEX_INITIALIZER,
     .index = { .avl_tree = { .root = NULL, .compar = appconfig_section_compare },
@@ -1054,6 +1055,8 @@ void *ebpf_process_thread(void *ptr)
         pthread_mutex_unlock(&lock);
         goto endprocess;
     }
+
+    ebpf_load_config_update_module(em, &process_config, NETDATA_PROCESS_CONFIG_FILE);
 
     int algorithms[NETDATA_KEY_PUBLISH_PROCESS_END] = {
         NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,NETDATA_EBPF_INCREMENTAL_IDX, //open, close, unlink
