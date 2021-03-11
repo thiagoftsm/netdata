@@ -497,7 +497,6 @@ void ebpf_update_module_using_config(ebpf_module_t *modules, struct config *cfg)
                                                            modules->pid_map_size);
 }
 
-
 /**
  * Update module
  *
@@ -524,3 +523,4 @@ void ebpf_update_module(ebpf_module_t *em, struct config *cfg, char *cfg_file)
 
     ebpf_update_module_using_config(em, cfg);
 }
+
