@@ -2819,6 +2819,8 @@ void parse_service_name_section(struct config *cfg)
         if (default_port > 0 && default_port < 65536)
             link_dimension_name(port_string, simple_hash(port_string), "Netdata");
     }
+    if (port_string)
+        link_dimension_name(port_string, simple_hash(port_string), "Netdata");
 }
 
 void parse_table_size_options(struct config *cfg)
@@ -2892,6 +2894,8 @@ void *ebpf_socket_thread(void *ptr)
     }
 
     ebpf_load_config_update_module(em, &socket_config, NETDATA_NETWORK_CONFIG_FILE);
+    parse_network_viewer_section(&socket_config);
+    parse_service_name_section(&socket_config);
 
     int algorithms[NETDATA_MAX_SOCKET_VECTOR] = {
         NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX,
