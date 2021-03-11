@@ -37,6 +37,4 @@ dist_ebpfconfig_DATA = \
     ebpf.d/network.conf \
     ebpf.d/process.conf \
     ebpf.d/sync.conf \
-    ebpf.d/process.conf \
-    ebpf.d/cachestat.conf \
     $(NULL)

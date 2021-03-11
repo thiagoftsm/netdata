@@ -2891,6 +2891,8 @@ void *ebpf_socket_thread(void *ptr)
         goto endsocket;
     }
 
+    ebpf_load_config_update_module(em, &socket_config, NETDATA_NETWORK_CONFIG_FILE);
+
     int algorithms[NETDATA_MAX_SOCKET_VECTOR] = {
         NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX,
         NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX
