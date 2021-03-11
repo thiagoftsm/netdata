@@ -634,6 +634,8 @@ void *ebpf_cachestat_thread(void *ptr)
         goto endcachestat;
     }
 
+    ebpf_load_config_update_module(em, &cachestat_config, NETDATA_CACHESTAT_CONFIG_FILE);
+
     int algorithms[NETDATA_CACHESTAT_END] = {
         NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX
     };
