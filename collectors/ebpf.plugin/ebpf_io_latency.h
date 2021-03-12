@@ -124,6 +124,7 @@ typedef struct netdata_latency_disks {
 typedef struct block_key {
     uint32_t bin;
     uint32_t dev;
+    uint32_t partition;
     //uint32_t major;
     //uint32_t minor;
 } block_key_t;
