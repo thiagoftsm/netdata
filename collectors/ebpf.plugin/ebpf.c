@@ -94,6 +94,9 @@ ebpf_module_t ebpf_modules[] = {
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = ebpf_dcstat_create_apps_charts, .maps = NULL,
       .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE },
+    { .thread_name = "filesystem", .config_name = "filesystem", .enabled = 0, .start_routine = ebpf_filesystem_thread,
+      .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+      .optional = 0, .apps_routine = NULL, .names = NULL },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL },
@@ -596,6 +599,7 @@ void ebpf_print_help()
             " --cachestat or -c   Enable charts related to process run time.\n"
             "\n"
             " --dcstat or -d      Enable charts related to directory cache.\n"
+            " --filesystem or -f  Enable charts related to filesystem monitoring.\n"
             "\n"
             " --net or -n         Enable network viewer charts.\n"
             "\n"
@@ -893,6 +897,13 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "filesystem",
+                                    CONFIG_BOOLEAN_NO);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_FILESYSTEM_IDX, *disable_apps);
+        started++;
+    }
+
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
         // Read network viewer section
@@ -977,6 +988,7 @@ static void parse_args(int argc, char **argv)
         {"all",       no_argument,    0,  'a' },
         {"cachestat", no_argument,    0,  'c' },
         {"dcstat",    no_argument,    0,  'd' },
+        {"filesystem",  no_argument,    0,  'f' },
         {"net",       no_argument,    0,  'n' },
         {"process",   no_argument,    0,  'p' },
         {"return",    no_argument,    0,  'r' },
@@ -1056,6 +1068,15 @@ static void parse_args(int argc, char **argv)
 #ifdef NETDATA_INTERNAL_CHECKS
                 info(
                     "EBPF enabling \"PROCESS\" charts, because it was started with the option \"--process\" or \"-p\".");
+#endif
+                break;
+            }
+            case 'f': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_FILESYSTEM_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info(
+                    "EBPF enabling \"FILESYSTEM\" charts, because it was started with the option \"--filesystem\" or \"-f\".");
 #endif
                 break;
             }
@@ -1200,8 +1221,13 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_CACHESTAT_IDX].start_routine},
         {"EBPF SYNC" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_SYNC_IDX].start_routine},
+<<<<<<< HEAD
         {"EBPF DCSTAT" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_DCSTAT_IDX].start_routine},
+=======
+        {"EBPF FILESYSTEM" , NULL, NULL, 1,
+         NULL, NULL, ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].start_routine},
+>>>>>>> 7cef9f093 (fs_latency_dc_raid: add new thread)
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };
