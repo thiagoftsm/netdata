@@ -448,8 +448,12 @@ netdata_disk_error_t *netdata_latency_select_index(netdata_latency_disks_t *ret,
 static void read_hard_disk_tables(int table)
 {
     netdata_idx_t *values = latency_hash_values;
+    /*
     block_key_t key = {};
     block_key_t next_key;
+     */
+    block_skey_t key = {};
+    block_skey_t next_key;
     netdata_latency_disks_t *ret = NULL;
     int fd = map_fd[table];
     while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
@@ -458,8 +462,10 @@ static void read_hard_disk_tables(int table)
             key = next_key;
             continue;
         }
-        error("KILLME %u %u %u", key.dev, key.partition, key.bin);
+        //error("KILLME %u %u %u", key.dev, key.partition, key.bin);
+        error("KILLME %s %u %u", key.disk_name, key.partition, key.bin);
 
+        /*
         netdata_latency_disks_t find;
         find.dev = key.dev;
 
@@ -518,6 +524,7 @@ static void read_hard_disk_tables(int table)
             }
         }
         ret->flags |= NETDATA_DISK_PLOT;
+         */
 
         key = next_key;
     }

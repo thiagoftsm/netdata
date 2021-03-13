@@ -125,9 +125,13 @@ typedef struct block_key {
     uint32_t bin;
     uint32_t dev;
     uint32_t partition;
-    //uint32_t major;
-    //uint32_t minor;
 } block_key_t;
+
+typedef struct block_skey {
+    uint32_t bin;
+    char disk_name[32];
+    uint32_t partition;
+} block_skey_t;
 
 typedef struct netdata_flush_key {
     char key[NETDATA_DISK_NAME_LEN];
