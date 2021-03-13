@@ -21,11 +21,74 @@ struct config fs_config = { .first_section = NULL,
 
 char **dimensions = NULL;
 
-static netdata_syscall_stat_t *filesystem_aggregated_data = NULL;
-static netdata_publish_syscall_t *filesystem_publish_aggregated = NULL;
+static netdata_syscall_stat_t filesystem_aggregated_data[NETDATA_FILESYSTEM_MAX_BINS];
+static netdata_publish_syscall_t filesystem_publish_aggregated[NETDATA_FILESYSTEM_MAX_BINS];
 
 static int read_thread_closed = 1;
 static netdata_idx_t *filesystem_hash_values = NULL;
+
+int algorithms[NETDATA_FILESYSTEM_MAX_BINS];
+
+/*****************************************************************
+ *
+ *  COMMON FUNCTIONS
+ *
+ *****************************************************************/
+
+static void ebpf_create_fs_charts()
+{
+    static int order = 21200;
+    char chart_name[64], title[256], family[64];
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        uint32_t flags = efp->flags;
+        if (flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION && !(flags & NETDATA_FILESYSTEM_FLAG_CHART_CREATED)) {
+            snprintfz(title, 255, "%s latency for each read request.", efp->filesystem);
+            snprintfz(family, 63, "%s latency", efp->family);
+            snprintfz(chart_name, 63, "%s_read_latency", efp->filesystem);
+            efp->hread.name = strdupz(chart_name);
+
+            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
+                              NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
+                              filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
+            order++;
+
+            snprintfz(title, 255, "%s latency for each write request.", efp->filesystem);
+            snprintfz(chart_name, 63, "%s_write_latency", efp->filesystem);
+            efp->hwrite.name = strdupz(chart_name);
+            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
+                              NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
+                              filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
+            order++;
+
+            snprintfz(title, 255, "%s latency for each open request.", efp->filesystem);
+            snprintfz(chart_name, 63, "%s_open_latency", efp->filesystem);
+            efp->hopen.name = strdupz(chart_name);
+            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
+                              NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
+                              filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
+            order++;
+
+            snprintfz(title, 255, "%s latency for each sync request.", efp->filesystem);
+            snprintfz(chart_name, 63, "%s_sync_latency", efp->filesystem);
+            efp->hsync.name = strdupz(chart_name);
+            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hsync.name,
+                              title,
+                              EBPF_COMMON_DIMENSION_CALL, family,
+                              NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
+                              filesystem_publish_aggregated, NETDATA_FILESYSTEM_MAX_BINS);
+            order++;
+            efp->flags |= NETDATA_FILESYSTEM_FLAG_CHART_CREATED;
+        }
+    }
+}
 
 /**
  * Reset the partition counts
@@ -33,7 +96,7 @@ static netdata_idx_t *filesystem_hash_values = NULL;
 static inline void ebpf_reset_partitions()
 {
     int i;
-    for (i = 0; localfs[i]; i++) {
+    for (i = 0; localfs[i].filesystem ; i++) {
         ebpf_filesystem_partitions_t *w = &localfs[i];
         w->partitions = 0;
         w->flags &= ~NETDATA_FILESYSTEM_FLAG_HAS_PARTITION;
@@ -89,7 +152,7 @@ static int ebpf_read_local_partitions()
 int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
 {
     int i;
-    const char *save_name = em->thread_name;
+    const char *saved_name = em->thread_name;
     for (i = 0; localfs[i].filesystem; i++) {
         if (localfs[i].partitions) {
             ebpf_filesystem_partitions_t *efp = &localfs[i];
@@ -97,7 +160,7 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
             fill_ebpf_data(ed);
 
             if (ebpf_update_kernel(ed)) {
-                em->thread_name = save_name;
+                em->thread_name = saved_name;
                 return -1;
             }
 
@@ -105,19 +168,19 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
             efp->probe_links = ebpf_load_program(ebpf_plugin_dir, em, kernel_string,
                                                  &efp->objects, ed->map_fd);
             if (!efp->probe_links) {
-                em->thread_name = save_name;
+                em->thread_name = saved_name;
                 return -1;
             }
             efp->flags |= NETDATA_FILESYSTEM_FLAG_HAS_PARTITION;
         }
     }
-    em->thread_name = save_name;
+    em->thread_name = saved_name;
 
     if (!dimensions) {
         dimensions = ebpf_fill_histogram_dimension(NETDATA_FILESYSTEM_MAX_BINS);
 
-        filesystem_aggregated_data = callocz(NETDATA_FILESYSTEM_MAX_BINS, sizeof(netdata_syscall_stat_t));
-        filesystem_publish_aggregated = callocz(NETDATA_FILESYSTEM_MAX_BINS, sizeof(netdata_publish_syscall_t));
+        memset(filesystem_aggregated_data, 0 , NETDATA_FILESYSTEM_MAX_BINS*sizeof(netdata_syscall_stat_t));
+        memset(filesystem_publish_aggregated, 0 , NETDATA_FILESYSTEM_MAX_BINS*sizeof(netdata_publish_syscall_t));
 
         filesystem_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
     }
@@ -125,6 +188,36 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     return 0;
 }
 
+/*****************************************************************
+ *
+ *  CLEANUP FUNCTIONS
+ *
+ *****************************************************************/
+
+void ebpf_filesystem_cleanup_ebpf_data()
+{
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (efp->partitions) {
+            freez(efp->kernel_info.map_fd);
+
+            freez(efp->hread.name);
+            freez(efp->hwrite.name);
+            freez(efp->hopen.name);
+            freez(efp->hsync.name);
+
+            struct bpf_program *prog;
+            struct bpf_link **probe_links = efp->probe_links;
+            size_t j = 0 ;
+            bpf_object__for_each_program(prog, efp->objects) {
+                bpf_link__destroy(probe_links[j]);
+                j++;
+            }
+            bpf_object__close(efp->objects);
+        }
+    }
+}
 
 /**
  * Clean up the main thread.
@@ -136,7 +229,17 @@ static void ebpf_filesystem_cleanup(void *ptr)
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     if (!em->enabled)
         return;
+
+    freez(filesystem_hash_values);
+    ebpf_histogram_dimension_cleanup(dimensions, NETDATA_FILESYSTEM_MAX_BINS);
+    ebpf_filesystem_cleanup_ebpf_data();
 }
+
+/*****************************************************************
+ *
+ *  MAIN THREAD
+ *
+ *****************************************************************/
 
 /**
  * Filesystem thread
@@ -166,6 +269,15 @@ void *ebpf_filesystem_thread(void *ptr)
     if (ebpf_filesystem_initialize_ebpf_data(em)) {
         goto endfilesystem;
     }
+
+    pthread_mutex_lock(&lock);
+
+    ebpf_set_dimension_algorithm(algorithms, NETDATA_FILESYSTEM_MAX_BINS, NETDATA_EBPF_INCREMENTAL_IDX);
+    ebpf_global_labels(filesystem_aggregated_data, filesystem_publish_aggregated, dimensions, dimensions,
+                       algorithms, NETDATA_FILESYSTEM_MAX_BINS);
+
+    ebpf_create_fs_charts();
+    pthread_mutex_unlock(&lock);
 
 endfilesystem:
     netdata_thread_cleanup_pop(1);
