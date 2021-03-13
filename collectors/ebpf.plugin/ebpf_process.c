@@ -1056,8 +1056,6 @@ void *ebpf_process_thread(void *ptr)
         goto endprocess;
     }
 
-    ebpf_load_config_update_module(em, &process_config, NETDATA_PROCESS_CONFIG_FILE);
-
     int algorithms[NETDATA_KEY_PUBLISH_PROCESS_END] = {
         NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,NETDATA_EBPF_INCREMENTAL_IDX, //open, close, unlink
         NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX, NETDATA_EBPF_ABSOLUTE_IDX,
