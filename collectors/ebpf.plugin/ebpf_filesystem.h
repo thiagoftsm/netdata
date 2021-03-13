@@ -10,6 +10,15 @@
 
 #define NETDATA_MAIN_TABLE 0ULL
 
+#define NETDATA_FILESYSTEM_CONFIG_FILE "filesystem.conf"
+
+enum netdata_filesystem_flags {
+    NETDATA_FILESYSTEM_FLAG_NO_PARTITION = 0,
+    NETDATA_FILESYSTEM_FLAG_HAS_PARTITION = 1,
+    NETDATA_FILESYSTEM_FLAG_CHART_CREATED = 2
+};
+
+
 typedef struct netdata_ebpf_histogram {
     char *name;
     uint64_t histogram[NETDATA_FILESYSTEM_MAX_BINS];
