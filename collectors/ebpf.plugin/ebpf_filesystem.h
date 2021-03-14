@@ -11,6 +11,9 @@
 #define NETDATA_MAIN_TABLE 0ULL
 
 #define NETDATA_FILESYSTEM_CONFIG_FILE "filesystem.conf"
+#define NETDATA_FILESYSTEM_CONFIG_NAME "filesystem"
+
+#define NETDATA_FS_MAX_DIST_NAME 64
 
 enum netdata_filesystem_flags {
     NETDATA_FILESYSTEM_FLAG_NO_PARTITION = 0,
@@ -50,6 +53,7 @@ typedef struct ebpf_filesystem_partitions {
     netdata_ebpf_histogram_t hsync;
 
     uint32_t flags;
+    uint32_t enabled;
 
     ebpf_data_t kernel_info;
 }ebpf_filesystem_partitions_t;

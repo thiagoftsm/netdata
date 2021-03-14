@@ -4,13 +4,13 @@
 
 ebpf_filesystem_partitions_t localfs[] = {
     {.filesystem = "ext4", .family = "EXT4", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
     {.filesystem = "xfs", .family = "XFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
     {.filesystem = "nfs", .family = "NFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
     {.filesystem = NULL, .family = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
 };
 
 struct config fs_config = { .first_section = NULL,
@@ -138,7 +138,8 @@ static int ebpf_read_local_partitions()
             fs = procfile_lineword(ff, l,8);
 
         for (i = 0; localfs[i].filesystem; i++) {
-            if (!strcmp(fs, localfs[i].filesystem)) {
+            ebpf_filesystem_partitions_t *w = &localfs[i];
+            if (w->enabled && !strcmp(fs, w->filesystem)) {
                 localfs[i].partitions++;
                 count++;
                 break;
@@ -196,6 +197,35 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     return 0;
 }
 
+/**
+ *  Update partition
+ *
+ *  Update the partition structures before to plot
+ *
+ * @param em main thread structure
+ *
+ * @return 0 on success and -1 otherwise.
+ */
+static int ebpf_update_partitions(ebpf_module_t *em)
+{
+    static time_t update_time = 0;
+    time_t curr = now_realtime_sec();
+    if (curr < update_time)
+        return 0;
+
+    update_time = curr + 5*em->update_time;
+    if (!ebpf_read_local_partitions()) {
+        em->enabled = 0;
+        info("Netdata cannot monitor the filesystems used on this host.");
+        return -1;
+    }
+
+    if (ebpf_filesystem_initialize_ebpf_data(em)) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /*****************************************************************
  *
@@ -375,6 +405,8 @@ static void filesystem_collector(usec_t step, ebpf_module_t *em)
 
         pthread_mutex_lock(&lock);
 
+        ebpf_update_partitions(em);
+        ebpf_create_fs_charts();
         ebpf_histogram_send_data();
 
         pthread_mutex_unlock(&collect_data_mutex);
@@ -443,6 +475,18 @@ static void ebpf_filesystem_cleanup(void *ptr)
  *
  *****************************************************************/
 
+static void ebpf_parse_filesystem()
+{
+    char dist[NETDATA_FS_MAX_DIST_NAME + 1];
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        snprintfz(dist, NETDATA_FS_MAX_DIST_NAME, "%sdist", localfs[i].filesystem);
+
+        localfs[i].enabled = appconfig_get_boolean(&fs_config, NETDATA_FILESYSTEM_CONFIG_NAME, dist,
+                                                   CONFIG_BOOLEAN_YES);
+    }
+}
+
 /**
  * Filesystem thread
  *
@@ -458,18 +502,15 @@ void *ebpf_filesystem_thread(void *ptr)
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     ebpf_load_config_update_module(em, &fs_config, NETDATA_FILESYSTEM_CONFIG_FILE);
+    ebpf_parse_filesystem();
 
     if (!em->enabled)
         goto endfilesystem;
 
-    if (!ebpf_read_local_partitions()) {
+    if (ebpf_update_partitions(em)) {
         em->enabled = 0;
-        info("Netdata cannot monitor the filesystems used on this host.");
         goto endfilesystem;
-    }
 
-    if (ebpf_filesystem_initialize_ebpf_data(em)) {
-        goto endfilesystem;
     }
 
     pthread_mutex_lock(&lock);
