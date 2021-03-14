@@ -133,7 +133,12 @@ static int ebpf_read_local_partitions()
     unsigned long l, i, lines = procfile_lines(ff);
     for(l = 0; l < lines ;l++) {
         char *fs = procfile_lineword(ff, l, 7);
+        // When `shared` options is added to mount information, the filesystem shifts one position
+        if (*fs == '-')
+            fs = procfile_lineword(ff, l,8);
+
         for (i = 0; localfs[i].filesystem; i++) {
+            error("KILLME %s %s %d", fs, localfs[i].filesystem, strcmp(fs, localfs[i].filesystem));
             if (!strcmp(fs, localfs[i].filesystem)) {
                 localfs[i].partitions++;
                 count++;
