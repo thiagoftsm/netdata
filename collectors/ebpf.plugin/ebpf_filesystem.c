@@ -300,6 +300,57 @@ void *ebpf_filesystem_read_hash(void *ptr)
 }
 
 /**
+ * Call the necessary functions to create a name.
+ *
+ *  @param family family name
+ *  @param name   chart name
+ *  @param hist0  histogram values
+ *  @param end    number of bins that will be sent to Netdata.
+ *
+ * @return It returns a variable tha maps the charts that did not have zero values.
+ */
+static void write_histogram_chart(char *family, char *name, const netdata_idx_t *hist, uint32_t end)
+{
+    write_begin_chart(family, name);
+
+    uint32_t i;
+    for (i = 0; i < end; i++) {
+        write_chart_dimension(dimensions[i], hist[i]);
+    }
+
+    write_end_chart();
+
+    fflush(stdout);
+}
+
+/**
+ * Send Hard disk data
+ *
+ * Send hard disk information to Netdata.
+ */
+static void ebpf_histogram_send_data()
+{
+    uint32_t i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (efp->flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION) {
+            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
+                                  efp->hread.histogram, NETDATA_FILESYSTEM_MAX_BINS);
+
+            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
+                                  efp->hwrite.histogram, NETDATA_FILESYSTEM_MAX_BINS);
+
+            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
+                                  efp->hopen.histogram, NETDATA_FILESYSTEM_MAX_BINS);
+
+            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hsync.name,
+                                  efp->hsync.histogram, NETDATA_FILESYSTEM_MAX_BINS);
+        }
+    }
+}
+
+
+/**
  * Main loop for this collector.
  *
  */
@@ -320,13 +371,12 @@ static void filesystem_collector(usec_t step, ebpf_module_t *em)
 
         pthread_mutex_lock(&lock);
 
- //       ebpf_histogram_send_data();
+        ebpf_histogram_send_data();
 
         pthread_mutex_unlock(&collect_data_mutex);
         pthread_mutex_unlock(&lock);
     }
 }
-
 
 /*****************************************************************
  *
