@@ -19,6 +19,10 @@ struct config fs_config = { .first_section = NULL,
     .index = { .avl_tree = { .root = NULL, .compar = appconfig_section_compare },
         .rwlock = AVL_LOCK_INITIALIZER } };
 
+struct netdata_static_thread filesystem_threads = {"EBPF FS READ",
+                                                   NULL, NULL, 1, NULL,
+                                                   NULL, NULL };
+
 char **dimensions = NULL;
 
 static netdata_syscall_stat_t filesystem_aggregated_data[NETDATA_FILESYSTEM_MAX_BINS];
@@ -188,6 +192,142 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     return 0;
 }
 
+
+/*****************************************************************
+ *
+ *  LOOP THREAD
+ *
+ *****************************************************************/
+
+static netdata_ebpf_histogram_t *select_hist(ebpf_filesystem_partitions_t *efp, uint32_t id)
+{
+    switch (id) {
+        case NETDATA_KEY_CALLS_READ: {
+            return &efp->hread;
+        }
+        case NETDATA_KEY_CALLS_WRITE: {
+            return &efp->hwrite;
+        }
+        case NETDATA_KEY_CALLS_OPEN: {
+            return &efp->hopen;
+        }
+        case NETDATA_KEY_CALLS_SYNC: {
+            return &efp->hsync;
+        }
+        default: {
+            return NULL;
+        }
+    }
+}
+
+/**
+ * Read hard disk table
+ *
+ * @param table index for the hash table
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_filesystem_table(ebpf_filesystem_partitions_t *efp)
+{
+    netdata_idx_t *values = filesystem_hash_values;
+    netdata_fs_hist_t key = {};
+    netdata_fs_hist_t next_key;
+    int fd = efp->kernel_info.map_fd[NETDATA_MAIN_TABLE];
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        int test = bpf_map_lookup_elem(fd, &key, values);
+        if (test < 0) {
+            key = next_key;
+            continue;
+        }
+
+        netdata_ebpf_histogram_t *w = select_hist(efp, key.hist_id);
+        uint64_t total = 0;
+        int i;
+        int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+        for (i = 0; i < end; i++) {
+            total += values[i];
+        }
+
+        w->histogram[key.bin] = total;
+        key = next_key;
+    }
+}
+
+/**
+ * Read hard disk table
+ *
+ * @param table index for the hash table
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_filesystem_tables()
+{
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (efp->flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION) {
+            read_filesystem_table(efp);
+        }
+    }
+}
+
+/**
+ * Socket read hash
+ *
+ * This is the thread callback.
+ * This thread is necessary, because we cannot freeze the whole plugin to read the data on very busy socket.
+ *
+ * @param ptr It is a NULL value for this thread.
+ *
+ * @return It always returns NULL.
+ */
+void *ebpf_filesystem_read_hash(void *ptr)
+{
+    ebpf_module_t *em = (ebpf_module_t *)ptr;
+
+    read_thread_closed = 0;
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+    usec_t step = NETDATA_FILESYSTEM_READ_SLEEP_MS*em->update_time;
+    while (!close_ebpf_plugin) {
+        usec_t dt = heartbeat_next(&hb, step);
+        (void)dt;
+
+        read_filesystem_tables();
+    }
+    read_thread_closed = 1;
+    return NULL;
+}
+
+/**
+ * Main loop for this collector.
+ *
+ */
+static void filesystem_collector(usec_t step, ebpf_module_t *em)
+{
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+
+    filesystem_threads.thread = mallocz(sizeof(netdata_thread_t));
+    filesystem_threads.start_routine = ebpf_filesystem_read_hash;
+
+    netdata_thread_create(filesystem_threads.thread, filesystem_threads.name,
+                          NETDATA_THREAD_OPTION_JOINABLE, ebpf_filesystem_read_hash, em);
+
+    while (!close_ebpf_plugin) {
+        pthread_mutex_lock(&collect_data_mutex);
+        pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        pthread_mutex_lock(&lock);
+
+ //       ebpf_histogram_send_data();
+
+        pthread_mutex_unlock(&collect_data_mutex);
+        pthread_mutex_unlock(&lock);
+    }
+}
+
+
 /*****************************************************************
  *
  *  CLEANUP FUNCTIONS
@@ -229,6 +369,14 @@ static void ebpf_filesystem_cleanup(void *ptr)
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     if (!em->enabled)
         return;
+
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+    uint32_t tick = 2*USEC_PER_MS;
+    while (!read_thread_closed) {
+        usec_t dt = heartbeat_next(&hb, tick);
+        UNUSED(dt);
+    }
 
     freez(filesystem_hash_values);
     ebpf_histogram_dimension_cleanup(dimensions, NETDATA_FILESYSTEM_MAX_BINS);
@@ -278,6 +426,8 @@ void *ebpf_filesystem_thread(void *ptr)
 
     ebpf_create_fs_charts();
     pthread_mutex_unlock(&lock);
+
+    filesystem_collector((usec_t)(em->update_time * USEC_PER_SEC), em);
 
 endfilesystem:
     netdata_thread_cleanup_pop(1);

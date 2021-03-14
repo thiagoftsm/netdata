@@ -18,6 +18,19 @@ enum netdata_filesystem_flags {
     NETDATA_FILESYSTEM_FLAG_CHART_CREATED = 2
 };
 
+typedef struct netdata_fs_hist {
+    uint32_t hist_id;
+    uint32_t bin;
+} netdata_fs_hist_t;
+
+enum filesystem_counters {
+    NETDATA_KEY_CALLS_READ,
+    NETDATA_KEY_CALLS_WRITE,
+    NETDATA_KEY_CALLS_OPEN,
+    NETDATA_KEY_CALLS_SYNC,
+
+    NETDATA_FS_END
+};
 
 typedef struct netdata_ebpf_histogram {
     char *name;
