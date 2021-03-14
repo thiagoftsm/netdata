@@ -138,7 +138,6 @@ static int ebpf_read_local_partitions()
             fs = procfile_lineword(ff, l,8);
 
         for (i = 0; localfs[i].filesystem; i++) {
-            error("KILLME %s %s %d", fs, localfs[i].filesystem, strcmp(fs, localfs[i].filesystem));
             if (!strcmp(fs, localfs[i].filesystem)) {
                 localfs[i].partitions++;
                 count++;
