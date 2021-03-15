@@ -425,7 +425,7 @@ void ebpf_filesystem_cleanup_ebpf_data()
     int i;
     for (i = 0; localfs[i].filesystem; i++) {
         ebpf_filesystem_partitions_t *efp = &localfs[i];
-        if (efp->partitions) {
+        if (efp->probe_links) {
             freez(efp->kernel_info.map_fd);
 
             freez(efp->hread.name);
