@@ -216,7 +216,7 @@ static inline void dcstat_write_charts(char *family, char *chart, char *dim, lon
 void dcstat_update_publish(netdata_publish_dcstat_t *out, uint64_t hit, uint64_t miss)
 {
     calculated_number found = (calculated_number) (((long long)hit) - ((long long)miss));
-    calculated_number ratio = (hit > 0) ? found/(calculated_number)hit : 0;
+    calculated_number ratio = (hit != 0) ? found/(calculated_number)hit : 0;
 
     out->ratio = (long long )(ratio*100);
 >>>>>>> bb2d3a8eb (fs_latency_dc_raid: Add charts)
