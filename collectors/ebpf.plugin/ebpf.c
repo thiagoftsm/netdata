@@ -97,6 +97,9 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "filesystem", .config_name = "filesystem", .enabled = 0, .start_routine = ebpf_filesystem_thread,
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .names = NULL },
+    { .thread_name = "dc", .config_name = "dc", .enabled = 0, .start_routine = ebpf_dcstat_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0, .apps_routine = ebpf_dcstat_create_apps_charts  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL },
@@ -599,6 +602,7 @@ void ebpf_print_help()
             " --cachestat or -c   Enable charts related to process run time.\n"
             "\n"
             " --dcstat or -d      Enable charts related to directory cache.\n"
+            "\n"
             " --filesystem or -f  Enable charts related to filesystem monitoring.\n"
             "\n"
             " --net or -n         Enable network viewer charts.\n"
@@ -903,6 +907,14 @@ static void read_collector_values(int *disable_apps)
         ebpf_enable_chart(EBPF_MODULE_FILESYSTEM_IDX, *disable_apps);
         started++;
     }
+
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "dcstat",
+                                    CONFIG_BOOLEAN_NO);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_DCSTAT_IDX, *disable_apps);
+        started++;
+    }
+
 
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
@@ -1221,13 +1233,10 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_CACHESTAT_IDX].start_routine},
         {"EBPF SYNC" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_SYNC_IDX].start_routine},
-<<<<<<< HEAD
         {"EBPF DCSTAT" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_DCSTAT_IDX].start_routine},
-=======
         {"EBPF FILESYSTEM" , NULL, NULL, 1,
          NULL, NULL, ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].start_routine},
->>>>>>> 7cef9f093 (fs_latency_dc_raid: add new thread)
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };

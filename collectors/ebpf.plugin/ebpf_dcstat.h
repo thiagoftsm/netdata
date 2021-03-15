@@ -3,7 +3,6 @@
 #ifndef NETDATA_EBPF_DCSTAT_H
 #define NETDATA_EBPF_DCSTAT_H 1
 
-
 // charts
 #define NETDATA_DC_HIT_CHART "dc_hit_ratio"
 #define NETDATA_DC_REFERENCE_CHART "dc_reference"
