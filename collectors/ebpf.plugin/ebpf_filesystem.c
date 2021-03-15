@@ -163,8 +163,8 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     int i;
     const char *saved_name = em->thread_name;
     for (i = 0; localfs[i].filesystem; i++) {
-        if (localfs[i].partitions) {
-            ebpf_filesystem_partitions_t *efp = &localfs[i];
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (!efp->probe_links && efp->partitions) {
             ebpf_data_t *ed = &efp->kernel_info;
             fill_ebpf_data(ed);
 
