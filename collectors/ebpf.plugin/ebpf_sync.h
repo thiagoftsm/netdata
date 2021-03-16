@@ -19,7 +19,7 @@
 #define NETDATA_EBPF_MSYNC_CHART "memory_map"
 #define NETDATA_EBPF_FILE_SYNC_CHART "file_sync"
 #define NETDATA_EBPF_FILE_SEGMENT_CHART "file_segment"
-#define NETDATA_EBPF_SYNC_SUBMENU "synchronization"
+#define NETDATA_EBPF_SYNC_SUBMENU "synchronization (ebpf)"
 
 #define NETDATA_EBPF_SYNC_SLEEP_MS 800000ULL
 
