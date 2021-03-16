@@ -280,7 +280,7 @@ void ebpf_cachestat_create_apps_charts(struct ebpf_module *em, void *ptr)
     UNUSED(em);
     struct target *root = ptr;
     ebpf_create_charts_on_apps(NETDATA_CACHESTAT_HIT_RATIO_CHART,
-                               "The ratio is calculated dividing the Hit pages per total cache accesses without counting dirties.",
+                               NULL,
                                EBPF_COMMON_DIMENSION_PERCENTAGE,
                                NETDATA_APPS_CACHESTAT_GROUP,
                                NETDATA_EBPF_CHART_TYPE_LINE,
@@ -289,7 +289,7 @@ void ebpf_cachestat_create_apps_charts(struct ebpf_module *em, void *ptr)
                                root);
 
     ebpf_create_charts_on_apps(NETDATA_CACHESTAT_DIRTY_CHART,
-                               "Number of pages marked as dirty. When a page is called dirty, this means that the data stored inside the page needs to be written to devices.",
+                               NULL,
                                EBPF_CACHESTAT_DIMENSION_PAGE,
                                NETDATA_APPS_CACHESTAT_GROUP,
                                NETDATA_EBPF_CHART_TYPE_STACKED,
@@ -298,7 +298,7 @@ void ebpf_cachestat_create_apps_charts(struct ebpf_module *em, void *ptr)
                                root);
 
     ebpf_create_charts_on_apps(NETDATA_CACHESTAT_HIT_CHART,
-                               "Number of cache access without counting dirty pages and page additions.",
+                               NULL,
                                EBPF_CACHESTAT_DIMENSION_HITS,
                                NETDATA_APPS_CACHESTAT_GROUP,
                                NETDATA_EBPF_CHART_TYPE_STACKED,
@@ -307,7 +307,7 @@ void ebpf_cachestat_create_apps_charts(struct ebpf_module *em, void *ptr)
                                root);
 
     ebpf_create_charts_on_apps(NETDATA_CACHESTAT_MISSES_CHART,
-                               "Page caches added without counting dirty pages",
+                               NULL,
                                EBPF_CACHESTAT_DIMENSION_MISSES,
                                NETDATA_APPS_CACHESTAT_GROUP,
                                NETDATA_EBPF_CHART_TYPE_STACKED,
