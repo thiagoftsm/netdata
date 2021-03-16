@@ -3,10 +3,15 @@
 #include "ebpf.h"
 #include "ebpf_sync.h"
 
+<<<<<<< HEAD
 static ebpf_data_t sync_data;
 
 static char *sync_counter_dimension_name[NETDATA_SYNC_IDX_END] = { "sync", "syncfs",  "msync", "fsync", "fdatasync",
                                                                    "sync_file_range" };
+=======
+static char *sync_counter_dimension_name[NETDATA_SYNC_IDX_END] = { "sync", "syncfs",  "msync", "fsync",
+                                                                   "fdatasync", "sync_file_range"};
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 static netdata_syscall_stat_t sync_counter_aggregated_data[NETDATA_SYNC_IDX_END];
 static netdata_publish_syscall_t sync_counter_publish_aggregated[NETDATA_SYNC_IDX_END];
 
@@ -14,8 +19,14 @@ static int read_thread_closed = 1;
 
 static netdata_idx_t sync_hash_values[NETDATA_SYNC_IDX_END];
 
+<<<<<<< HEAD
 struct netdata_static_thread sync_threads = {"SYNC KERNEL", NULL, NULL, 1,
                                               NULL, NULL,  NULL};
+=======
+struct netdata_static_thread sync_threads = {"SYNC KERNEL",
+                                                  NULL, NULL, 1, NULL,
+                                                  NULL,  NULL};
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 
 struct config sync_config = { .first_section = NULL,
     .last_section = NULL,
@@ -39,6 +50,7 @@ ebpf_sync_syscalls_t local_syscalls[] = {
  *
  *****************************************************************/
 
+<<<<<<< HEAD
 /*
  * Initialize Syscalls
  *
@@ -47,6 +59,9 @@ ebpf_sync_syscalls_t local_syscalls[] = {
  * @return 0 on success and -1 otherwise.
  */
 static int ebpf_sync_initialize_syscall(ebpf_module_t *em)
+=======
+static int ebpf_sync_initialize_data(ebpf_module_t *em)
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 {
     int i;
     const char *saved_name = em->thread_name;
@@ -56,7 +71,10 @@ static int ebpf_sync_initialize_syscall(ebpf_module_t *em)
             fill_ebpf_data(&w->kernel_info);
             if (ebpf_update_kernel(&w->kernel_info)) {
                 em->thread_name = saved_name;
+<<<<<<< HEAD
                 error("Cannot update the kernel for eBPF module %s", w->syscall);
+=======
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
                 return -1;
             }
 
@@ -70,9 +88,14 @@ static int ebpf_sync_initialize_syscall(ebpf_module_t *em)
     }
     em->thread_name = saved_name;
 
+<<<<<<< HEAD
     memset(sync_counter_aggregated_data, 0 , NETDATA_SYNC_IDX_END * sizeof(netdata_syscall_stat_t));
     memset(sync_counter_publish_aggregated, 0 , NETDATA_SYNC_IDX_END * sizeof(netdata_publish_syscall_t));
     memset(sync_hash_values, 0 , NETDATA_SYNC_IDX_END * sizeof(netdata_idx_t));
+=======
+    memset(sync_counter_aggregated_data, 0 , NETDATA_SYNC_IDX_END*sizeof(netdata_syscall_stat_t));
+    memset(sync_counter_publish_aggregated, 0 , NETDATA_SYNC_IDX_END*sizeof(netdata_publish_syscall_t));
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 
     return 0;
 }
@@ -84,7 +107,11 @@ static int ebpf_sync_initialize_syscall(ebpf_module_t *em)
  *****************************************************************/
 
 /**
+<<<<<<< HEAD
  * Read global table
+=======
+ * Read global counter
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
  *
  * Read the table with number of calls for all functions
  */
@@ -114,12 +141,20 @@ static void read_global_table()
  */
 void *ebpf_sync_read_hash(void *ptr)
 {
+<<<<<<< HEAD
     ebpf_module_t *em = (ebpf_module_t *)ptr;
+=======
+    UNUSED(ptr);
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
     read_thread_closed = 0;
 
     heartbeat_t hb;
     heartbeat_init(&hb);
+<<<<<<< HEAD
     usec_t step = NETDATA_EBPF_SYNC_SLEEP_MS * em->update_time;
+=======
+    usec_t step = NETDATA_EBPF_SYNC_SLEEP_MS;
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 
     while (!close_ebpf_plugin) {
         usec_t dt = heartbeat_next(&hb, step);
@@ -133,6 +168,7 @@ void *ebpf_sync_read_hash(void *ptr)
 }
 
 /**
+<<<<<<< HEAD
  * Create Sync charts
  *
  * Create charts and dimensions according user input.
@@ -184,6 +220,18 @@ static void sync_send_data()
         ebpf_one_dimension_write_charts(NETDATA_EBPF_MEMORY_GROUP, NETDATA_EBPF_FILE_SEGMENT_CHART,
                                         sync_counter_publish_aggregated[NETDATA_SYNC_SYNC_FILE_RANGE_IDX].dimension,
                                         sync_hash_values[NETDATA_SYNC_SYNC_FILE_RANGE_IDX]);
+=======
+ * Send global
+ *
+ * Send global charts to Netdata
+ */
+static void sync_send_global()
+{
+    /*
+    ebpf_one_dimension_write_charts(NETDATA_EBPF_MEMORY_GROUP, NETDATA_EBPF_SYNC_CHART,
+                                    sync_counter_publish_aggregated.dimension, sync_hash_values);
+                                    */
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 }
 
 /**
@@ -203,7 +251,11 @@ static void sync_collector(ebpf_module_t *em)
 
         pthread_mutex_lock(&lock);
 
+<<<<<<< HEAD
         sync_send_data();
+=======
+        sync_send_global();
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
@@ -217,11 +269,14 @@ static void sync_collector(ebpf_module_t *em)
  *
  *****************************************************************/
 
+<<<<<<< HEAD
 /**
  * Cleanup Objects
  *
  * Cleanup loaded objects when thread was initialized.
  */
+=======
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 void ebpf_sync_cleanup_objects()
 {
     int i;
@@ -271,6 +326,7 @@ static void ebpf_sync_cleanup(void *ptr)
  *****************************************************************/
 
 /**
+<<<<<<< HEAD
  * Create Sync charts
  *
  * Create charts and dimensions according user input.
@@ -302,12 +358,15 @@ static void ebpf_create_sync_chart(char *id,
 }
 
 /**
+=======
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
  * Create global charts
  *
  * Call ebpf_create_chart to create the charts for the collector.
  */
 static void ebpf_create_sync_charts()
 {
+<<<<<<< HEAD
     if (local_syscalls[NETDATA_SYNC_FSYNC_IDX].enabled || local_syscalls[NETDATA_SYNC_FDATASYNC_IDX].enabled)
         ebpf_create_sync_chart(NETDATA_EBPF_FILE_SYNC_CHART,
                                "Monitor calls for <code>fsync(2)</code> and <code>fdatasync(2)</code>.", 21300,
@@ -335,6 +394,34 @@ static void ebpf_create_sync_charts()
  * Parse syscall options available inside ebpf.d/sync.conf
  */
 static void ebpf_sync_parse_syscalls()
+=======
+    ebpf_create_chart(NETDATA_EBPF_MEMORY_GROUP, NETDATA_EBPF_SYNC_CHART,
+                      "Monitor calls for <a href=\"https://linux.die.net/man/2/sync\">sync(2)</a> and <a href=\"https://linux.die.net/man/2/syncfs\">syncfs(2)</a>.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_EBPF_SYNC_SUBMENU, NULL,
+                      NETDATA_EBPF_CHART_TYPE_LINE, 21300,
+                      ebpf_create_global_dimension, sync_counter_publish_aggregated, 2);
+
+    ebpf_create_chart(NETDATA_EBPF_MEMORY_GROUP, NETDATA_EBPF_MSYNC_CHART,
+                      "Monitor calls for <a href=\"https://linux.die.net/man/2/msync\">msync(2)</a>.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_EBPF_SYNC_SUBMENU, NULL,
+                      NETDATA_EBPF_CHART_TYPE_LINE, 21301,
+                      ebpf_create_global_dimension, &sync_counter_publish_aggregated[NETDATA_SYNC_MSYNC_IDX], 1);
+
+    ebpf_create_chart(NETDATA_EBPF_MEMORY_GROUP, NETDATA_EBPF_FILE_SYNC_CHART,
+                      "Monitor calls for <a href=\"https://linux.die.net/man/2/fsync\">fsync(2)</a> and <a href=\"https://linux.die.net/man/2/fdatasync\">fdatasync(2)</a>.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_EBPF_SYNC_SUBMENU, NULL,
+                      NETDATA_EBPF_CHART_TYPE_LINE, 21302,
+                      ebpf_create_global_dimension, &sync_counter_publish_aggregated[NETDATA_SYNC_FSYNC_IDX], 2);
+
+    ebpf_create_chart(NETDATA_EBPF_MEMORY_GROUP, NETDATA_EBPF_FILE_SEGMENT_CHART,
+                      "Monitor calls for <a href=\"https://linux.die.net/man/2/sync_file_range\">sync_file_range(2)</a>.",
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_EBPF_SYNC_SUBMENU, NULL,
+                      NETDATA_EBPF_CHART_TYPE_LINE, 21301,
+                      ebpf_create_global_dimension, &sync_counter_publish_aggregated[NETDATA_SYNC_SYNC_FILE_RANGE_IDX], 1);
+}
+
+static void ebpf_parse_sync()
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 {
     int i;
     for (i = 0; local_syscalls[i].syscall; i++) {
@@ -357,22 +444,38 @@ void *ebpf_sync_thread(void *ptr)
     netdata_thread_cleanup_push(ebpf_sync_cleanup, ptr);
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
+<<<<<<< HEAD
     fill_ebpf_data(&sync_data);
 
     ebpf_update_module(em, &sync_config, NETDATA_SYNC_CONFIG_FILE);
     ebpf_sync_parse_syscalls();
+=======
+
+    ebpf_load_config_update_module(em, &sync_config, NETDATA_SYNC_CONFIG_FILE);
+    ebpf_parse_sync();
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 
     if (!em->enabled)
         goto endsync;
 
+<<<<<<< HEAD
     if (ebpf_sync_initialize_syscall(em)) {
+=======
+    if (ebpf_sync_initialize_data(em) ) {
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
         pthread_mutex_unlock(&lock);
         goto endsync;
     }
 
+<<<<<<< HEAD
     int algorithms[NETDATA_SYNC_IDX_END] = { NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
                                              NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
                                              NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX };
+=======
+    int algorithms[] =  { NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX,
+                         NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX, NETDATA_EBPF_INCREMENTAL_IDX
+    };
+>>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
     ebpf_global_labels(sync_counter_aggregated_data, sync_counter_publish_aggregated,
                        sync_counter_dimension_name, sync_counter_dimension_name,
                        algorithms, NETDATA_SYNC_IDX_END);

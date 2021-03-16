@@ -100,6 +100,9 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "dc", .config_name = "dc", .enabled = 0, .start_routine = ebpf_dcstat_thread,
         .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
         .optional = 0, .apps_routine = ebpf_dcstat_create_apps_charts  },
+    { .thread_name = "sync", .config_name = "sync", .enabled = 0, .start_routine = ebpf_sync_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0, .apps_routine = NULL  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL },
@@ -915,6 +918,13 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "sync",
+                                    CONFIG_BOOLEAN_YES);
+
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_SYNC_IDX, *disable_apps);
+        started++;
+    }
 
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
