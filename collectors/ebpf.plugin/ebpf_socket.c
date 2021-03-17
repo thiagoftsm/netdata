@@ -2819,8 +2819,6 @@ void parse_service_name_section(struct config *cfg)
         if (default_port > 0 && default_port < 65536)
             link_dimension_name(port_string, simple_hash(port_string), "Netdata");
     }
-    if (port_string)
-        link_dimension_name(port_string, simple_hash(port_string), "Netdata");
 }
 
 void parse_table_size_options(struct config *cfg)
