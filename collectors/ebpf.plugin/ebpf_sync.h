@@ -5,6 +5,7 @@
 
 // charts
 <<<<<<< HEAD
+<<<<<<< HEAD
 #define NETDATA_EBPF_SYNC_CHART "sync"
 #define NETDATA_EBPF_MSYNC_CHART "memory_map"
 #define NETDATA_EBPF_FILE_SYNC_CHART "file_sync"
@@ -16,6 +17,9 @@
 // configuration file
 =======
 #define NETDATA_EBPF_SYNC_CHART "fs_sync"
+=======
+#define NETDATA_EBPF_SYNC_CHART "sync"
+>>>>>>> 2ba28d023 (fs_latency_dc_raid: Reorganize charts)
 #define NETDATA_EBPF_MSYNC_CHART "memory_map"
 #define NETDATA_EBPF_FILE_SYNC_CHART "file_sync"
 #define NETDATA_EBPF_FILE_SEGMENT_CHART "file_segment"
