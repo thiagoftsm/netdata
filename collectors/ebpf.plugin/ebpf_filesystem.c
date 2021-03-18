@@ -53,7 +53,7 @@ static void ebpf_create_fs_charts()
             snprintfz(chart_name, 63, "%s_read_latency", efp->filesystem);
             efp->hread.name = strdupz(chart_name);
 
-            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
+            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hread.name,
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
@@ -63,7 +63,7 @@ static void ebpf_create_fs_charts()
             snprintfz(title, 255, "%s latency for each write request.", efp->filesystem);
             snprintfz(chart_name, 63, "%s_write_latency", efp->filesystem);
             efp->hwrite.name = strdupz(chart_name);
-            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
+            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hwrite.name,
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
@@ -73,7 +73,7 @@ static void ebpf_create_fs_charts()
             snprintfz(title, 255, "%s latency for each open request.", efp->filesystem);
             snprintfz(chart_name, 63, "%s_open_latency", efp->filesystem);
             efp->hopen.name = strdupz(chart_name);
-            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
+            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hopen.name,
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
@@ -83,7 +83,7 @@ static void ebpf_create_fs_charts()
             snprintfz(title, 255, "%s latency for each sync request.", efp->filesystem);
             snprintfz(chart_name, 63, "%s_sync_latency", efp->filesystem);
             efp->hsync.name = strdupz(chart_name);
-            ebpf_create_chart(NETDATA_EBPF_FAMILY, efp->hsync.name,
+            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hsync.name,
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
@@ -368,16 +368,16 @@ static void ebpf_histogram_send_data()
     for (i = 0; localfs[i].filesystem; i++) {
         ebpf_filesystem_partitions_t *efp = &localfs[i];
         if (efp->flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION) {
-            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hread.name,
+            write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->hread.name,
                                   efp->hread.histogram, NETDATA_FILESYSTEM_MAX_BINS);
 
-            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hwrite.name,
+            write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->hwrite.name,
                                   efp->hwrite.histogram, NETDATA_FILESYSTEM_MAX_BINS);
 
-            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hopen.name,
+            write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->hopen.name,
                                   efp->hopen.histogram, NETDATA_FILESYSTEM_MAX_BINS);
 
-            write_histogram_chart(NETDATA_EBPF_FAMILY, efp->hsync.name,
+            write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->hsync.name,
                                   efp->hsync.histogram, NETDATA_FILESYSTEM_MAX_BINS);
         }
     }
