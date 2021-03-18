@@ -9,6 +9,8 @@ ebpf_filesystem_partitions_t localfs[] = {
       .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
     {.filesystem = "nfs", .family = "NFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
       .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
+    {.filesystem = "btrfs", .family = "BTRFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
+        .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
     {.filesystem = NULL, .family = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL,
       .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
 };
