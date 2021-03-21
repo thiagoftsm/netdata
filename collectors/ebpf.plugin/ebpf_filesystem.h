@@ -8,7 +8,6 @@
 #define NETDATA_FILESYSTEM_MAX_BINS 32UL
 #define NETDATA_FILESYSTEM_READ_SLEEP_MS 600000ULL
 
-#define NETDATA_MAIN_TABLE 0ULL
 
 #define NETDATA_FILESYSTEM_CONFIG_FILE "filesystem.conf"
 #define NETDATA_FILESYSTEM_CONFIG_NAME "filesystem"
@@ -18,7 +17,13 @@
 enum netdata_filesystem_flags {
     NETDATA_FILESYSTEM_FLAG_NO_PARTITION = 0,
     NETDATA_FILESYSTEM_FLAG_HAS_PARTITION = 1,
-    NETDATA_FILESYSTEM_FLAG_CHART_CREATED = 2
+    NETDATA_FILESYSTEM_FLAG_CHART_CREATED = 2,
+    NETDATA_FILESYSTEM_FILL_ADDRESS_TABLE = 4
+};
+
+enum netdata_filesystem_table {
+    NETDATA_MAIN_FS_TABLE,
+    NETDATA_ADDR_FS_TABLE
 };
 
 typedef struct netdata_fs_hist {
@@ -40,6 +45,13 @@ typedef struct netdata_ebpf_histogram {
     uint64_t histogram[NETDATA_FILESYSTEM_MAX_BINS];
 } netdata_ebpf_histogram_t;
 
+typedef struct ebpf_filesystem_addresses {
+    char *function;
+    uint32_t hash;
+    // We use long as address, because it matches system length
+    long addr;
+}ebpf_filesystem_addresses_t;
+
 typedef struct ebpf_filesystem_partitions {
     char *filesystem;
     char *family;
@@ -56,6 +68,7 @@ typedef struct ebpf_filesystem_partitions {
     uint32_t enabled;
 
     ebpf_data_t kernel_info;
+    ebpf_filesystem_addresses_t addresses;
 }ebpf_filesystem_partitions_t;
 
 extern void *ebpf_filesystem_thread(void *ptr);

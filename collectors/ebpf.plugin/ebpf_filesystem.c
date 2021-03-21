@@ -4,15 +4,16 @@
 
 ebpf_filesystem_partitions_t localfs[] = {
     {.filesystem = "ext4", .family = "EXT4", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
     {.filesystem = "xfs", .family = "XFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
     {.filesystem = "nfs", .family = "NFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
     {.filesystem = "btrfs", .family = "BTRFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-        .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
+        .flags = NETDATA_FILESYSTEM_FILL_ADDRESS_TABLE, .enabled = CONFIG_BOOLEAN_YES,
+      .addresses = {.function = "btrfs_file_operations" }},
     {.filesystem = NULL, .family = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
 };
 
 struct config fs_config = { .first_section = NULL,
@@ -116,6 +117,7 @@ static inline void ebpf_reset_partitions()
  */
 static int ebpf_read_local_partitions()
 {
+    // Is necessary to reset every time?
     ebpf_reset_partitions();
 
     char filename[FILENAME_MAX + 1];
@@ -199,6 +201,52 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     return 0;
 }
 
+static void ebpf_load_addresses()
+{
+    int total = 0;
+    int counter = 0;
+    int i;
+    for (i = 0; localfs[i].filesystem; i++) {
+        if (localfs[i].addresses.function) {
+            localfs[i].addresses.hash = simple_hash(localfs[i].addresses.function);
+            total++;
+        }
+    }
+
+    procfile *ff = procfile_open("/proc/kallsyms", " \t:", PROCFILE_FLAG_DEFAULT);
+    if (!ff)
+        return;
+
+    ff = procfile_readall(ff);
+    if (!ff)
+        return;
+
+    size_t lines = procfile_lines(ff), l;
+    for(l = 0; l < lines ;l++) {
+        char *fcnt = procfile_lineword(ff, l, 2);
+        uint32_t hash = simple_hash(fcnt);
+        for (i = 0; localfs[i].filesystem; i++) {
+            ebpf_filesystem_partitions_t *ptr = &localfs[i];
+            if (ptr->objects && (ptr->flags & NETDATA_FILESYSTEM_FILL_ADDRESS_TABLE)) {
+                ebpf_filesystem_addresses_t *fa = &ptr->addresses;
+                if (!fa->addr && fa->hash == hash && !strcmp(fcnt, fa->function)) {
+                    char addr[128];
+                    snprintf(addr, 127, "0x%s", procfile_lineword(ff, l, 0));
+                    counter++;
+                    fa->addr = strtol(addr, NULL, 16);
+                    uint32_t key = 0;
+                    bpf_map_update_elem(ptr->kernel_info.map_fd[NETDATA_ADDR_FS_TABLE], &key, &fa->addr, BPF_ANY);
+                    if (total == counter)
+                        goto endloadaddr;
+                }
+            }
+        }
+    }
+
+endloadaddr:
+    procfile_close(ff);
+}
+
 /**
  *  Update partition
  *
@@ -268,7 +316,7 @@ static void read_filesystem_table(ebpf_filesystem_partitions_t *efp)
     netdata_idx_t *values = filesystem_hash_values;
     netdata_fs_hist_t key = {};
     netdata_fs_hist_t next_key;
-    int fd = efp->kernel_info.map_fd[NETDATA_MAIN_TABLE];
+    int fd = efp->kernel_info.map_fd[NETDATA_MAIN_FS_TABLE];
     while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
         int test = bpf_map_lookup_elem(fd, &key, values);
         if (test < 0) {
@@ -390,7 +438,7 @@ static void ebpf_histogram_send_data()
  * Main loop for this collector.
  *
  */
-static void filesystem_collector(usec_t step, ebpf_module_t *em)
+static void filesystem_collector(ebpf_module_t *em)
 {
     heartbeat_t hb;
     heartbeat_init(&hb);
@@ -407,7 +455,9 @@ static void filesystem_collector(usec_t step, ebpf_module_t *em)
 
         pthread_mutex_lock(&lock);
 
+        /*
         ebpf_update_partitions(em);
+         */
         ebpf_create_fs_charts();
         ebpf_histogram_send_data();
 
@@ -515,6 +565,8 @@ void *ebpf_filesystem_thread(void *ptr)
 
     }
 
+    ebpf_load_addresses();
+
     pthread_mutex_lock(&lock);
 
     ebpf_set_dimension_algorithm(algorithms, NETDATA_FILESYSTEM_MAX_BINS, NETDATA_EBPF_INCREMENTAL_IDX);
@@ -524,7 +576,7 @@ void *ebpf_filesystem_thread(void *ptr)
     ebpf_create_fs_charts();
     pthread_mutex_unlock(&lock);
 
-    filesystem_collector((usec_t)(em->update_time * USEC_PER_SEC), em);
+    filesystem_collector(em);
 
 endfilesystem:
     netdata_thread_cleanup_pop(1);
