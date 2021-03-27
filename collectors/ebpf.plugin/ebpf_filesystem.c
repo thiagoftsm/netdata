@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "ebpf_filesystem.h"
+#include <stdlib.h> // necessary for stdtoul
 
 ebpf_filesystem_partitions_t localfs[] = {
     {.filesystem = "ext4", .family = "EXT4", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES,
+      .addresses = {.function = NULL, .addr = 0}},
     {.filesystem = "xfs", .family = "XFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES,
+      .addresses = {.function = NULL, .addr = 0}},
     {.filesystem = "nfs", .family = "NFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
+      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES,
+      .addresses = {.function = NULL, .addr = 0}},
     {.filesystem = "btrfs", .family = "BTRFS", .partitions = 0, .objects = NULL, .probe_links = NULL,
         .flags = NETDATA_FILESYSTEM_FILL_ADDRESS_TABLE, .enabled = CONFIG_BOOLEAN_YES,
-      .addresses = {.function = "btrfs_file_operations" }},
+      .addresses = {.function = "btrfs_file_operations", .addr = 0 }},
     {.filesystem = NULL, .family = NULL, .partitions = 0, .objects = NULL, .probe_links = NULL,
       .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION, .enabled = CONFIG_BOOLEAN_YES, .addresses = {.function = NULL}},
 };
@@ -155,6 +159,36 @@ static int ebpf_read_local_partitions()
     return count;
 }
 
+static void ebpf_load_addresses(ebpf_filesystem_partitions_t *efp)
+{
+    ebpf_filesystem_addresses_t *fa = &efp->addresses;
+    if (fa->addr)
+        return ;
+
+    procfile *ff = procfile_open("/proc/kallsyms", " \t:", PROCFILE_FLAG_DEFAULT);
+    if (!ff)
+        return;
+
+    ff = procfile_readall(ff);
+    if (!ff)
+        return;
+
+    fa->hash = simple_hash(fa->function);
+
+    size_t lines = procfile_lines(ff), l;
+    for(l = 0; l < lines ;l++) {
+        char *fcnt = procfile_lineword(ff, l, 2);
+        uint32_t hash = simple_hash(fcnt);
+        if (fa->hash == hash && !strcmp(fcnt, fa->function)) {
+            char addr[128];
+            snprintf(addr, 127, "0x%s", procfile_lineword(ff, l, 0));
+            fa->addr = (unsigned long) strtoul(addr, NULL, 16);
+            uint32_t key = 0;
+            bpf_map_update_elem(efp->kernel_info.map_fd[NETDATA_ADDR_FS_TABLE], &key, &fa->addr, BPF_ANY);
+        }
+    }
+}
+
 /**
  * Initialize eBPF data
  *
@@ -185,6 +219,9 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
                 return -1;
             }
             efp->flags |= NETDATA_FILESYSTEM_FLAG_HAS_PARTITION;
+
+            if ((efp->flags & NETDATA_FILESYSTEM_FILL_ADDRESS_TABLE) && (efp->addresses.function))
+                ebpf_load_addresses(efp);
         }
     }
     em->thread_name = saved_name;
@@ -199,52 +236,6 @@ int ebpf_filesystem_initialize_ebpf_data(ebpf_module_t *em)
     }
 
     return 0;
-}
-
-static void ebpf_load_addresses()
-{
-    int total = 0;
-    int counter = 0;
-    int i;
-    for (i = 0; localfs[i].filesystem; i++) {
-        if (localfs[i].addresses.function) {
-            localfs[i].addresses.hash = simple_hash(localfs[i].addresses.function);
-            total++;
-        }
-    }
-
-    procfile *ff = procfile_open("/proc/kallsyms", " \t:", PROCFILE_FLAG_DEFAULT);
-    if (!ff)
-        return;
-
-    ff = procfile_readall(ff);
-    if (!ff)
-        return;
-
-    size_t lines = procfile_lines(ff), l;
-    for(l = 0; l < lines ;l++) {
-        char *fcnt = procfile_lineword(ff, l, 2);
-        uint32_t hash = simple_hash(fcnt);
-        for (i = 0; localfs[i].filesystem; i++) {
-            ebpf_filesystem_partitions_t *ptr = &localfs[i];
-            if (ptr->objects && (ptr->flags & NETDATA_FILESYSTEM_FILL_ADDRESS_TABLE)) {
-                ebpf_filesystem_addresses_t *fa = &ptr->addresses;
-                if (!fa->addr && fa->hash == hash && !strcmp(fcnt, fa->function)) {
-                    char addr[128];
-                    snprintf(addr, 127, "0x%s", procfile_lineword(ff, l, 0));
-                    counter++;
-                    fa->addr = strtol(addr, NULL, 16);
-                    uint32_t key = 0;
-                    bpf_map_update_elem(ptr->kernel_info.map_fd[NETDATA_ADDR_FS_TABLE], &key, &fa->addr, BPF_ANY);
-                    if (total == counter)
-                        goto endloadaddr;
-                }
-            }
-        }
-    }
-
-endloadaddr:
-    procfile_close(ff);
 }
 
 /**
@@ -564,8 +555,6 @@ void *ebpf_filesystem_thread(void *ptr)
         goto endfilesystem;
 
     }
-
-    ebpf_load_addresses();
 
     pthread_mutex_lock(&lock);
 

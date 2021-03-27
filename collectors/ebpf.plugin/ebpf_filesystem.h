@@ -49,7 +49,7 @@ typedef struct ebpf_filesystem_addresses {
     char *function;
     uint32_t hash;
     // We use long as address, because it matches system length
-    long addr;
+    unsigned long addr;
 }ebpf_filesystem_addresses_t;
 
 typedef struct ebpf_filesystem_partitions {
