@@ -103,6 +103,9 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "sync", .config_name = "sync", .enabled = 0, .start_routine = ebpf_sync_thread,
         .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
         .optional = 0, .apps_routine = NULL  },
+    { .thread_name = "md", .config_name = "md", .enabled = 0, .start_routine = ebpf_md_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0, .apps_routine = NULL  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL },
@@ -606,6 +609,8 @@ void ebpf_print_help()
             "\n"
             " --dcstat or -d      Enable charts related to directory cache.\n"
             "\n"
+            " --md or -m          Enable chart related to RAID.\n"
+            "\n"
             " --filesystem or -f  Enable charts related to filesystem monitoring.\n"
             "\n"
             " --net or -n         Enable network viewer charts.\n"
@@ -926,6 +931,14 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "md",
+                                    CONFIG_BOOLEAN_NO);
+
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_MD_IDX, *disable_apps);
+        started++;
+    }
+
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
         // Read network viewer section
@@ -1014,7 +1027,8 @@ static void parse_args(int argc, char **argv)
         {"net",       no_argument,    0,  'n' },
         {"process",   no_argument,    0,  'p' },
         {"return",    no_argument,    0,  'r' },
-        {"sync",      no_argument,    0,  's' },
+        {"sync", no_argument,    0,  's' },
+        {"md", no_argument,    0,  'm' },
         {0, 0, 0, 0}
     };
 
@@ -1029,7 +1043,7 @@ static void parse_args(int argc, char **argv)
     }
 
     while (1) {
-        int c = getopt_long(argc, argv, "hvgacdnprs", long_options, &option_index);
+        int c = getopt_long(argc, argv, "hvgcadnprsm", long_options, &option_index);
         if (c == -1)
             break;
 
@@ -1099,6 +1113,15 @@ static void parse_args(int argc, char **argv)
 #ifdef NETDATA_INTERNAL_CHECKS
                 info(
                     "EBPF enabling \"FILESYSTEM\" charts, because it was started with the option \"--filesystem\" or \"-f\".");
+#endif
+                break;
+            }
+            case 'm': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_MD_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info(
+                    "EBPF enabling \"RAID\" charts, because it was started with the option \"--md\" or \"-m\".");
 #endif
                 break;
             }
@@ -1247,6 +1270,10 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_DCSTAT_IDX].start_routine},
         {"EBPF FILESYSTEM" , NULL, NULL, 1,
          NULL, NULL, ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].start_routine},
+        {"EBPF SYNC" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_SYNC_IDX].start_routine},
+        {"EBPF MD" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_MD_IDX].start_routine},
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };
