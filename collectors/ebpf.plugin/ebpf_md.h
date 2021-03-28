@@ -11,6 +11,10 @@
 // charts
 #define NETDATA_MD_FLUSH_CHART "md_flush"
 
+#define NETDATA_MD_SLEEP_MS 850000ULL
+
+#define NETDATA_MD_GLOBAL_TABLE 0ULL
+
 enum md_counters {
     NETDATA_KEY_MD_CALL,
 

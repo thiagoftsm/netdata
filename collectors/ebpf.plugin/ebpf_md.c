@@ -11,11 +11,22 @@ static ebpf_data_t md_data;
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;
 
+static netdata_idx_t md_hash_values[NETDATA_MD_END];
+
+uint64_t *md_vector = NULL;
+
 struct config md_config = { .first_section = NULL,
     .last_section = NULL,
     .mutex = NETDATA_MUTEX_INITIALIZER,
     .index = { .avl_tree = { .root = NULL, .compar = appconfig_section_compare },
         .rwlock = AVL_LOCK_INITIALIZER } };
+
+static int read_thread_closed = 1;
+static int *map_fd = NULL;
+
+struct netdata_static_thread md_threads = {"MD KERNEL",
+                                                  NULL, NULL, 1, NULL,
+                                                  NULL,  NULL};
 
 /*****************************************************************
  *
@@ -36,6 +47,8 @@ static void ebpf_md_cleanup(void *ptr)
 
     ebpf_cleanup_publish_syscall(&md_publish_aggregated);
 
+    freez(md_vector);
+
     struct bpf_program *prog;
     size_t i = 0 ;
     bpf_object__for_each_program(prog, objects) {
@@ -45,12 +58,89 @@ static void ebpf_md_cleanup(void *ptr)
     bpf_object__close(objects);
 }
 
+/*****************************************************************
+ *
+ *  COLLECTOR THREAD
+ *
+ *****************************************************************/
+
+/**
+ * Read global counter
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_global_table()
+{
+    uint32_t idx;
+    netdata_idx_t *val = md_hash_values;
+    uint64_t *stored = md_vector;
+    int fd = map_fd[NETDATA_MD_GLOBAL_TABLE];
+
+    if (!bpf_map_lookup_elem(fd, &idx, &stored)) {
+        uint64_t  total = 0;
+        int i, end = (running_on_kernel >= NETDATA_KERNEL_V4_15) ? ebpf_nprocs : 1;
+        for (i = 0; i < end; i++) {
+            total += stored[i];
+        }
+        val[NETDATA_KEY_MD_CALL] = total;
+    }
+}
+
+/**
+ * Socket read hash
+ *
+ * This is the thread callback.
+ * This thread is necessary, because we cannot freeze the whole plugin to read the data on very busy socket.
+ *
+ * @param ptr It is a NULL value for this thread.
+ *
+ * @return It always returns NULL.
+ */
+void *ebpf_md_read_hash(void *ptr)
+{
+    read_thread_closed = 0;
+
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+
+    ebpf_module_t *em = (ebpf_module_t *)ptr;
+    usec_t step = NETDATA_MD_SLEEP_MS * em->update_time;
+    while (!close_ebpf_plugin) {
+        usec_t dt = heartbeat_next(&hb, step);
+        (void)dt;
+
+        read_global_table();
+    }
+
+    read_thread_closed = 1;
+
+    return NULL;
+}
+
+
 /**
 * Main loop for this collector.
 */
 static void md_collector(ebpf_module_t *em)
 {
+    md_threads.thread = mallocz(sizeof(netdata_thread_t));
+    md_threads.start_routine = ebpf_md_read_hash;
 
+    map_fd = md_data.map_fd;
+    md_hash_values[NETDATA_KEY_MD_CALL] = 0;
+
+    netdata_thread_create(md_threads.thread, md_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
+                          ebpf_md_read_hash, em);
+
+    while (!close_ebpf_plugin) {
+        pthread_mutex_lock(&collect_data_mutex);
+        pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        pthread_mutex_lock(&lock);
+
+        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&collect_data_mutex);
+    }
 }
 
 /*****************************************************************
@@ -83,6 +173,17 @@ static void ebpf_create_md_charts()
  *****************************************************************/
 
 /**
+ * Allocate vectors used with this thread.
+ *
+ * We are not testing the return, because callocz does this and shutdown the software
+ * case it was not possible to allocate.
+ */
+static void ebpf_md_allocate_global_vectors()
+{
+    md_vector = callocz((size_t)ebpf_nprocs, sizeof(uint64_t));
+}
+
+/**
  * Cachestat thread
  *
  * Thread used to make cachestat thread
@@ -113,6 +214,8 @@ void *ebpf_md_thread(void *ptr)
         pthread_mutex_unlock(&lock);
         goto endmd;
     }
+
+    ebpf_md_allocate_global_vectors();
 
     int algorithm = NETDATA_EBPF_INCREMENTAL_IDX;
     ebpf_global_labels(&md_aggregated_data, &md_publish_aggregated, md_dimension_name, md_dimension_name,
