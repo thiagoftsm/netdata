@@ -556,11 +556,11 @@ void *ebpf_filesystem_thread(void *ptr)
 
     }
 
-    pthread_mutex_lock(&lock);
-
     ebpf_set_dimension_algorithm(algorithms, NETDATA_FILESYSTEM_MAX_BINS, NETDATA_EBPF_INCREMENTAL_IDX);
     ebpf_global_labels(filesystem_aggregated_data, filesystem_publish_aggregated, dimensions, dimensions,
                        algorithms, NETDATA_FILESYSTEM_MAX_BINS);
+
+    pthread_mutex_lock(&lock);
 
     ebpf_create_fs_charts();
     pthread_mutex_unlock(&lock);

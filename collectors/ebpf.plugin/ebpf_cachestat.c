@@ -621,7 +621,6 @@ void *ebpf_cachestat_thread(void *ptr)
     if (!em->enabled)
         goto endcachestat;
 
-    pthread_mutex_lock(&lock);
     ebpf_cachestat_allocate_global_vectors(NETDATA_CACHESTAT_END);
     if (ebpf_update_kernel(&cachestat_data)) {
         pthread_mutex_unlock(&lock);
@@ -642,6 +641,7 @@ void *ebpf_cachestat_thread(void *ptr)
                        cachestat_counter_dimension_name, cachestat_counter_dimension_name,
                        algorithms, NETDATA_CACHESTAT_END);
 
+    pthread_mutex_lock(&lock);
     ebpf_create_memory_charts();
 
     pthread_mutex_unlock(&lock);

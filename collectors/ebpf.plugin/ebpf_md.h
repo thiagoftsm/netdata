@@ -6,6 +6,18 @@
 // configuration file
 #define NETDATA_MD_CONFIG_FILE "md.conf"
 
+#define NETDATA_FLUSH_SUBMENU "flush (eBPF)"
+
+// charts
+#define NETDATA_MD_FLUSH_CHART "md_flush"
+
+enum md_counters {
+    NETDATA_KEY_MD_CALL,
+
+    // Keep this as last and don't skip numbers as it is used as element counter
+    NETDATA_MD_END
+};
+
 extern void *ebpf_md_thread(void *ptr);
 
 #endif /* NETDATA_EBPF_MD_H */

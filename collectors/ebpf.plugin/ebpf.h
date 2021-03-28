@@ -196,6 +196,7 @@ extern void ebpf_cleanup_publish_syscall(netdata_publish_syscall_t *nps);
 
 #define EBPF_PROGRAMS_SECTION "ebpf programs"
 #define NETDATA_EBPF_MEMORY_GROUP "mem"
+#define NETDATA_EBPF_RAID_GROUP "raid"
 
 #define EBPF_COMMON_DIMENSION_PERCENTAGE "%"
 #define EBPF_COMMON_DIMENSION_CALL "calls/s"
