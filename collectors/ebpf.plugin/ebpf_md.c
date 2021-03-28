@@ -3,7 +3,7 @@
 #include "ebpf.h"
 #include "ebpf_md.h"
 
-static char *md_dimension_name[NETDATA_MD_END] = { "md_flush" };
+static char *md_dimension_name[NETDATA_MD_END] = { "md_flush_request" };
 static netdata_syscall_stat_t md_aggregated_data;
 static netdata_publish_syscall_t md_publish_aggregated;
 
@@ -117,6 +117,35 @@ void *ebpf_md_read_hash(void *ptr)
     return NULL;
 }
 
+/**
+ * Write charts
+ *
+ * Write the current information to publish the charts.
+ *
+ * @param family chart family
+ * @param chart  chart id
+ * @param dim    dimension name
+ * @param v1     value.
+ */
+static inline void md_write_charts(char *family, char *chart, char *dim, long long v1)
+{
+    write_begin_chart(family, chart);
+
+    write_chart_dimension(dim, v1);
+
+    write_end_chart();
+}
+
+/**
+ * Send global
+ *
+ * Send global charts to Netdata
+ */
+static void md_send_global()
+{
+    md_write_charts(NETDATA_EBPF_RAID_GROUP, NETDATA_MD_FLUSH_CHART,
+                    md_dimension_name[NETDATA_KEY_MD_CALL], md_hash_values[NETDATA_KEY_MD_CALL]);
+}
 
 /**
 * Main loop for this collector.
@@ -138,6 +167,8 @@ static void md_collector(ebpf_module_t *em)
 
         pthread_mutex_lock(&lock);
 
+        md_send_global();
+
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
     }
@@ -157,7 +188,7 @@ static void md_collector(ebpf_module_t *em)
 static void ebpf_create_md_charts()
 {
     ebpf_create_chart(NETDATA_EBPF_RAID_GROUP, NETDATA_MD_FLUSH_CHART,
-                      "Calls for md_flush.",
+                      "Calls per second for <code>md_flush_request()</code>.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_FLUSH_SUBMENU,
                       NULL,
                       NETDATA_EBPF_CHART_TYPE_LINE,

@@ -3571,6 +3571,10 @@ netdataDashboard.context = {
         info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>xfs_file_fsync</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://www.informit.com/articles/article.aspx?p=370047&seqNum=4" target="_blank">ext4dist</a> from BCC tools.'
     },
 
+    'raid.flush': {
+        info: 'This eBPF chart monitors consolidation of flushes and submitting any flushes needed for an input or output using the specific flag REQ_PREFLUSH. This chart is a complement for filesystem latency charts. Based on the eBPF mdflush from BCC tools.'
+    },
+
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
     // ACLK Internal Stats
