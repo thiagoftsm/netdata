@@ -117,7 +117,6 @@ static void ebpf_dcstat_cleanup(void *ptr)
         usec_t dt = heartbeat_next(&hb, tick);
         UNUSED(dt);
     }
-
     freez(dcstat_vector);
 
     ebpf_cleanup_publish_syscall(dcstat_counter_publish_aggregated);
@@ -185,41 +184,6 @@ void ebpf_dcstat_create_apps_charts(struct ebpf_module *em, void *ptr)
                                20103,
                                ebpf_algorithms[NETDATA_EBPF_ABSOLUTE_IDX],
                                root);
-/* 
- * Write charts
- *
- * Write the current information to publish the charts.
- *
- * @param family chart family
- * @param chart  chart id
- * @param dim    dimension name
- * @param v1     value.
- */
-static inline void dcstat_write_charts(char *family, char *chart, char *dim, long long v1)
-{
-    write_begin_chart(family, chart);
-
-    write_chart_dimension(dim, v1);
-
-    write_end_chart();
-}
-
-/**
- * Update publish
- *
- * Update publish values before to write dimension.
- *
- * @param out   strcuture that will receive data.
- * @param hit   calls to search a specific file
- * @param miss  calls that did not find files
- */
-void dcstat_update_publish(netdata_publish_dcstat_t *out, uint64_t hit, uint64_t miss)
-{
-    calculated_number found = (calculated_number) (((long long)hit) - ((long long)miss));
-    calculated_number ratio = (hit != 0) ? found/(calculated_number)hit : 0;
-
-    out->ratio = (long long )(ratio*100);
->>>>>>> bb2d3a8eb (fs_latency_dc_raid: Add charts)
 }
 
 /*****************************************************************
@@ -494,8 +458,6 @@ static void dcstat_send_global(netdata_publish_dcstat_t *publish)
 }
 
 /**
-=======
->>>>>>> bb2d3a8eb (fs_latency_dc_raid: Add charts)
 * Main loop for this collector.
 */
 static void dcstat_collector(ebpf_module_t *em)
