@@ -9,10 +9,11 @@
 // Hardware counters
 #define NETDATA_CHART_PRIO_PERF_CPU_CYCLES            8800
 #define NETDATA_CHART_PRIO_PERF_INSTRUCTIONS          8801
-#define NETDATA_CHART_PRIO_PERF_BRANCH_INSTRUCTIONS   8802
-#define NETDATA_CHART_PRIO_PERF_CACHE                 8803
-#define NETDATA_CHART_PRIO_PERF_BUS_CYCLES            8804
-#define NETDATA_CHART_PRIO_PERF_FRONT_BACK_CYCLES     8805
+#define NETDATA_CHART_PRIO_PERF_IPC                   8802
+#define NETDATA_CHART_PRIO_PERF_BRANCH_INSTRUSTIONS   8803
+#define NETDATA_CHART_PRIO_PERF_CACHE                 8804
+#define NETDATA_CHART_PRIO_PERF_BUS_CYCLES            8805
+#define NETDATA_CHART_PRIO_PERF_FRONT_BACK_CYCLES     8806
 
 // Software counters
 #define NETDATA_CHART_PRIO_PERF_MIGRATIONS            8810
@@ -436,6 +437,7 @@ static void perf_send_metrics() {
     static int // Hardware counters
                cpu_cycles_chart_generated = 0,
                instructions_chart_generated = 0,
+               ipc_chart_generated = 0,
                branch_chart_generated = 0,
                cache_chart_generated = 0,
                bus_cycles_chart_generated = 0,
@@ -521,6 +523,37 @@ static void perf_send_metrics() {
                "SET %s = %lld\n"
                , "instructions"
                , (collected_number) perf_events[EV_ID_INSTRUCTIONS].value
+        );
+        printf("END\n");
+    }
+
+    // ------------------------------------------------------------------------
+
+    if(likely(perf_events[EV_ID_INSTRUCTIONS].updated) || likely(perf_events[EV_ID_CPU_CYCLES].updated)) {
+        if(unlikely(!ipc_chart_generated)) {
+            ipc_chart_generated = 1;
+
+            printf("CHART %s.%s '' 'IPC' '%%' %s '' line %d %d %s\n"
+                , RRD_TYPE_PERF
+                , "ipc"
+                , RRD_FAMILY_HW
+                , NETDATA_CHART_PRIO_PERF_IPC
+                , update_every
+                , PLUGIN_PERF_NAME
+            );
+            printf("DIMENSION %s '' absolute 1 100\n", "ipc");
+        }
+
+        printf(
+            "BEGIN %s.%s\n"
+            , RRD_TYPE_PERF
+            , "ipc"
+        );
+        calculated_number ratio = ((calculated_number) perf_events[EV_ID_INSTRUCTIONS].value / (calculated_number) perf_events[EV_ID_CPU_CYCLES].value)*10000;
+        printf(
+            "SET %s = %lld\n"
+            , "ipc"
+            , (collected_number)ratio
         );
         printf("END\n");
     }
