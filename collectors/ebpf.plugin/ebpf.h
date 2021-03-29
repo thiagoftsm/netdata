@@ -81,7 +81,6 @@ enum ebpf_module_indexes {
     EBPF_MODULE_DCSTAT_IDX
     EBPF_MODULE_FILESYSTEM_IDX,
     EBPF_MODULE_DCSTAT_IDX,
-    EBPF_MODULE_SYNC_IDX,
     EBPF_MODULE_MD_IDX
 };
 
@@ -229,3 +228,4 @@ extern void ebpf_update_pid_table(ebpf_local_maps_t *pid, ebpf_module_t *em);
 #define EBPF_MAX_SYNCHRONIZATION_TIME 300
 
 #endif /* NETDATA_COLLECTOR_EBPF_H */
+

@@ -4,8 +4,6 @@
 #define NETDATA_EBPF_SYNC_H 1
 
 // charts
-<<<<<<< HEAD
-<<<<<<< HEAD
 #define NETDATA_EBPF_SYNC_CHART "sync"
 #define NETDATA_EBPF_MSYNC_CHART "memory_map"
 #define NETDATA_EBPF_FILE_SYNC_CHART "file_sync"
@@ -14,20 +12,6 @@
 
 #define NETDATA_EBPF_SYNC_SLEEP_MS 800000ULL
 
-// configuration file
-=======
-#define NETDATA_EBPF_SYNC_CHART "fs_sync"
-=======
-#define NETDATA_EBPF_SYNC_CHART "sync"
->>>>>>> 2ba28d023 (fs_latency_dc_raid: Reorganize charts)
-#define NETDATA_EBPF_MSYNC_CHART "memory_map"
-#define NETDATA_EBPF_FILE_SYNC_CHART "file_sync"
-#define NETDATA_EBPF_FILE_SEGMENT_CHART "file_segment"
-#define NETDATA_EBPF_SYNC_SUBMENU "synchronization (eBPF)"
-
-#define NETDATA_EBPF_SYNC_SLEEP_MS 800000ULL
-
->>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
 #define NETDATA_SYNC_CONFIG_FILE "sync.conf"
 #define NETDATA_SYNC_CONFIG_NAME "syscalls"
 
@@ -66,8 +50,5 @@ enum netdata_sync_table {
 
 extern void *ebpf_sync_thread(void *ptr);
 
-<<<<<<< HEAD
 #endif /* NETDATA_EBPF_SYNC_H */
-=======
-#endif
->>>>>>> e7313831b (fs_latency_dc_raid: add more sync methods)
+

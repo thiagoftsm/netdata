@@ -544,7 +544,7 @@ void *ebpf_filesystem_thread(void *ptr)
     netdata_thread_cleanup_push(ebpf_filesystem_cleanup, ptr);
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
-    ebpf_load_config_update_module(em, &fs_config, NETDATA_FILESYSTEM_CONFIG_FILE);
+    ebpf_update_module(em, &fs_config, NETDATA_FILESYSTEM_CONFIG_FILE);
     ebpf_parse_filesystem();
 
     if (!em->enabled)

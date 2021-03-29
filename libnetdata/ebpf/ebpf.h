@@ -146,4 +146,8 @@ extern void ebpf_update_module_using_config(ebpf_module_t *modules, struct confi
 extern void ebpf_update_module(ebpf_module_t *em, struct config *cfg, char *cfg_file);
 extern void ebpf_update_names(ebpf_specify_name_t *opt, ebpf_module_t *em);
 
+char **ebpf_fill_histogram_dimension(size_t maximum);
+void ebpf_histogram_dimension_cleanup(char **ptr, size_t length);
+void ebpf_set_dimension_algorithm(int *algorithms, size_t length, int algorithm);
+
 #endif /* NETDATA_EBPF_H */

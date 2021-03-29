@@ -38,7 +38,6 @@ static struct bpf_object *objects = NULL;
 static struct bpf_link **probe_links = NULL;
 
 struct config process_config = { .first_section = NULL,
-static struct config process_config = { .first_section = NULL,
     .last_section = NULL,
     .mutex = NETDATA_MUTEX_INITIALIZER,
     .index = { .avl_tree = { .root = NULL, .compar = appconfig_section_compare },

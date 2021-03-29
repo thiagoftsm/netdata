@@ -145,11 +145,30 @@ static void ebpf_send_sync_chart(char *id,
                                    int idx,
                                    int end)
 {
+    write_begin_chart(NETDATA_EBPF_MEMORY_GROUP, id);
+
+    netdata_publish_syscall_t *move = &sync_counter_publish_aggregated[idx];
+
+    while (move && idx <= end) {
+        if (local_syscalls[idx].enabled)
+            write_chart_dimension(move->name, sync_hash_values[idx]);
+
+        move = move->next;
+        idx++;
+    }
+
+    write_end_chart();
+}
+
+/**
+ * Send data
+ *
+ * Send global charts to Netdata
+ */
+static void sync_send_data()
+{
     if (local_syscalls[NETDATA_SYNC_FSYNC_IDX].enabled || local_syscalls[NETDATA_SYNC_FDATASYNC_IDX].enabled) {
-        sync_counter_publish_aggregated[NETDATA_SYNC_FDATASYNC_IDX].ncall = sync_hash_values[NETDATA_SYNC_FDATASYNC_IDX];
-        sync_counter_publish_aggregated[NETDATA_SYNC_FSYNC_IDX].ncall = sync_hash_values[NETDATA_SYNC_FSYNC_IDX];
-        write_count_chart(NETDATA_EBPF_FILE_SYNC_CHART, NETDATA_EBPF_MEMORY_GROUP,
-                          &sync_counter_publish_aggregated[NETDATA_SYNC_FSYNC_IDX], 2);
+        ebpf_send_sync_chart(NETDATA_EBPF_FILE_SYNC_CHART, NETDATA_SYNC_FSYNC_IDX, NETDATA_SYNC_FDATASYNC_IDX);
     }
 
     if (local_syscalls[NETDATA_SYNC_MSYNC_IDX].enabled)
@@ -310,8 +329,12 @@ static void ebpf_create_sync_charts()
                                NETDATA_SYNC_SYNC_FILE_RANGE_IDX, NETDATA_SYNC_SYNC_FILE_RANGE_IDX);
 }
 
-
-static void ebpf_parse_sync()
+/**
+ * Parse Syscalls
+ *
+ * Parse syscall options available inside ebpf.d/sync.conf
+ */
+static void ebpf_sync_parse_syscalls()
 {
     int i;
     for (i = 0; local_syscalls[i].syscall; i++) {
