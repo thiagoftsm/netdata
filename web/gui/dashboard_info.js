@@ -1109,6 +1109,10 @@ netdataDashboard.context = {
     'filesystem.dc_reference': {
         info: 'Counters of file accesses. <code>Reference</code> is when there is a file access and the file is not present in the directory cache. <code>Miss</code> is when there is file access and the file is not found in the filesystem. <code>Slow</code> is when there is a file access and the file is present in the filesystem but not in the directory cache. Read more about <a href="https://www.kernel.org/doc/htmldocs/filesystems/the_directory_cache.html" target="_blank">directory cache</a>.'
     },
+    'perf.ipc': {
+        info: 'An IPC < 1.0 likely means memory bound, and an IPC > 1.0 likely means instruction bound.'
+    },
+
 
     // ------------------------------------------------------------------------
     // network interfaces

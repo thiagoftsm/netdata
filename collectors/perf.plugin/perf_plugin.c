@@ -549,7 +549,7 @@ static void perf_send_metrics() {
             , RRD_TYPE_PERF
             , "ipc"
         );
-        calculated_number ratio = ((calculated_number) perf_events[EV_ID_INSTRUCTIONS].value / (calculated_number) perf_events[EV_ID_CPU_CYCLES].value)*10000;
+        calculated_number ratio = ((calculated_number) perf_events[EV_ID_INSTRUCTIONS].value / (calculated_number) perf_events[EV_ID_CPU_CYCLES].value)*100;
         printf(
             "SET %s = %lld\n"
             , "ipc"
