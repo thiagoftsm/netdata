@@ -82,7 +82,7 @@ void ebpf_swap_create_apps_charts(struct ebpf_module *em, void *ptr)
     ebpf_create_charts_on_apps(NETDATA_MEM_SWAP_READ_CHART,
                                NULL,
                                EBPF_COMMON_DIMENSION_CALL,
-                               NETDATA_APPS_CACHESTAT_GROUP,
+                               NETDATA_SWAP_SUBMENU,
                                NETDATA_EBPF_CHART_TYPE_STACKED,
                                20191,
                                ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
@@ -91,7 +91,7 @@ void ebpf_swap_create_apps_charts(struct ebpf_module *em, void *ptr)
     ebpf_create_charts_on_apps(NETDATA_MEM_SWAP_WRITE_CHART,
                                NULL,
                                EBPF_COMMON_DIMENSION_CALL,
-                               NETDATA_APPS_CACHESTAT_GROUP,
+                               ,
                                NETDATA_EBPF_CHART_TYPE_STACKED,
                                20192,
                                ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
@@ -175,6 +175,7 @@ static void read_apps_table()
     while (pids) {
         key = pids->pid;
 
+        // KILLME THERE IS A PROBLEM HERE
         if (bpf_map_lookup_elem(fd, &key, cv)) {
             pids = pids->next;
             continue;
