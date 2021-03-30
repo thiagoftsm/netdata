@@ -215,9 +215,9 @@ static void ebpf_md_allocate_global_vectors()
 }
 
 /**
- * Cachestat thread
+ * MD thread
  *
- * Thread used to make cachestat thread
+ * Thread used to make multi disk thread
  *
  * @param ptr a pointer to `struct ebpf_module`
  *

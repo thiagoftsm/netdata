@@ -26,6 +26,7 @@
 #include "ebpf_filesystem.h"
 #include "ebpf_md.h"
 #include "ebpf_sync.h"
+#include "ebpf_swap.h"
 
 #define MAX_COMPARE_NAME 100
 #define MAX_NAME 100
@@ -443,5 +444,6 @@ extern ebpf_process_stat_t **global_process_stats;
 extern ebpf_process_publish_apps_t **current_apps_data;
 extern netdata_publish_cachestat_t **cachestat_pid;
 extern netdata_publish_dcstat_t **dcstat_pid;
+extern netdata_publish_swap_t **swap_pid;
 
 #endif /* NETDATA_EBPF_APPS_H */

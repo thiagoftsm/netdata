@@ -81,7 +81,8 @@ enum ebpf_module_indexes {
     EBPF_MODULE_DCSTAT_IDX
     EBPF_MODULE_FILESYSTEM_IDX,
     EBPF_MODULE_DCSTAT_IDX,
-    EBPF_MODULE_MD_IDX
+    EBPF_MODULE_MD_IDX,
+    EBPF_MODULE_SWAP_IDX
 };
 
 // Copied from musl header

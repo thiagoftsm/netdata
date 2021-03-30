@@ -103,6 +103,9 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "md", .config_name = "md", .enabled = 0, .start_routine = ebpf_md_thread,
         .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
         .optional = 0, .apps_routine = NULL  },
+    { .thread_name = "swap", .config_name = "swap", .enabled = 0, .start_routine = ebpf_swap_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0, .apps_routine = ebpf_swap_create_apps_charts  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL },
@@ -618,6 +621,8 @@ void ebpf_print_help()
             "\n",
             " --sync or -s        Enable chart related to sync run time.\n"
             "\n"
+            " --swap or -w        Enable chart related to SWAP.\n"
+            "\n"
             VERSION,
             (year >= 116) ? year + 1900 : 2020);
 }
@@ -936,6 +941,14 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "swap",
+                                    CONFIG_BOOLEAN_NO);
+
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_SWAP_IDX, *disable_apps);
+        started++;
+    }
+
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
         // Read network viewer section
@@ -1026,6 +1039,7 @@ static void parse_args(int argc, char **argv)
         {"return",    no_argument,    0,  'r' },
         {"sync", no_argument,    0,  's' },
         {"md", no_argument,    0,  'm' },
+        {"swap", no_argument,    0,  'w' },
         {0, 0, 0, 0}
     };
 
@@ -1040,7 +1054,7 @@ static void parse_args(int argc, char **argv)
     }
 
     while (1) {
-        int c = getopt_long(argc, argv, "hvgcadnprsm", long_options, &option_index);
+        int c = getopt_long(argc, argv, "hvgcadnprsmw", long_options, &option_index);
         if (c == -1)
             break;
 
@@ -1134,6 +1148,14 @@ static void parse_args(int argc, char **argv)
                 ebpf_enable_chart(EBPF_MODULE_SYNC_IDX, disable_apps);
 #ifdef NETDATA_INTERNAL_CHECKS
                 info("EBPF enabling \"sync\" chart, because it was started with the option \"--sync\" or \"-s\".");
+#endif
+                break;
+            }
+            case 'w': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_SWAP_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info("EBPF enabling \"SWAP\" chart, because it was started with the option \"--swap\" or \"-w\".");
 #endif
                 break;
             }
