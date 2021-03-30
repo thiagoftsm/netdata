@@ -1293,6 +1293,8 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_SYNC_IDX].start_routine},
         {"EBPF MD" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_MD_IDX].start_routine},
+        {"EBPF SWAP" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_SWAP_IDX].start_routine},
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };

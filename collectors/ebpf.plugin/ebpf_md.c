@@ -45,8 +45,17 @@ static void ebpf_md_cleanup(void *ptr)
     if (!em->enabled)
         return;
 
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+    uint32_t tick = 2*USEC_PER_MS;
+    while (!read_thread_closed) {
+        usec_t dt = heartbeat_next(&hb, tick);
+        UNUSED(dt);
+    }
+
     ebpf_cleanup_publish_syscall(&md_publish_aggregated);
 
+    freez(md_threads.thread);
     freez(md_vector);
 
     struct bpf_program *prog;
@@ -118,32 +127,13 @@ void *ebpf_md_read_hash(void *ptr)
 }
 
 /**
- * Write charts
- *
- * Write the current information to publish the charts.
- *
- * @param family chart family
- * @param chart  chart id
- * @param dim    dimension name
- * @param v1     value.
- */
-static inline void md_write_charts(char *family, char *chart, char *dim, long long v1)
-{
-    write_begin_chart(family, chart);
-
-    write_chart_dimension(dim, v1);
-
-    write_end_chart();
-}
-
-/**
  * Send global
  *
  * Send global charts to Netdata
  */
 static void md_send_global()
 {
-    md_write_charts(NETDATA_EBPF_RAID_GROUP, NETDATA_MD_FLUSH_CHART,
+    ebpf_one_dimension_write_charts(NETDATA_EBPF_RAID_GROUP, NETDATA_MD_FLUSH_CHART,
                     md_dimension_name[NETDATA_KEY_MD_CALL], md_hash_values[NETDATA_KEY_MD_CALL]);
 }
 
