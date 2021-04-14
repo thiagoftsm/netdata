@@ -568,7 +568,7 @@ static void perf_send_metrics() {
                    , RRD_TYPE_PERF
                    , "branch_instructions"
                    , RRD_FAMILY_HW
-                   , NETDATA_CHART_PRIO_PERF_BRANCH_INSTRUCTIONS
+                   , NETDATA_CHART_PRIO_PERF_BRANCH_INSTRUSTIONS
                    , update_every
                    , PLUGIN_PERF_NAME
             );
