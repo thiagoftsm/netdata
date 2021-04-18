@@ -3,15 +3,32 @@
 
 # include "../libnetdata.h"
 
-#define HEALTH_ALARM_KEY "alarm"
-#define HEALTH_TEMPLATE_KEY "template"
 #define HEALTH_CONTEXT_KEY "context"
 #define HEALTH_CHART_KEY "chart"
+
+#define HEALTH_ALARM_KEY "alarm"
+#define HEALTH_TEMPLATE_KEY "template"
+#define HEALTH_ON_KEY "on"
 #define HEALTH_HOST_KEY "hosts"
 #define HEALTH_OS_KEY "os"
 #define HEALTH_FAMILIES_KEY "families"
+#define HEALTH_PLUGIN_KEY "plugin"
+#define HEALTH_MODULE_KEY "module"
 #define HEALTH_LOOKUP_KEY "lookup"
 #define HEALTH_CALC_KEY "calc"
+#define HEALTH_EVERY_KEY "every"
+#define HEALTH_GREEN_KEY "green"
+#define HEALTH_RED_KEY "red"
+#define HEALTH_WARN_KEY "warn"
+#define HEALTH_CRIT_KEY "crit"
+#define HEALTH_EXEC_KEY "exec"
+#define HEALTH_RECIPIENT_KEY "to"
+#define HEALTH_UNITS_KEY "units"
+#define HEALTH_INFO_KEY "info"
+#define HEALTH_DELAY_KEY "delay"
+#define HEALTH_OPTIONS_KEY "options"
+#define HEALTH_REPEAT_KEY "repeat"
+#define HEALTH_HOST_LABEL_KEY "host labels"
 
 typedef struct silencer {
     char *alarms;
