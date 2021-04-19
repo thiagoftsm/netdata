@@ -4,8 +4,6 @@
 
 #define HEALTH_CONF_MAX_LINE 4096
 
-
-
 static inline int rrdcalc_add_alarm_from_config(RRDHOST *host, RRDCALC *rc) {
     if(!rc->chart) {
         error("Health configuration for alarm '%s' does not have a chart", rc->name);
@@ -453,6 +451,64 @@ static inline void strip_quotes(char *s) {
     }
 }
 
+char * parse_multiple_lines(char *string, size_t *positions, int *start, int end)
+{
+    if (!end)
+        return string;
+
+    static const char *compare_vector[] = { HEALTH_ALARM_KEY, HEALTH_TEMPLATE_KEY, HEALTH_ON_KEY, HEALTH_HOST_KEY,
+                                            HEALTH_OS_KEY, HEALTH_FAMILIES_KEY, HEALTH_PLUGIN_KEY,
+                                            HEALTH_MODULE_KEY, HEALTH_LOOKUP_KEY, HEALTH_CALC_KEY, HEALTH_EVERY_KEY,
+                                            HEALTH_GREEN_KEY, HEALTH_RED_KEY, HEALTH_WARN_KEY, HEALTH_CRIT_KEY,
+                                            HEALTH_EXEC_KEY, HEALTH_RECIPIENT_KEY, HEALTH_UNITS_KEY,
+                                            HEALTH_INFO_KEY, HEALTH_DELAY_KEY, HEALTH_OPTIONS_KEY,
+                                            HEALTH_REPEAT_KEY, HEALTH_HOST_LABEL_KEY, NULL };
+    static size_t compare_length[] = { strlen(HEALTH_ALARM_KEY), strlen(HEALTH_TEMPLATE_KEY), strlen(HEALTH_ON_KEY),
+                                      strlen(HEALTH_HOST_KEY), strlen(HEALTH_OS_KEY), strlen(HEALTH_FAMILIES_KEY),
+                                      strlen(HEALTH_PLUGIN_KEY), strlen(HEALTH_MODULE_KEY), strlen(HEALTH_LOOKUP_KEY),
+                                      strlen(HEALTH_CALC_KEY), strlen(HEALTH_EVERY_KEY), strlen(HEALTH_GREEN_KEY),
+                                      strlen(HEALTH_RED_KEY), strlen(HEALTH_WARN_KEY), strlen(HEALTH_CRIT_KEY),
+                                      strlen(HEALTH_EXEC_KEY), strlen(HEALTH_RECIPIENT_KEY), strlen(HEALTH_UNITS_KEY),
+                                      strlen(HEALTH_INFO_KEY), strlen(HEALTH_DELAY_KEY), strlen(HEALTH_OPTIONS_KEY),
+                                      strlen(HEALTH_REPEAT_KEY), strlen(HEALTH_HOST_LABEL_KEY), 0 };
+    if (*start) {
+        string += (positions[*start]);
+    }
+    error("KILLME MULTIPLE %d, %d: %s", *start, end, string);
+
+    int i;
+    for ( i = *start; i < end ; i++) {
+        char *key = &string[positions[i]];
+        while(*key && !isalnum(*key) && *key != '#') key++;
+
+        if (!*key) {
+            break;
+        }
+
+        error("KILLME  STEP %d: %s", i, key);
+
+        int j = 0;
+        while (compare_vector[j]) {
+            if (!strncmp(key, compare_vector[j], compare_length[j])) {
+                error("KILLME CMP %s: %s", key, compare_vector[j]);
+                char *colon = (key + strlen(compare_vector[j]));
+                if ( *colon == ':') {
+                    string[positions[*start] - 1] = '\0';
+                    *start = i + 1;
+                    goto endhealthfunction;
+                }
+            }
+            j++;
+        }
+    }
+
+    *start = end;
+    error("KILLME END FUNCTION %d %d", *start, end);
+
+endhealthfunction:
+    return string;
+}
+
 static int health_readfile(const char *filename, void *data) {
     RRDHOST *host = (RRDHOST *)data;
 
@@ -520,6 +576,10 @@ static int health_readfile(const char *filename, void *data) {
     RRDCALC *rc = NULL;
     RRDCALCTEMPLATE *rt = NULL;
 
+    size_t backslashes[HEALTH_CONF_MAX_LINE];
+    int last_element = 0;
+    int first_element = 0;
+
     int ignore_this = 0;
     size_t line = 0, append = 0;
     char *s;
@@ -532,6 +592,8 @@ static int health_readfile(const char *filename, void *data) {
         append = strlen(s);
         if(!stop_appending && s[append - 1] == '\\') {
             s[append - 1] = ' ';
+            backslashes[last_element] = append - 1;
+            last_element++;
             append = &s[append] - buffer;
             if(append < HEALTH_CONF_MAX_LINE)
                 continue;
@@ -540,12 +602,27 @@ static int health_readfile(const char *filename, void *data) {
             }
         }
         append = 0;
+        if (last_element)
+            last_element++;
+
+nextcommand:
+        s =  parse_multiple_lines(s, backslashes, &first_element, last_element);
+        if (last_element) {
+            error("KILLME TRY %d %d", first_element, last_element);
+            if (first_element == last_element) {
+                error("KILLME END %s", s);
+                first_element = last_element = 0;
+            }
+        }
 
         char *key = s;
         while(*s && *s != ':') s++;
         if(!*s) {
             error("Health configuration has invalid line %zu of file '%s'. It does not contain a ':'. Ignoring it.", line, filename);
-            continue;
+            if (!last_element)
+                continue;
+            else
+                goto nextcommand;
         }
         *s = '\0';
         s++;
@@ -556,12 +633,18 @@ static int health_readfile(const char *filename, void *data) {
 
         if(!key) {
             error("Health configuration has invalid line %zu of file '%s'. Keyword is empty. Ignoring it.", line, filename);
-            continue;
+            if (!last_element)
+                continue;
+            else
+                goto nextcommand;
         }
 
         if(!value) {
             error("Health configuration has invalid line %zu of file '%s'. value is empty. Ignoring it.", line, filename);
-            continue;
+            if (!last_element)
+                continue;
+            else
+                goto nextcommand;
         }
 
         uint32_t hash = simple_uhash(key);
@@ -976,6 +1059,10 @@ static int health_readfile(const char *filename, void *data) {
         else {
             error("Health configuration at line %zu of file '%s' has unknown key '%s'. Expected either '" HEALTH_ALARM_KEY "' or '" HEALTH_TEMPLATE_KEY "'.",
                     line, filename, key);
+        }
+
+        if (last_element) {
+            goto nextcommand;
         }
     }
 
