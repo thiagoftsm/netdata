@@ -11,10 +11,7 @@
 #define NETDATA_DC_REQUEST_NOT_FOUND_CHART "dc_not_found"
 
 #define NETDATA_DIRECTORY_CACHE_SUBMENU "directory cache (eBPF)"
-<<<<<<< HEAD
 #define NETDATA_DIRECTORY_FILESYSTEM_SUBMENU "Directory Cache (eBPF)"
-=======
->>>>>>> 78d7e34d2 (fix firectory cache)
 
 // configuration file
 #define NETDATA_DIRECTORY_DCSTAT_CONFIG_FILE "dcstat.conf"

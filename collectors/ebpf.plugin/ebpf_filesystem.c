@@ -56,7 +56,7 @@ static void ebpf_create_fs_charts()
         uint32_t flags = efp->flags;
         if (flags & NETDATA_FILESYSTEM_FLAG_HAS_PARTITION && !(flags & NETDATA_FILESYSTEM_FLAG_CHART_CREATED)) {
             snprintfz(title, 255, "%s latency for each read request.", efp->filesystem);
-            snprintfz(family, 63, "%s latency", efp->family);
+            snprintfz(family, 63, "%s latency (eBPF)", efp->family);
             snprintfz(chart_name, 63, "%s_read_latency", efp->filesystem);
             efp->hread.name = strdupz(chart_name);
 

@@ -7,7 +7,7 @@ static ebpf_data_t swap_data;
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;
 
-static char *swap_dimension_name[NETDATA_SWAP_END] = { "swap_readpage", "swap_writepage" };
+static char *swap_dimension_name[NETDATA_SWAP_END] = { "read", "write" };
 static netdata_syscall_stat_t swap_aggregated_data[NETDATA_SWAP_END];
 static netdata_publish_syscall_t swap_publish_aggregated[NETDATA_SWAP_END];
 
@@ -340,7 +340,7 @@ static void ebpf_create_swap_charts()
 {
     ebpf_create_chart(NETDATA_EBPF_SYSTEM_GROUP, NETDATA_MEM_SWAP_CHART,
                       "Calls for swap internal functions.",
-                      EBPF_COMMON_DIMENSION_CALL, NETDATA_SWAP_SUBMENU,
+                      EBPF_COMMON_DIMENSION_CALL, NETDATA_SYSTEM_SWAP_SUBMENU,
                       NULL,
                       NETDATA_EBPF_CHART_TYPE_LINE,
                       202,
