@@ -7,7 +7,7 @@
 #define NETDATA_SWAP_CONFIG_FILE "swap.conf"
 
 // charts
-#define NETDATA_MEM_SWAP_CHART "swap_call"
+#define NETDATA_MEM_SWAP_CHART "swapcalls"
 #define NETDATA_MEM_SWAP_READ_CHART "swap_read_call"
 #define NETDATA_MEM_SWAP_WRITE_CHART "swap_write_call"
 
@@ -34,5 +34,6 @@ enum swap_counters {
 
 extern void *ebpf_swap_thread(void *ptr);
 extern void ebpf_swap_create_apps_charts(struct ebpf_module *em, void *ptr);
+extern void clean_swap_pid_structures();
 
 #endif

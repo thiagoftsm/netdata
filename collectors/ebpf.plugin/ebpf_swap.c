@@ -36,6 +36,18 @@ struct netdata_static_thread swap_threads = {"SWAP KERNEL",
  *****************************************************************/
 
 /**
+ * Clean swap strcuture
+ */
+void clean_swap_pid_structures() {
+    struct pid_stat *pids = root_of_pids;
+    while (pids) {
+        freez(swap_pid[pids->pid]);
+
+        pids = pids->next;
+    }
+}
+
+/**
  * Clean up the main thread.
  *
  * @param ptr thread data.
@@ -175,7 +187,6 @@ static void read_apps_table()
     while (pids) {
         key = pids->pid;
 
-        // KILLME THERE IS A PROBLEM HERE
         if (bpf_map_lookup_elem(fd, &key, cv)) {
             pids = pids->next;
             continue;

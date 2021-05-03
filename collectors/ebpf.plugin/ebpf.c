@@ -164,6 +164,12 @@ static void ebpf_exit(int sig)
         freez(dcstat_pid);
     }
 
+    if (ebpf_modules[EBPF_MODULE_SWAP_IDX].enabled) {
+        ebpf_modules[EBPF_MODULE_SWAP_IDX].enabled = 0;
+        clean_swap_pid_structures();
+        freez(swap_pid);
+    }
+
     /*
     int ret = fork();
     if (ret < 0) // error
