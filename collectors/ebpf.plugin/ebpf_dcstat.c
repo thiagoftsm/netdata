@@ -15,12 +15,10 @@ netdata_publish_dcstat_t **dcstat_pid = NULL;
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;
 
-
+static int *map_fd = NULL;
 static netdata_idx_t dcstat_hash_values[NETDATA_DCSTAT_IDX_END];
 
 static int read_thread_closed = 1;
-
-static int *map_fd = NULL;
 
 struct config dcstat_config = { .first_section = NULL,
     .last_section = NULL,
@@ -117,6 +115,7 @@ static void ebpf_dcstat_cleanup(void *ptr)
         usec_t dt = heartbeat_next(&hb, tick);
         UNUSED(dt);
     }
+
     freez(dcstat_vector);
 
     ebpf_cleanup_publish_syscall(dcstat_counter_publish_aggregated);
