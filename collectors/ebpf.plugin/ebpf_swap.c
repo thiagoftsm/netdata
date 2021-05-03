@@ -7,7 +7,7 @@ static ebpf_data_t swap_data;
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;
 
-static char *swap_dimension_name[NETDATA_SWAP_END] = { "read", "write" };
+static char *swap_dimension_name[NETDATA_SWAP_END] = { "write", "read" };
 static netdata_syscall_stat_t swap_aggregated_data[NETDATA_SWAP_END];
 static netdata_publish_syscall_t swap_publish_aggregated[NETDATA_SWAP_END];
 
