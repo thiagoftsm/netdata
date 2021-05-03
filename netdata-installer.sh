@@ -918,12 +918,12 @@ bundle_libbpf() {
   tmp="$(mktemp -d -t netdata-libbpf-XXXXXX)"
   LIBBPF_PACKAGE_BASENAME="v${LIBBPF_PACKAGE_VERSION}.tar.gz"
 
-  #download_file "http://192.168.0.240/libbpf-netdata-0.31.tar.xz" "${tmp}/${LIBBPF_PACKAGE_BASENAME}" "libbpf"
-  #run tar -xf "${tmp}/${LIBBPF_PACKAGE_BASENAME}" -C "${tmp}"
-  #build_libbpf "${tmp}/libbpf" &&
-  #copy_libbpf "${tmp}/libbpf" &&
-  #rm -rf "${tmp}"
-  #run_ok "libbpf built and prepared."
+#  download_file "http://192.168.0.240/libbpf-netdata-0.31.tar.xz" "${tmp}/${LIBBPF_PACKAGE_BASENAME}" "libbpf"
+#  run tar -xf "${tmp}/${LIBBPF_PACKAGE_BASENAME}" -C "${tmp}"
+#  build_libbpf "${tmp}/libbpf" &&
+#  copy_libbpf "${tmp}/libbpf" &&
+#  rm -rf "${tmp}"
+#  run_ok "libbpf built and prepared."
   if fetch_and_verify "libbpf" \
     "https://github.com/netdata/libbpf/archive/${LIBBPF_PACKAGE_BASENAME}" \
     "${LIBBPF_PACKAGE_BASENAME}" \
