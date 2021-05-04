@@ -222,15 +222,11 @@ void *ebpf_swap_read_hash(void *ptr)
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     usec_t step = NETDATA_MD_SLEEP_MS * em->update_time;
-    int apps = em->apps_charts;
     while (!close_ebpf_plugin) {
         usec_t dt = heartbeat_next(&hb, step);
         (void)dt;
 
         read_global_table();
-
-        if (apps)
-            read_apps_table();
     }
 
     read_thread_closed = 1;
@@ -323,6 +319,9 @@ static void swap_collector(ebpf_module_t *em)
     while (!close_ebpf_plugin) {
         pthread_mutex_lock(&collect_data_mutex);
         pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        if (apps)
+            read_apps_table();
 
         pthread_mutex_lock(&lock);
 
