@@ -3521,6 +3521,16 @@ netdataDashboard.context = {
         info: 'Difference between the number of process created and the number of threads created per period(<code>process</code> dimension), it also shows the number of possible zombie process running on system.'
     },
 
+    'ebpf.swap_read_call': {
+        title : 'SWAP read page',
+        info: 'Monitor when a software read a page from memory swap.'
+    },
+
+    'ebpf.swap_write_call': {
+        title : 'SWAP write page',
+        info: 'Monitor when a software write on page in memory swap.'
+    },
+
     'filesystem.ext4_read_latency': {
         title : 'Read Latency',
         info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>ext4_file_read_iter</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://www.informit.com/articles/article.aspx?p=370047&seqNum=4" target="_blank">ext4dist</a> from BCC tools.'
