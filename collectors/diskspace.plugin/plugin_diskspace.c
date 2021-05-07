@@ -258,11 +258,14 @@ static inline void do_disk_space_stats(struct mountinfo *mi, int update_every) {
             if(unlikely(!m->st_space)) {
                 char title[4096 + 1];
                 snprintfz(title, 4096, "Disk Space Usage for %s [%s]", family, mi->mount_source);
+
+                char local_family[4096 + 1];
+                snprintfz(local_family, 4096, "%s (%s)", family, mi->mount_source);
                 m->st_space = rrdset_create_localhost(
                         "mount_points_space"
                         , disk
                         , NULL
-                        , family
+                        , local_family
                         , "disk.space"
                         , title
                         , "GiB"
@@ -300,11 +303,14 @@ static inline void do_disk_space_stats(struct mountinfo *mi, int update_every) {
             if(unlikely(!m->st_inodes)) {
                 char title[4096 + 1];
                 snprintfz(title, 4096, "Disk Files (inodes) Usage for %s [%s]", family, mi->mount_source);
+
+                char local_family[4096 + 1];
+                snprintfz(local_family, 4096, "%s (%s)", family, mi->mount_source);
                 m->st_inodes = rrdset_create_localhost(
                         "mount_points_inodes"
                         , disk
                         , NULL
-                        , family
+                        , local_family
                         , "disk.inodes"
                         , title
                         , "inodes"
