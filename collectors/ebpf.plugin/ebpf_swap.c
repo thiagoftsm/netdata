@@ -3,31 +3,34 @@
 #include "ebpf.h"
 #include "ebpf_swap.h"
 
-static ebpf_data_t swap_data;
-static struct bpf_link **probe_links = NULL;
-static struct bpf_object *objects = NULL;
-
 static char *swap_dimension_name[NETDATA_SWAP_END] = { "write", "read" };
 static netdata_syscall_stat_t swap_aggregated_data[NETDATA_SWAP_END];
 static netdata_publish_syscall_t swap_publish_aggregated[NETDATA_SWAP_END];
 
+static int read_thread_closed = 1;
+static int *map_fd = NULL;
+netdata_publish_swap_t *swap_vector = NULL;
+
 static netdata_idx_t swap_hash_values[NETDATA_SWAP_END];
 
 netdata_publish_swap_t **swap_pid = NULL;
-netdata_publish_swap_t *swap_vector = NULL;
 
-static int read_thread_closed = 1;
-static int *map_fd = NULL;
-
+static ebpf_data_t swap_data;
 struct config swap_config = { .first_section = NULL,
     .last_section = NULL,
     .mutex = NETDATA_MUTEX_INITIALIZER,
     .index = { .avl_tree = { .root = NULL, .compar = appconfig_section_compare },
         .rwlock = AVL_LOCK_INITIALIZER } };
 
-struct netdata_static_thread swap_threads = {"SWAP KERNEL",
-                                                  NULL, NULL, 1, NULL,
-                                                  NULL,  NULL};
+static ebpf_local_maps_t swap_maps[] = {{.name = "tbl_pid_swap", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
+                                            .user_input = 0},
+                                        {.name = NULL, .internal_input = 0, .user_input = 0}};
+
+static struct bpf_link **probe_links = NULL;
+static struct bpf_object *objects = NULL;
+
+struct netdata_static_thread swap_threads = {"SWAP KERNEL", NULL, NULL, 1,
+                                             NULL, NULL,  NULL};
 
 /*****************************************************************
  *
@@ -79,61 +82,11 @@ static void ebpf_swap_cleanup(void *ptr)
     bpf_object__close(objects);
 }
 
-/**
- * Create apps charts
- *
- * Call ebpf_create_chart to create the charts on apps submenu.
- *
- * @param em a pointer to the structure with the default values.
- */
-void ebpf_swap_create_apps_charts(struct ebpf_module *em, void *ptr)
-{
-    UNUSED(em);
-
-    struct target *root = ptr;
-    ebpf_create_charts_on_apps(NETDATA_MEM_SWAP_READ_CHART,
-                               NULL,
-                               EBPF_COMMON_DIMENSION_CALL,
-                               NETDATA_SWAP_SUBMENU,
-                               NETDATA_EBPF_CHART_TYPE_STACKED,
-                               20191,
-                               ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
-                               root);
-
-    ebpf_create_charts_on_apps(NETDATA_MEM_SWAP_WRITE_CHART,
-                               NULL,
-                               EBPF_COMMON_DIMENSION_CALL,
-                               NETDATA_SWAP_SUBMENU,
-                               NETDATA_EBPF_CHART_TYPE_STACKED,
-                               20192,
-                               ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
-                               root);
-}
-
 /*****************************************************************
  *
  *  COLLECTOR THREAD
  *
  *****************************************************************/
-
-/**
- * Read global counter
- *
- * Read the table with number of calls for all functions
- */
-static void read_global_table()
-{
-    uint64_t stored;
-    netdata_idx_t *val = swap_hash_values;
-    int fd = map_fd[NETDATA_SWAP_GLOBAL_TABLE];
-
-    uint32_t i, end = NETDATA_SWAP_END;
-    for (i = NETDATA_KEY_SWAP_READPAGE_CALL; i < end; i++) {
-        if (!bpf_map_lookup_elem(fd, &i, &stored)) {
-            val[i] = stored;
-        }
-    }
-}
 
 /**
  * Apps Accumulator
@@ -204,7 +157,40 @@ static void read_apps_table()
 }
 
 /**
- * Socket read hash
+ * Send global
+ *
+ * Send global charts to Netdata
+ */
+static void swap_send_global()
+{
+    write_io_chart(NETDATA_MEM_SWAP_CHART, NETDATA_EBPF_SYSTEM_GROUP,
+                   swap_publish_aggregated[NETDATA_KEY_SWAP_WRITEPAGE_CALL].dimension,
+                   (long long) swap_hash_values[NETDATA_KEY_SWAP_WRITEPAGE_CALL],
+                   swap_publish_aggregated[NETDATA_KEY_SWAP_READPAGE_CALL].dimension,
+                   (long long) swap_hash_values[NETDATA_KEY_SWAP_READPAGE_CALL]);
+}
+
+/**
+ * Read global counter
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_global_table()
+{
+    uint64_t stored;
+    netdata_idx_t *val = swap_hash_values;
+    int fd = map_fd[NETDATA_SWAP_GLOBAL_TABLE];
+
+    uint32_t i, end = NETDATA_SWAP_END;
+    for (i = NETDATA_KEY_SWAP_READPAGE_CALL; i < end; i++) {
+        if (!bpf_map_lookup_elem(fd, &i, &stored)) {
+            val[i] = stored;
+        }
+    }
+}
+
+/**
+ * Swap read hash
  *
  * This is the thread callback.
  * This thread is necessary, because we cannot freeze the whole plugin to read the data on very busy socket.
@@ -221,7 +207,7 @@ void *ebpf_swap_read_hash(void *ptr)
     heartbeat_init(&hb);
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
-    usec_t step = NETDATA_MD_SLEEP_MS * em->update_time;
+    usec_t step = NETDATA_SWAP_SLEEP_MS * em->update_time;
     while (!close_ebpf_plugin) {
         usec_t dt = heartbeat_next(&hb, step);
         (void)dt;
@@ -234,43 +220,31 @@ void *ebpf_swap_read_hash(void *ptr)
 }
 
 /**
- * Send global
+ * Sum PIDs
  *
- * Send global charts to Netdata
+ * Sum values for all targets.
+ *
+ * @param swap
+ * @param root
  */
-static void swap_send_global()
+static void ebpf_swap_sump_pids(netdata_publish_swap_t *swap, struct pid_on_target *root)
 {
-    write_io_chart(NETDATA_MEM_SWAP_CHART, NETDATA_EBPF_SYSTEM_GROUP,
-                   swap_publish_aggregated[NETDATA_KEY_SWAP_WRITEPAGE_CALL].dimension,
-                   swap_hash_values[NETDATA_KEY_SWAP_WRITEPAGE_CALL],
-                   swap_publish_aggregated[NETDATA_KEY_SWAP_READPAGE_CALL].dimension,
-                   swap_hash_values[NETDATA_KEY_SWAP_READPAGE_CALL]);
-}
+    uint64_t local_read = 0;
+    uint64_t local_write = 0;
 
-
-/**
- * Sum values for pid
- *
- * @param root the structure with all available PIDs
- *
- * @param offset the address that we are reading
- *
- * @return it returns the sum of all PIDs
- */
-long long ebpf_swap_sum_values_for_pids(struct pid_on_target *root, size_t offset)
-{
-    long long ret = 0;
     while (root) {
         int32_t pid = root->pid;
         netdata_publish_swap_t *w = swap_pid[pid];
         if (w) {
-            ret += get_value_from_structure((char *)w, offset);
+            local_write += w->write;
+            local_read += w->read;
         }
-
         root = root->next;
     }
 
-    return ret;
+    // These conditions were added, because we are using incremental algorithm
+    swap->write = (local_write >= swap->write) ? local_write : swap->write;
+    swap->read = (local_read >= swap->read) ? local_read : swap->read;
 }
 
 /**
@@ -281,13 +255,16 @@ long long ebpf_swap_sum_values_for_pids(struct pid_on_target *root, size_t offse
 void ebpf_swap_send_apps_data(struct target *root)
 {
     struct target *w;
-    collected_number value;
+    for (w = root; w; w = w->next) {
+        if (unlikely(w->exposed && w->processes)) {
+            ebpf_swap_sump_pids(&w->swap, w->root_pid);
+        }
+    }
 
     write_begin_chart(NETDATA_APPS_FAMILY, NETDATA_MEM_SWAP_READ_CHART);
     for (w = root; w; w = w->next) {
         if (unlikely(w->exposed && w->processes)) {
-            value = (collected_number) ebpf_swap_sum_values_for_pids(w->root_pid, offsetof(netdata_publish_swap_t, read));
-            write_chart_dimension(w->name, value);
+            write_chart_dimension(w->name, (long long) w->swap.read);
         }
     }
     write_end_chart();
@@ -295,8 +272,7 @@ void ebpf_swap_send_apps_data(struct target *root)
     write_begin_chart(NETDATA_APPS_FAMILY, NETDATA_MEM_SWAP_WRITE_CHART);
     for (w = root; w; w = w->next) {
         if (unlikely(w->exposed && w->processes)) {
-            value = (collected_number) ebpf_swap_sum_values_for_pids(w->root_pid, offsetof(netdata_publish_swap_t, write));
-            write_chart_dimension(w->name, value);
+            write_chart_dimension(w->name, (long long) w->swap.write);
         }
     }
     write_end_chart();
@@ -337,6 +313,60 @@ static void swap_collector(ebpf_module_t *em)
 
 /*****************************************************************
  *
+ *  INITIALIZED THREAD
+ *
+ *****************************************************************/
+
+/**
+ * Create apps charts
+ *
+ * Call ebpf_create_chart to create the charts on apps submenu.
+ *
+ * @param em a pointer to the structure with the default values.
+ */
+void ebpf_swap_create_apps_charts(struct ebpf_module *em, void *ptr)
+{
+    UNUSED(em);
+
+    struct target *root = ptr;
+    ebpf_create_charts_on_apps(NETDATA_MEM_SWAP_READ_CHART,
+                               "Calls for function <code>swap_readpage.</code>",
+                               EBPF_COMMON_DIMENSION_CALL,
+                               NETDATA_SWAP_SUBMENU,
+                               NETDATA_EBPF_CHART_TYPE_STACKED,
+                               20191,
+                               ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
+                               root);
+
+    ebpf_create_charts_on_apps(NETDATA_MEM_SWAP_WRITE_CHART,
+                               "Calls for function <code>swap_writepage.</code>",
+                               EBPF_COMMON_DIMENSION_CALL,
+                               NETDATA_SWAP_SUBMENU,
+                               NETDATA_EBPF_CHART_TYPE_STACKED,
+                               20192,
+                               ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
+                               root);
+}
+
+/**
+ * Allocate vectors used with this thread.
+ *
+ * We are not testing the return, because callocz does this and shutdown the software
+ * case it was not possible to allocate.
+ *
+ * @param length is the length for the vectors used inside the collector.
+ */
+static void ebpf_swap_allocate_global_vectors()
+{
+    swap_pid = callocz((size_t)pid_max, sizeof(netdata_publish_swap_t *));
+    swap_vector = callocz((size_t)ebpf_nprocs, sizeof(netdata_publish_swap_t));
+
+    memset(swap_hash_values, 0, sizeof(swap_hash_values));
+}
+
+
+/*****************************************************************
+ *
  *  MAIN THREAD
  *
  *****************************************************************/
@@ -359,22 +389,6 @@ static void ebpf_create_swap_charts()
 }
 
 /**
- * Allocate vectors used with this thread.
- *
- * We are not testing the return, because callocz does this and shutdown the software
- * case it was not possible to allocate.
- *
- * @param length is the length for the vectors used inside the collector.
- */
-static void ebpf_swap_allocate_global_vectors()
-{
-    swap_pid = callocz((size_t)pid_max, sizeof(netdata_publish_swap_t *));
-    swap_vector = callocz((size_t)ebpf_nprocs, sizeof(netdata_publish_swap_t));
-
-    memset(swap_hash_values, 0, sizeof(swap_hash_values));
-}
-
-/**
  * SWAP thread
  *
  * Thread used to make swap thread
@@ -388,9 +402,11 @@ void *ebpf_swap_thread(void *ptr)
     netdata_thread_cleanup_push(ebpf_swap_cleanup, ptr);
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
+    em->maps = swap_maps;
     fill_ebpf_data(&swap_data);
 
     ebpf_update_module(em, &swap_config, NETDATA_SWAP_CONFIG_FILE);
+    ebpf_update_pid_table(&swap_maps[0], em);
 
     if (!em->enabled)
         goto endswap;

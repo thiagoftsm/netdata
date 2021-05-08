@@ -873,7 +873,6 @@ netdataDashboard.context = {
         info: 'Total Swap Calls. (netdata measures calls for <code>write</code> and <code>read</code>. If either of the metrics <code>write</code> or <code>read</code> is not shown in the chart, the reason is that the metric is zero. - you can change the page settings to always render all the available dimensions on all charts). This chart is made for <code>ebpf.plugin</code>'
     },
 
-
     'system.pgfaults': {
         info: 'Total page faults. <b>Major page faults</b> indicates that the system is using its swap. You can find which applications use the swap at the <a href="#menu_apps">Applications Monitoring</a> section.'
     },
