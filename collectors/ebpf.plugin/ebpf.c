@@ -93,16 +93,17 @@ ebpf_module_t ebpf_modules[] = {
     { .thread_name = "dc", .config_name = "dc", .enabled = 0, .start_routine = ebpf_dcstat_thread,
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = ebpf_dcstat_create_apps_charts, .maps = NULL,
-      .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE },
+      .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL },
+    { .thread_name = "swap", .config_name = "swap", .enabled = 0, .start_routine = ebpf_swap_thread,
+      .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+      .optional = 0, .apps_routine = ebpf_swap_create_apps_charts, .maps = NULL,
+      .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL },
     { .thread_name = "filesystem", .config_name = "filesystem", .enabled = 0, .start_routine = ebpf_filesystem_thread,
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .names = NULL },
     { .thread_name = "md", .config_name = "md", .enabled = 0, .start_routine = ebpf_md_thread,
         .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
         .optional = 0, .apps_routine = NULL  },
-    { .thread_name = "swap", .config_name = "swap", .enabled = 0, .start_routine = ebpf_swap_thread,
-        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
-        .optional = 0, .apps_routine = ebpf_swap_create_apps_charts  },
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL },
@@ -914,6 +915,14 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "swap",
+                                    CONFIG_BOOLEAN_NO);
+
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_SWAP_IDX, *disable_apps);
+        started++;
+    }
+
     enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "filesystem",
                                     CONFIG_BOOLEAN_NO);
     if (enabled) {
@@ -926,14 +935,6 @@ static void read_collector_values(int *disable_apps)
 
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_MD_IDX, *disable_apps);
-        started++;
-    }
-
-    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "swap",
-                                    CONFIG_BOOLEAN_NO);
-
-    if (enabled) {
-        ebpf_enable_chart(EBPF_MODULE_SWAP_IDX, *disable_apps);
         started++;
     }
 
@@ -1275,12 +1276,12 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_SYNC_IDX].start_routine},
         {"EBPF DCSTAT" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_DCSTAT_IDX].start_routine},
+        {"EBPF SWAP" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_SWAP_IDX].start_routine},
         {"EBPF FILESYSTEM" , NULL, NULL, 1,
          NULL, NULL, ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].start_routine},
         {"EBPF MD" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_MD_IDX].start_routine},
-        {"EBPF SWAP" , NULL, NULL, 1,
-            NULL, NULL, ebpf_modules[EBPF_MODULE_SWAP_IDX].start_routine},
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };

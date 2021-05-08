@@ -79,9 +79,9 @@ enum ebpf_module_indexes {
     EBPF_MODULE_CACHESTAT_IDX,
     EBPF_MODULE_SYNC_IDX,
     EBPF_MODULE_DCSTAT_IDX,
+    EBPF_MODULE_SWAP_IDX,
     EBPF_MODULE_FILESYSTEM_IDX,
-    EBPF_MODULE_MD_IDX,
-    EBPF_MODULE_SWAP_IDX
+    EBPF_MODULE_MD_IDX
 };
 
 // Copied from musl header
@@ -196,6 +196,7 @@ extern void ebpf_cleanup_publish_syscall(netdata_publish_syscall_t *nps);
 #define EBPF_PROGRAMS_SECTION "ebpf programs"
 #define NETDATA_EBPF_MEMORY_GROUP "mem"
 #define NETDATA_EBPF_SYSTEM_GROUP "system"
+#define NETDATA_SYSTEM_SWAP_SUBMENU "swap"
 #define NETDATA_EBPF_RAID_GROUP "raid"
 
 #define EBPF_COMMON_DIMENSION_PERCENTAGE "%"

@@ -12,7 +12,6 @@
 #define NETDATA_MEM_SWAP_WRITE_CHART "swap_write_call"
 
 #define NETDATA_SWAP_SUBMENU "swap (eBPF)"
-#define NETDATA_SYSTEM_SWAP_SUBMENU "swap"
 
 enum swap_tables {
     NETDATA_PID_SWAP_TABLE,
