@@ -1409,7 +1409,12 @@ function enrichChartData(chart) {
                 chart.menu_pattern = tmp;
             }
             break;
-
+        case 'mount_points':
+            if (parts.length > 2)
+                chart.menu = tmp + '_' + parts[1];
+            else
+                chart.menu = tmp;
+            break;
         case 'isc':
             chart.menu = chart.type;
             if (parts.length > 2 && parts[1] === 'dhcpd') {
