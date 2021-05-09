@@ -1409,7 +1409,7 @@ function enrichChartData(chart) {
                 chart.menu_pattern = tmp;
             }
             break;
-        case 'mount_points':
+        case 'mount':
             if (parts.length > 2)
                 chart.menu = tmp + '_' + parts[1];
             else
