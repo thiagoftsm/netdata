@@ -48,7 +48,7 @@ int algorithms[NETDATA_FILESYSTEM_MAX_BINS];
 
 static void ebpf_create_fs_charts()
 {
-    static int order = 21200;
+    static int order = NETDATA_CHART_PRIO_EBPF_FILESUSTEM_CHARTS;
     char chart_name[64], title[256], family[64];
     int i;
     for (i = 0; localfs[i].filesystem; i++) {

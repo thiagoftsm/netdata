@@ -138,6 +138,9 @@
 #define NETDATA_CHART_PRIO_MDSTAT_FINISH              2105
 #define NETDATA_CHART_PRIO_MDSTAT_SPEED               2106
 
+// Filesystems eBPF
+#define NETDATA_CHART_PRIO_EBPF_FILESUSTEM_CHARTS     2150
+
 // NFS (server)
 
 #define NETDATA_CHART_PRIO_NFSD_READCACHE             2200
