@@ -13,8 +13,10 @@
 #define NETDATA_VFS_ERRORS 3
 
 // Map index
-#define NETDATA_EXIT_START 2
-#define NETDATA_PROCESS_START 4
+#define NETDATA_DEL_START 2
+#define NETDATA_IN_START_BYTE 3
+#define NETDATA_EXIT_START 5
+#define NETDATA_PROCESS_START 7
 
 // Global chart name
 #define NETDATA_FILE_OPEN_CLOSE_COUNT "file_descriptor"
@@ -99,6 +101,9 @@ typedef enum ebpf_process_index {
 typedef enum netdata_publish_process {
     NETDATA_KEY_PUBLISH_PROCESS_OPEN,
     NETDATA_KEY_PUBLISH_PROCESS_CLOSE,
+    NETDATA_KEY_PUBLISH_PROCESS_UNLINK,
+    NETDATA_KEY_PUBLISH_PROCESS_READ,
+    NETDATA_KEY_PUBLISH_PROCESS_WRITE,
     NETDATA_KEY_PUBLISH_PROCESS_EXIT,
     NETDATA_KEY_PUBLISH_PROCESS_RELEASE_TASK,
     NETDATA_KEY_PUBLISH_PROCESS_FORK,
@@ -111,6 +116,9 @@ typedef struct ebpf_process_publish_apps {
     // Number of calls during the last read
     uint64_t call_sys_open;
     uint64_t call_close_fd;
+    uint64_t call_vfs_unlink;
+    uint64_t call_read;
+    uint64_t call_write;
     uint64_t call_do_exit;
     uint64_t call_release_task;
     uint64_t call_do_fork;
@@ -119,8 +127,15 @@ typedef struct ebpf_process_publish_apps {
     // Number of errors during the last read
     uint64_t ecall_sys_open;
     uint64_t ecall_close_fd;
+    uint64_t ecall_vfs_unlink;
+    uint64_t ecall_read;
+    uint64_t ecall_write;
     uint64_t ecall_do_fork;
     uint64_t ecall_sys_clone;
+
+    // Number of bytes during the last read
+    uint64_t bytes_written;
+    uint64_t bytes_read;
 } ebpf_process_publish_apps_t;
 
 #endif /* NETDATA_EBPF_PROCESS_H */
