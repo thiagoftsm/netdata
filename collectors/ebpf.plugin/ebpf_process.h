@@ -5,7 +5,7 @@
 
 // Groups used on Dashboard
 #define NETDATA_FILE_GROUP "File"
-#define NETDATA_VFS_GROUP "VFS"
+#define NETDATA_VFS_GROUP "VFS (eBPF)"
 #define NETDATA_PROCESS_GROUP "Process"
 
 // Internal constants

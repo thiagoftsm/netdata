@@ -122,10 +122,10 @@ static void ebpf_process_send_data(ebpf_module_t *em)
         NETDATA_FILE_OPEN_CLOSE_COUNT, NETDATA_EBPF_FAMILY, process_publish_aggregated, 2);
 
     write_count_chart(
-        NETDATA_VFS_FILE_CLEAN_COUNT, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_DEL_START], 1);
+        NETDATA_VFS_FILE_CLEAN_COUNT, NETDATA_FILESYSTEM_FAMILY, &process_publish_aggregated[NETDATA_DEL_START], 1);
 
     write_count_chart(
-        NETDATA_VFS_FILE_IO_COUNT, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_IN_START_BYTE], 2);
+        NETDATA_VFS_FILE_IO_COUNT, NETDATA_FILESYSTEM_FAMILY, &process_publish_aggregated[NETDATA_IN_START_BYTE], 2);
 
     write_count_chart(
         NETDATA_EXIT_SYSCALL, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_EXIT_START], 2);
@@ -137,12 +137,12 @@ static void ebpf_process_send_data(ebpf_module_t *em)
         write_err_chart(
             NETDATA_FILE_OPEN_ERR_COUNT, NETDATA_EBPF_FAMILY, process_publish_aggregated, 2);
         write_err_chart(
-            NETDATA_VFS_FILE_ERR_COUNT, NETDATA_EBPF_FAMILY, &process_publish_aggregated[2], NETDATA_VFS_ERRORS);
+            NETDATA_VFS_FILE_ERR_COUNT, NETDATA_FILESYSTEM_FAMILY, &process_publish_aggregated[2], NETDATA_VFS_ERRORS);
         write_err_chart(
             NETDATA_PROCESS_ERROR_NAME, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_PROCESS_START], 2);
     }
 
-    write_io_chart(NETDATA_VFS_IO_FILE_BYTES, NETDATA_EBPF_FAMILY,
+    write_io_chart(NETDATA_VFS_IO_FILE_BYTES, NETDATA_FILESYSTEM_FAMILY,
                    process_id_names[NETDATA_KEY_PUBLISH_PROCESS_WRITE], (long long) pvc.write,
                    process_id_names[NETDATA_KEY_PUBLISH_PROCESS_READ], (long long)pvc.read);
 }
@@ -551,7 +551,7 @@ static void ebpf_create_global_charts(ebpf_module_t *em)
                           2);
     }
 
-    ebpf_create_chart(NETDATA_EBPF_FAMILY,
+    ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY,
                       NETDATA_VFS_FILE_CLEAN_COUNT,
                       "Remove files",
                       EBPF_COMMON_DIMENSION_CALL,
@@ -563,7 +563,7 @@ static void ebpf_create_global_charts(ebpf_module_t *em)
                       &process_publish_aggregated[NETDATA_DEL_START],
                       1);
 
-    ebpf_create_chart(NETDATA_EBPF_FAMILY,
+    ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY,
                       NETDATA_VFS_FILE_IO_COUNT,
                       "Calls to IO",
                       EBPF_COMMON_DIMENSION_CALL,
@@ -575,14 +575,14 @@ static void ebpf_create_global_charts(ebpf_module_t *em)
                       &process_publish_aggregated[NETDATA_IN_START_BYTE],
                       2);
 
-    ebpf_create_io_chart(NETDATA_EBPF_FAMILY,
+    ebpf_create_io_chart(NETDATA_FILESYSTEM_FAMILY,
                          NETDATA_VFS_IO_FILE_BYTES, EBPF_COMMON_DIMENSION_BYTES,
                          NETDATA_VFS_GROUP,
                          21004,
                          NETDATA_EBPF_ABSOLUTE_IDX);
 
     if (em->mode < MODE_ENTRY) {
-        ebpf_create_chart(NETDATA_EBPF_FAMILY,
+        ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY,
                           NETDATA_VFS_FILE_ERR_COUNT,
                           "Fails to write or read",
                           EBPF_COMMON_DIMENSION_CALL,
