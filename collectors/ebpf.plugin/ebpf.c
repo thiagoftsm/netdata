@@ -98,6 +98,10 @@ ebpf_module_t ebpf_modules[] = {
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = ebpf_swap_create_apps_charts, .maps = NULL,
       .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL },
+    { .thread_name = "vfs", .config_name = "vfs", .enabled = 0, .start_routine = ebpf_vfs_thread,
+        .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
+        .optional = 0, .apps_routine = ebpf_vfs_create_apps_charts, .maps = NULL,
+        .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL },
     { .thread_name = "filesystem", .config_name = "filesystem", .enabled = 0, .start_routine = ebpf_filesystem_thread,
       .update_time = 1, .global_charts = 1, .apps_charts = 1, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .names = NULL },
@@ -169,6 +173,12 @@ static void ebpf_exit(int sig)
         ebpf_modules[EBPF_MODULE_SWAP_IDX].enabled = 0;
         clean_swap_pid_structures();
         freez(swap_pid);
+    }
+
+    if (ebpf_modules[EBPF_MODULE_VFS_IDX].enabled) {
+        ebpf_modules[EBPF_MODULE_VFS_IDX].enabled = 0;
+        clean_vfs_pid_structures();
+        freez(vfs_pid);
     }
 
     /*
@@ -625,6 +635,8 @@ void ebpf_print_help()
             "\n",
             " --sync or -s        Enable chart related to sync run time.\n"
             "\n"
+            " --vfs or -v         Enable chart related to vfs run time.\n"
+            "\n"
             " --swap or -w        Enable chart related to SWAP.\n"
             "\n"
             VERSION,
@@ -917,9 +929,15 @@ static void read_collector_values(int *disable_apps)
 
     enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "swap",
                                     CONFIG_BOOLEAN_NO);
-
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_SWAP_IDX, *disable_apps);
+        started++;
+    }
+
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "vfs",
+                                    CONFIG_BOOLEAN_NO);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_VFS_IDX, *disable_apps);
         started++;
     }
 
@@ -1028,6 +1046,7 @@ static void parse_args(int argc, char **argv)
         {"return",    no_argument,    0,  'r' },
         {"sync", no_argument,    0,  's' },
         {"md", no_argument,    0,  'm' },
+        {"vfs", no_argument,    0,  'i' },
         {"swap", no_argument,    0,  'w' },
         {0, 0, 0, 0}
     };
@@ -1043,7 +1062,7 @@ static void parse_args(int argc, char **argv)
     }
 
     while (1) {
-        int c = getopt_long(argc, argv, "hvgcadnprsmw", long_options, &option_index);
+        int c = getopt_long(argc, argv, "hvgcadnprsmwi", long_options, &option_index);
         if (c == -1)
             break;
 
@@ -1137,6 +1156,14 @@ static void parse_args(int argc, char **argv)
                 ebpf_enable_chart(EBPF_MODULE_SYNC_IDX, disable_apps);
 #ifdef NETDATA_INTERNAL_CHECKS
                 info("EBPF enabling \"sync\" chart, because it was started with the option \"--sync\" or \"-s\".");
+#endif
+                break;
+            }
+            case 'i': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_VFS_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info("EBPF enabling \"vfs\" chart, because it was started with the option \"--vfs\" or \"-v\".");
 #endif
                 break;
             }
@@ -1278,6 +1305,8 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_DCSTAT_IDX].start_routine},
         {"EBPF SWAP" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_SWAP_IDX].start_routine},
+        {"EBPF VFS" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_VFS_IDX].start_routine},
         {"EBPF FILESYSTEM" , NULL, NULL, 1,
          NULL, NULL, ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].start_routine},
         {"EBPF MD" , NULL, NULL, 1,

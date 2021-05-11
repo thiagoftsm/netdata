@@ -27,6 +27,7 @@
 #include "ebpf_md.h"
 #include "ebpf_sync.h"
 #include "ebpf_swap.h"
+#include "ebpf_vfs.h"
 
 #define MAX_COMPARE_NAME 100
 #define MAX_NAME 100
@@ -119,6 +120,7 @@ struct target {
     netdata_publish_cachestat_t cachestat;
     netdata_publish_dcstat_t dcstat;
     netdata_publish_swap_t swap;
+    netdata_publish_vfs_t vfs;
 
     /* These variables are not necessary for eBPF collector
     kernel_uint_t minflt;
