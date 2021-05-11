@@ -6,6 +6,8 @@
 // configuration file
 #define NETDATA_DIRECTORY_VFS_CONFIG_FILE "vfs.conf"
 
+#define NETDATA_LATENCY_VFS_SLEEP_MS 750000ULL
+
 typedef struct netdata_publish_vfs {
     uint64_t pid_tgid;
     uint32_t pid;
@@ -73,10 +75,10 @@ enum netdata_publish_vfs_list {
 // Groups used on Dashboard
 #define NETDATA_VFS_GROUP "VFS (eBPF)"
 
-/*
 // Internal constants
-#define NETDATA_GLOBAL_VECTOR 24
 #define NETDATA_VFS_ERRORS 3
+
+/*
 
 // Map index
 #define NETDATA_DEL_START 2

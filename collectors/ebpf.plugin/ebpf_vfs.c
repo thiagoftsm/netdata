@@ -35,6 +35,14 @@ netdata_publish_vfs_t **vfs_pid = NULL;
 static struct bpf_object *objects = NULL;
 static struct bpf_link **probe_links = NULL;
 
+static int *map_fd = NULL;
+
+struct netdata_static_thread vfs_threads = {"VFS KERNEL",
+                                               NULL, NULL, 1, NULL,
+                                               NULL,  NULL};
+
+static int read_thread_closed = 1;
+
 /*
 static char *status[] = { "process", "zombie" };
 
@@ -49,84 +57,6 @@ static int *map_fd = NULL;
  *  PROCESS DATA AND SEND TO NETDATA
  *
  *****************************************************************/
-
-/**
- * Update publish structure before to send data to Netdata.
- *
- * @param publish  the first output structure with independent dimensions
- * @param pvc      the second output structure with correlated dimensions
- * @param input    the structure with the input data.
-static void ebpf_update_global_publish(
-    netdata_publish_syscall_t *publish, netdata_publish_vfs_common_t *pvc, netdata_syscall_stat_t *input)
-{
-    netdata_publish_syscall_t *move = publish;
-    int selector = NETDATA_KEY_PUBLISH_PROCESS_OPEN;
-    while (move) {
-        // Until NETDATA_KEY_PUBLISH_PROCESS_READ we are creating accumulators, so it is possible
-        // to use incremental charts, but after this we will do some math with the values, so we are storing
-        // absolute values
-        if (selector < NETDATA_KEY_PUBLISH_PROCESS_READ) {
-            move->ncall = input->call;
-            move->nbyte = input->bytes;
-            move->nerr = input->ecall;
-        } else {
-            move->ncall = (input->call > move->pcall) ? input->call - move->pcall : move->pcall - input->call;
-            move->nbyte = (input->bytes > move->pbyte) ? input->bytes - move->pbyte : move->pbyte - input->bytes;
-            move->nerr = (input->ecall > move->nerr) ? input->ecall - move->perr : move->perr - input->ecall;
-
-            move->pcall = input->call;
-            move->pbyte = input->bytes;
-            move->perr = input->ecall;
-        }
-
-        input = input->next;
-        move = move->next;
-        selector++;
-    }
-
-    pvc->write = -((long)publish[NETDATA_KEY_PUBLISH_PROCESS_WRITE].nbyte);
-    pvc->read = (long)publish[NETDATA_KEY_PUBLISH_PROCESS_READ].nbyte;
-}
-     */
-
-/**
- * Send data to Netdata calling auxiliar functions.
- *
- * @param em the structure with thread information
-static void ebpf_vfs_send_data(ebpf_module_t *em)
-{
-    netdata_publish_vfs_common_t pvc;
-    ebpf_update_global_publish(process_publish_aggregated, &pvc, process_aggregated_data);
-
-    write_count_chart(
-        NETDATA_FILE_OPEN_CLOSE_COUNT, NETDATA_EBPF_FAMILY, process_publish_aggregated, 2);
-
-    write_count_chart(
-        NETDATA_VFS_FILE_CLEAN_COUNT, NETDATA_FILESYSTEM_FAMILY, &process_publish_aggregated[NETDATA_DEL_START], 1);
-
-    write_count_chart(
-        NETDATA_VFS_FILE_IO_COUNT, NETDATA_FILESYSTEM_FAMILY, &process_publish_aggregated[NETDATA_IN_START_BYTE], 2);
-
-    write_count_chart(
-        NETDATA_EXIT_SYSCALL, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_EXIT_START], 2);
-    write_count_chart(
-        NETDATA_PROCESS_SYSCALL, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_PROCESS_START], 2);
-
-    write_status_chart(NETDATA_EBPF_FAMILY, &pvc);
-    if (em->mode < MODE_ENTRY) {
-        write_err_chart(
-            NETDATA_FILE_OPEN_ERR_COUNT, NETDATA_EBPF_FAMILY, process_publish_aggregated, 2);
-        write_err_chart(
-            NETDATA_VFS_FILE_ERR_COUNT, NETDATA_FILESYSTEM_FAMILY, &process_publish_aggregated[2], NETDATA_VFS_ERRORS);
-        write_err_chart(
-            NETDATA_PROCESS_ERROR_NAME, NETDATA_EBPF_FAMILY, &process_publish_aggregated[NETDATA_PROCESS_START], 2);
-    }
-
-    write_io_chart(NETDATA_VFS_IO_FILE_BYTES, NETDATA_FILESYSTEM_FAMILY,
-                   process_id_names[NETDATA_KEY_PUBLISH_PROCESS_WRITE], (long long) pvc.write,
-                   process_id_names[NETDATA_KEY_PUBLISH_PROCESS_READ], (long long)pvc.read);
-}
-*/
 
 /**
  * Sum values for pid
@@ -344,52 +274,6 @@ void ebpf_vfs_send_apps_data(ebpf_module_t *em, struct target *root)
  *
  *****************************************************************/
 
-/**
- * Read the hash table and store data to allocated vectors.
-static void read_hash_global_tables()
-{
-    uint64_t idx;
-    netdata_idx_t res[NETDATA_GLOBAL_VECTOR];
-
-    netdata_idx_t *val = process_hash_values;
-    for (idx = 0; idx < NETDATA_GLOBAL_VECTOR; idx++) {
-        if (!bpf_map_lookup_elem(map_fd[1], &idx, val)) {
-            uint64_t total = 0;
-            int i;
-            int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
-            for (i = 0; i < end; i++)
-                total += val[i];
-
-            res[idx] = total;
-        } else {
-            res[idx] = 0;
-        }
-    }
-
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_OPEN].call = res[NETDATA_KEY_CALLS_DO_SYS_OPEN];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_CLOSE].call = res[NETDATA_KEY_CALLS_CLOSE_FD];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_UNLINK].call = res[NETDATA_KEY_CALLS_VFS_UNLINK];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_READ].call = res[NETDATA_KEY_CALLS_VFS_READ] + res[NETDATA_KEY_CALLS_VFS_READV];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_WRITE].call = res[NETDATA_KEY_CALLS_VFS_WRITE] + res[NETDATA_KEY_CALLS_VFS_WRITEV];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_EXIT].call = res[NETDATA_KEY_CALLS_DO_EXIT];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_RELEASE_TASK].call = res[NETDATA_KEY_CALLS_RELEASE_TASK];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_FORK].call = res[NETDATA_KEY_CALLS_DO_FORK];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_CLONE].call = res[NETDATA_KEY_CALLS_SYS_CLONE];
-
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_OPEN].ecall = res[NETDATA_KEY_ERROR_DO_SYS_OPEN];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_CLOSE].ecall = res[NETDATA_KEY_ERROR_CLOSE_FD];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_UNLINK].ecall = res[NETDATA_KEY_ERROR_VFS_UNLINK];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_READ].ecall = res[NETDATA_KEY_ERROR_VFS_READ] + res[NETDATA_KEY_ERROR_VFS_READV];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_WRITE].ecall = res[NETDATA_KEY_ERROR_VFS_WRITE] + res[NETDATA_KEY_ERROR_VFS_WRITEV];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_FORK].ecall = res[NETDATA_KEY_ERROR_DO_FORK];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_CLONE].ecall = res[NETDATA_KEY_ERROR_SYS_CLONE];
-
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_WRITE].bytes = (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITE] +
-                                       (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITEV];
-    process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_READ].bytes = (uint64_t)res[NETDATA_KEY_BYTES_VFS_READ] +
-                                       (uint64_t)res[NETDATA_KEY_BYTES_VFS_READV];
-}
- */
 
 /**
  * Read the hash table and store data to allocated vectors.
@@ -664,21 +548,135 @@ static void ebpf_create_apps_charts(ebpf_module_t *em, struct target *root)
  *****************************************************************/
 
 /**
- * Main loop for this collector.
+ * Send data to Netdata calling auxiliar functions.
  *
- * @param step the number of microseconds used with heart beat
- * @param em   the structure with thread information
-static void process_collector(usec_t step, ebpf_module_t *em)
+ * @param em the structure with thread information
+*/
+static void ebpf_vfs_send_data(ebpf_module_t *em)
 {
+    netdata_publish_vfs_common_t pvc;
+
+    pvc.write = -((long)vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_WRITE].nbyte);
+    pvc.read = (long)vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ].nbyte;
+
+    write_count_chart(NETDATA_VFS_FILE_CLEAN_COUNT, NETDATA_FILESYSTEM_FAMILY,
+                      &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_UNLINK], 1);
+
+    write_count_chart(NETDATA_VFS_FILE_IO_COUNT, NETDATA_FILESYSTEM_FAMILY,
+                      &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ], 2);
+
+    if (em->mode < MODE_ENTRY) {
+        write_err_chart(NETDATA_VFS_FILE_ERR_COUNT, NETDATA_FILESYSTEM_FAMILY,
+                        vfs_publish_aggregated, NETDATA_VFS_ERRORS);
+    }
+
+    write_io_chart(NETDATA_VFS_IO_FILE_BYTES, NETDATA_FILESYSTEM_FAMILY,
+                   vfs_id_names[NETDATA_KEY_PUBLISH_VFS_WRITE], (long long) pvc.write,
+                   vfs_id_names[NETDATA_KEY_PUBLISH_VFS_READ], (long long)pvc.read);
+}
+
+
+/**
+ * Read the hash table and store data to allocated vectors.
+ */
+static void read_global_table()
+{
+    uint64_t idx;
+    netdata_idx_t res[NETDATA_VFS_COUNTER];
+
+    netdata_idx_t *val = vfs_hash_values;
+    for (idx = 0; idx < NETDATA_VFS_COUNTER; idx++) {
+        if (!bpf_map_lookup_elem(map_fd[1], &idx, val)) {
+            uint64_t total = 0;
+            int i;
+            int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+            for (i = 0; i < end; i++)
+                total += val[i];
+
+            res[idx] = total;
+        } else {
+            res[idx] = 0;
+        }
+    }
+
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].call = res[NETDATA_KEY_CALLS_VFS_UNLINK];
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].call = res[NETDATA_KEY_CALLS_VFS_READ] + res[NETDATA_KEY_CALLS_VFS_READV];
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].call = res[NETDATA_KEY_CALLS_VFS_WRITE] + res[NETDATA_KEY_CALLS_VFS_WRITEV];
+
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].ecall = res[NETDATA_KEY_ERROR_VFS_UNLINK];
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].ecall = res[NETDATA_KEY_ERROR_VFS_READ] + res[NETDATA_KEY_ERROR_VFS_READV];
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].ecall = res[NETDATA_KEY_ERROR_VFS_WRITE] + res[NETDATA_KEY_ERROR_VFS_WRITEV];
+
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].bytes = (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITE] +
+                                       (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITEV];
+    vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].bytes = (uint64_t)res[NETDATA_KEY_BYTES_VFS_READ] +
+                                       (uint64_t)res[NETDATA_KEY_BYTES_VFS_READV];
+}
+
+/**
+ * DCstat read hash
+ *
+ * This is the thread callback.
+ * This thread is necessary, because we cannot freeze the whole plugin to read the data.
+ *
+ * @param ptr It is a NULL value for this thread.
+ *
+ * @return It always returns NULL.
+ */
+void *ebpf_vfs_read_hash(void *ptr)
+{
+    read_thread_closed = 0;
+
     heartbeat_t hb;
     heartbeat_init(&hb);
-    int publish_global = em->global_charts;
-    int apps_enabled = em->apps_charts;
-    int pid_fd = map_fd[0];
+
+    ebpf_module_t *em = (ebpf_module_t *)ptr;
+
+    usec_t step = NETDATA_LATENCY_VFS_SLEEP_MS * em->update_time;
     while (!close_ebpf_plugin) {
         usec_t dt = heartbeat_next(&hb, step);
         (void)dt;
 
+        read_global_table();
+    }
+
+    read_thread_closed = 1;
+}
+
+/**
+ * Main loop for this collector.
+ *
+ * @param step the number of microseconds used with heart beat
+ * @param em   the structure with thread information
+ */
+static void vfs_collector(usec_t step, ebpf_module_t *em)
+{
+    vfs_threads.thread = mallocz(sizeof(netdata_thread_t));
+    vfs_threads.start_routine = ebpf_vfs_read_hash;
+
+    map_fd = vfs_data.map_fd;
+
+    netdata_thread_create(vfs_threads.thread, vfs_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
+                          ebpf_vfs_read_hash, em);
+
+    int apps = em->apps_charts;
+    while (!close_ebpf_plugin) {
+        pthread_mutex_lock(&collect_data_mutex);
+        pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        pthread_mutex_lock(&lock);
+
+        ebpf_vfs_send_data(em);
+
+
+        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&collect_data_mutex);
+    }
+    /*
+    int publish_global = em->global_charts;
+    int apps_enabled = em->apps_charts;
+    int pid_fd = map_fd[0];
+    while (!close_ebpf_plugin) {
         read_hash_global_tables();
 
         pthread_mutex_lock(&collect_data_mutex);
@@ -697,10 +695,6 @@ static void process_collector(usec_t step, ebpf_module_t *em)
         }
 
         pthread_mutex_lock(&lock);
-        if (publish_global) {
-            ebpf_process_send_data(em);
-        }
-
         if (publish_apps) {
             ebpf_process_send_apps_data(em, apps_groups_root_target);
         }
@@ -708,8 +702,8 @@ static void process_collector(usec_t step, ebpf_module_t *em)
 
         fflush(stdout);
     }
-}
      */
+}
 
 /*****************************************************************
  *
@@ -740,20 +734,20 @@ static void ebpf_vfs_cleanup(void *ptr)
 {
     UNUSED(ptr);
 
-    /*
     heartbeat_t hb;
     heartbeat_init(&hb);
-    uint32_t tick = 50*USEC_PER_MS;
+    uint32_t tick = 50 * USEC_PER_MS;
     while (!finalized_threads) {
         usec_t dt = heartbeat_next(&hb, tick);
         UNUSED(dt);
     }
 
+    /*
     ebpf_cleanup_publish_syscall(process_publish_aggregated);
-    freez(process_hash_values);
 
     freez(process_data.map_fd);
 */
+    freez(vfs_hash_values);
 
     struct bpf_program *prog;
     size_t i = 0 ;
@@ -777,10 +771,10 @@ static void ebpf_vfs_cleanup(void *ptr)
  *
  *  @param length is the length for the vectors used inside the collector.
  */
-static void ebpf_vfs_allocate_global_vectors(size_t length)
+static void ebpf_vfs_allocate_global_vectors()
 {
-    memset(vfs_aggregated_data, 0, length * sizeof(netdata_syscall_stat_t));
-    memset(vfs_publish_aggregated, 0, length * sizeof(netdata_publish_syscall_t));
+    memset(vfs_aggregated_data, 0, sizeof(vfs_aggregated_data));
+    memset(vfs_publish_aggregated, 0, sizeof(vfs_publish_aggregated));
 
     vfs_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
     vfs_pid = callocz((size_t)pid_max, sizeof(netdata_publish_vfs_t *));
@@ -815,7 +809,7 @@ void *ebpf_vfs_thread(void *ptr)
     if (!em->enabled)
         goto endvfs;
 
-    ebpf_vfs_allocate_global_vectors(NETDATA_VFS_COUNTER);
+    ebpf_vfs_allocate_global_vectors();
 
     probe_links = ebpf_load_program(ebpf_plugin_dir, em, kernel_string, &objects, vfs_data.map_fd);
     if (!probe_links) {
@@ -831,23 +825,9 @@ void *ebpf_vfs_thread(void *ptr)
     pthread_mutex_lock(&lock);
     ebpf_create_global_charts(em);
     pthread_mutex_unlock(&lock);
-            /*
 
+    vfs_collector((usec_t)(em->update_time * USEC_PER_SEC), em);
 
-            if (ebpf_update_kernel(&process_data)) {
-                pthread_mutex_unlock(&lock);
-                goto endprocess;
-            }
-
-            set_local_pointers();
-
-            if (process_enabled) {
-            }
-
-
-            process_collector((usec_t)(em->update_time * USEC_PER_SEC), em);
-
-             */
 endvfs:
     netdata_thread_cleanup_pop(1);
     return NULL;
