@@ -44,76 +44,6 @@ struct netdata_static_thread vfs_threads = {"VFS KERNEL",
 
 static int read_thread_closed = 1;
 
-/*
-static char *status[] = { "process", "zombie" };
-
-
-
-static int *map_fd = NULL;
-
-*/
-
-/*****************************************************************
- *
- *  PROCESS DATA AND SEND TO NETDATA
- *
- *****************************************************************/
-
-/**
- * Sum values for pid
- *
- * @param root the structure with all available PIDs
- *
- * @param offset the address that we are reading
- *
- * @return it returns the sum of all PIDs
-long long ebpf_vfs_sum_values_for_pids(struct pid_on_target *root, size_t offset)
-{
-    long long ret = 0;
-    while (root) {
-        int32_t pid = root->pid;
-        ebpf_process_publish_apps_t *w = current_apps_data[pid];
-        if (w) {
-            ret += get_value_from_structure((char *)w, offset);
-        }
-
-        root = root->next;
-    }
-
-    return ret;
-}
-     */
-
-/**
- * Remove process pid
- *
- * Remove from PID task table when task_release was called.
-void ebpf_process_remove_pids()
-{
-    struct pid_stat *pids = root_of_pids;
-    int pid_fd = map_fd[0];
-    while (pids) {
-        uint32_t pid = pids->pid;
-        ebpf_process_stat_t *w = global_process_stats[pid];
-        if (w) {
-            if (w->removeme) {
-                freez(w);
-                global_process_stats[pid] = NULL;
-                bpf_map_delete_elem(pid_fd, &pid);
-            }
-        }
-
-        pids = pids->next;
-    }
-}
- */
-
-/*****************************************************************
- *
- *  READ INFORMATION FROM KERNEL RING
- *
- *****************************************************************/
-
 /*****************************************************************
  *
  *  FUNCTIONS TO CREATE CHARTS
@@ -524,8 +454,16 @@ static void ebpf_vfs_send_data(ebpf_module_t *em)
 {
     netdata_publish_vfs_common_t pvc;
 
-    pvc.write = -((long)vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_WRITE].nbyte);
-    pvc.read = (long)vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ].nbyte;
+    pvc.write = -((long)vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].bytes);
+    pvc.read = (long)vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].bytes;
+
+    vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_UNLINK].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].call;
+    vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_WRITE].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].call;
+    vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].call;
+
+    vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_UNLINK].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].ecall;
+    vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_WRITE].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].ecall;
+    vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].ecall;
 
     write_count_chart(NETDATA_VFS_FILE_CLEAN_COUNT, NETDATA_FILESYSTEM_FAMILY,
                       &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_UNLINK], 1);
@@ -535,11 +473,11 @@ static void ebpf_vfs_send_data(ebpf_module_t *em)
 
     if (em->mode < MODE_ENTRY) {
         write_err_chart(NETDATA_VFS_FILE_ERR_COUNT, NETDATA_FILESYSTEM_FAMILY,
-                        vfs_publish_aggregated, NETDATA_VFS_ERRORS);
+                        vfs_publish_aggregated, NETDATA_KEY_PUBLISH_VFS_END);
     }
 
     write_io_chart(NETDATA_VFS_IO_FILE_BYTES, NETDATA_FILESYSTEM_FAMILY,
-                   vfs_id_names[NETDATA_KEY_PUBLISH_VFS_WRITE], (long long) pvc.write,
+                   vfs_id_names[NETDATA_KEY_PUBLISH_VFS_WRITE], (long long)pvc.write,
                    vfs_id_names[NETDATA_KEY_PUBLISH_VFS_READ], (long long)pvc.read);
 }
 
@@ -577,6 +515,8 @@ static void read_global_table()
                                        (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITEV];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].bytes = (uint64_t)res[NETDATA_KEY_BYTES_VFS_READ] +
                                        (uint64_t)res[NETDATA_KEY_BYTES_VFS_READV];
+
+
 }
 
 /**

@@ -80,9 +80,6 @@ enum netdata_vfs_tables {
 // Groups used on Dashboard
 #define NETDATA_VFS_GROUP "VFS (eBPF)"
 
-// Internal constants
-#define NETDATA_VFS_ERRORS 3
-
 // Charts created on Apps submenu
 #define NETDATA_SYSCALL_APPS_FILE_OPEN "file_open"
 #define NETDATA_SYSCALL_APPS_FILE_CLOSED "file_closed"
