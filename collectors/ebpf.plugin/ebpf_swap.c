@@ -224,8 +224,8 @@ void *ebpf_swap_read_hash(void *ptr)
  *
  * Sum values for all targets.
  *
- * @param swap
- * @param root
+ * @param swap output structure
+ * @param root link list with structure to be used
  */
 static void ebpf_swap_sump_pids(netdata_publish_swap_t *swap, struct pid_on_target *root)
 {

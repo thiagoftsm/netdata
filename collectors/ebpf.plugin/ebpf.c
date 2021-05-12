@@ -287,7 +287,7 @@ void write_count_chart(char *name, char *family, netdata_publish_syscall_t *move
 
     uint32_t i = 0;
     while (move && i < end) {
-        write_chart_dimension(move->name, move->ncall);
+        write_chart_dimension(move->name, (long long)move->ncall);
 
         move = move->next;
         i++;
@@ -310,7 +310,7 @@ void write_err_chart(char *name, char *family, netdata_publish_syscall_t *move, 
 
     int i = 0;
     while (move && i < end) {
-        write_chart_dimension(move->name, move->nerr);
+        write_chart_dimension(move->name, (long long)move->nerr);
 
         move = move->next;
         i++;
