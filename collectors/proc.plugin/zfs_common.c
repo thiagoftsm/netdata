@@ -48,7 +48,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_arc_size)) {
             st_arc_size = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "arc_size"
                     , NULL
                     , ZFS_FAMILY_SIZE
@@ -88,7 +88,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_l2_size)) {
             st_l2_size = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "l2_size"
                     , NULL
                     , ZFS_FAMILY_SIZE
@@ -127,7 +127,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_reads)) {
             st_reads = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "reads"
                     , NULL
                     , ZFS_FAMILY_ACCESSES
@@ -174,7 +174,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_l2bytes)) {
             st_l2bytes = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "bytes"
                     , NULL
                     , ZFS_FAMILY_ACCESSES
@@ -210,7 +210,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_ahits)) {
             st_ahits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "hits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -246,7 +246,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_dhits)) {
             st_dhits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "dhits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -282,7 +282,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_phits)) {
             st_phits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "phits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -318,7 +318,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_mhits)) {
             st_mhits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "mhits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -354,7 +354,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_l2hits)) {
             st_l2hits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "l2hits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -395,7 +395,7 @@ void generate_charts_arcstats(const char *plugin, const char *module, int show_z
 
         if (unlikely(!st_list_hits)) {
             st_list_hits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "list_hits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -463,7 +463,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_arc_size_breakdown)) {
             st_arc_size_breakdown = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "arc_size_breakdown"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -506,7 +506,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_memory)) {
             st_memory = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "memory_ops"
                     , NULL
                     , ZFS_FAMILY_OPERATIONS
@@ -557,7 +557,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_important_ops)) {
             st_important_ops = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "important_ops"
                     , NULL
                     , ZFS_FAMILY_OPERATIONS
@@ -597,7 +597,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_actual_hits)) {
             st_actual_hits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "actual_hits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -633,7 +633,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_demand_data_hits)) {
             st_demand_data_hits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "demand_data_hits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -670,7 +670,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_prefetch_data_hits)) {
             st_prefetch_data_hits = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "prefetch_data_hits"
                     , NULL
                     , ZFS_FAMILY_EFFICIENCY
@@ -706,7 +706,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_hash_elements)) {
             st_hash_elements = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "hash_elements"
                     , NULL
                     , ZFS_FAMILY_HASH
@@ -742,7 +742,7 @@ void generate_charts_arc_summary(const char *plugin, const char *module, int sho
 
         if (unlikely(!st_hash_chains)) {
             st_hash_chains = rrdset_create_localhost(
-                    "zfs"
+                    "filesystem"
                     , "hash_chains"
                     , NULL
                     , ZFS_FAMILY_HASH
