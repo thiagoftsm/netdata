@@ -559,7 +559,7 @@ static void ebpf_vfs_send_data(ebpf_module_t *em)
 
     if (em->mode < MODE_ENTRY) {
         write_err_chart(NETDATA_VFS_FILE_ERR_COUNT, NETDATA_FILESYSTEM_FAMILY,
-                        vfs_publish_aggregated, 2);
+                        &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ], 2);
     }
 
     write_io_chart(NETDATA_VFS_IO_FILE_BYTES, NETDATA_FILESYSTEM_FAMILY,
@@ -610,7 +610,6 @@ static void read_global_table()
                 total += val[i];
         }
         res[idx] = total;
-        error("KILLME %lu", total);
     }
 
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].call = res[NETDATA_KEY_CALLS_VFS_UNLINK];
