@@ -19,6 +19,9 @@ typedef struct netdata_publish_vfs {
     uint32_t read_call;
     uint32_t readv_call;
     uint32_t unlink_call;
+    uint32_t fsync_call;
+    uint32_t open_call;
+    uint32_t create_call;
 
     //Accumulator
     uint64_t write_bytes;
@@ -32,6 +35,9 @@ typedef struct netdata_publish_vfs {
     uint32_t read_err;
     uint32_t readv_err;
     uint32_t unlink_err;
+    uint32_t fsync_err;
+    uint32_t open_err;
+    uint32_t create_err;
 } netdata_publish_vfs_t;
 
 enum vfs_counters {
@@ -54,6 +60,15 @@ enum vfs_counters {
     NETDATA_KEY_CALLS_VFS_UNLINK,
     NETDATA_KEY_ERROR_VFS_UNLINK,
 
+    NETDATA_KEY_CALLS_VFS_FSYNC,
+    NETDATA_KEY_ERROR_VFS_FSYNC,
+
+    NETDATA_KEY_CALLS_VFS_OPEN,
+    NETDATA_KEY_ERROR_VFS_OPEN,
+
+    NETDATA_KEY_CALLS_VFS_CREATE,
+    NETDATA_KEY_ERROR_VFS_CREATE,
+
     // Keep this as last and don't skip numbers as it is used as element counter
     NETDATA_VFS_COUNTER
 };
@@ -62,6 +77,9 @@ enum netdata_publish_vfs_list {
     NETDATA_KEY_PUBLISH_VFS_UNLINK,
     NETDATA_KEY_PUBLISH_VFS_READ,
     NETDATA_KEY_PUBLISH_VFS_WRITE,
+    NETDATA_KEY_PUBLISH_VFS_FSYNC,
+    NETDATA_KEY_PUBLISH_VFS_OPEN,
+    NETDATA_KEY_PUBLISH_VFS_CREATE,
 
     NETDATA_KEY_PUBLISH_VFS_END
 };
@@ -76,6 +94,12 @@ enum netdata_vfs_tables {
 #define NETDATA_VFS_FILE_IO_COUNT "io"
 #define NETDATA_VFS_FILE_ERR_COUNT "io_error"
 #define NETDATA_VFS_IO_FILE_BYTES "io_bytes"
+#define NETDATA_VFS_FSYNC "fsync"
+#define NETDATA_VFS_FSYNC_ERR "fsync_error"
+#define NETDATA_VFS_OPEN "open"
+#define NETDATA_VFS_OPEN_ERR "open_error"
+#define NETDATA_VFS_CREATE "create"
+#define NETDATA_VFS_CREATE_ERR "create_error"
 
 // Groups used on Dashboard
 #define NETDATA_VFS_GROUP "VFS (eBPF)"
