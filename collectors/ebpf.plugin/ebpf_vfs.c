@@ -161,6 +161,7 @@ static void ebpf_create_global_charts(ebpf_module_t *em)
                           1);
     }
 
+    /*
     ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY,
                       NETDATA_VFS_OPEN,
                       "Calls to vfs_open",
@@ -212,6 +213,7 @@ static void ebpf_create_global_charts(ebpf_module_t *em)
                           &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_CREATE],
                           1);
     }
+     */
 }
 
 /**
@@ -244,6 +246,7 @@ void ebpf_vfs_create_apps_charts(struct ebpf_module *em, void *ptr)
                                ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX],
                                apps_groups_root_target);
 
+    error("KILLME VFS LOAD :%d %d", em->mode,  MODE_ENTRY);
     if (em->mode < MODE_ENTRY) {
         ebpf_create_charts_on_apps(NETDATA_SYSCALL_APPS_VFS_WRITE_CALLS_ERROR,
                                    "Fails to write",
@@ -541,15 +544,19 @@ static void ebpf_vfs_send_data(ebpf_module_t *em)
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_WRITE].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].call;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].call;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_FSYNC].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_FSYNC].call;
+    /*
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_CREATE].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_CREATE].call;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_OPEN].ncall = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_OPEN].call;
+     */
 
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_UNLINK].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].ecall;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_WRITE].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].ecall;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_READ].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].ecall;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_FSYNC].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_FSYNC].ecall;
+    /*
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_CREATE].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_CREATE].ecall;
     vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_OPEN].nerr = vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_OPEN].ecall;
+     */
 
     write_count_chart(NETDATA_VFS_FILE_CLEAN_COUNT, NETDATA_FILESYSTEM_FAMILY,
                       &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_UNLINK], 1);
@@ -569,6 +576,7 @@ static void ebpf_vfs_send_data(ebpf_module_t *em)
     write_count_chart(NETDATA_VFS_FSYNC, NETDATA_FILESYSTEM_FAMILY,
                       &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_FSYNC], 1);
 
+    /*
     if (em->mode < MODE_ENTRY) {
         write_err_chart(NETDATA_VFS_FSYNC_ERR, NETDATA_FILESYSTEM_FAMILY,
                         &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_FSYNC], 1);
@@ -589,6 +597,7 @@ static void ebpf_vfs_send_data(ebpf_module_t *em)
         write_err_chart(NETDATA_VFS_CREATE_ERR, NETDATA_FILESYSTEM_FAMILY,
                         &vfs_publish_aggregated[NETDATA_KEY_PUBLISH_VFS_CREATE], 1);
     }
+     */
 }
 
 
@@ -616,15 +625,19 @@ static void read_global_table()
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].call = res[NETDATA_KEY_CALLS_VFS_READ] + res[NETDATA_KEY_CALLS_VFS_READV];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].call = res[NETDATA_KEY_CALLS_VFS_WRITE] + res[NETDATA_KEY_CALLS_VFS_WRITEV];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_FSYNC].call = res[NETDATA_KEY_CALLS_VFS_FSYNC];
+    /*
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_OPEN].call = res[NETDATA_KEY_CALLS_VFS_OPEN];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_CREATE].call = res[NETDATA_KEY_CALLS_VFS_CREATE];
+     */
 
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_UNLINK].ecall = res[NETDATA_KEY_ERROR_VFS_UNLINK];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_READ].ecall = res[NETDATA_KEY_ERROR_VFS_READ] + res[NETDATA_KEY_ERROR_VFS_READV];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].ecall = res[NETDATA_KEY_ERROR_VFS_WRITE] + res[NETDATA_KEY_ERROR_VFS_WRITEV];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_FSYNC].ecall = res[NETDATA_KEY_ERROR_VFS_FSYNC];
+    /*
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_OPEN].ecall = res[NETDATA_KEY_ERROR_VFS_OPEN];
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_CREATE].ecall = res[NETDATA_KEY_ERROR_VFS_CREATE];
+     */
 
     vfs_aggregated_data[NETDATA_KEY_PUBLISH_VFS_WRITE].bytes = (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITE] +
                                        (uint64_t)res[NETDATA_KEY_BYTES_VFS_WRITEV];
@@ -801,7 +814,7 @@ void *ebpf_vfs_thread(void *ptr)
     em->maps = vfs_maps;
     fill_ebpf_data(&vfs_data);
 
-    ebpf_update_module(em, &vfs_config, NETDATA_DIRECTORY_VFS_CONFIG_FILE);
+    error("KILLME VFS NEXT :%d %d", em->mode,  MODE_ENTRY);
     ebpf_update_pid_table(&vfs_maps[0], em);
 
     if (!em->enabled)

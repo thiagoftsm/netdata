@@ -72,5 +72,6 @@ typedef struct ebpf_filesystem_partitions {
 }ebpf_filesystem_partitions_t;
 
 extern void *ebpf_filesystem_thread(void *ptr);
+extern struct config fs_config;
 
 #endif

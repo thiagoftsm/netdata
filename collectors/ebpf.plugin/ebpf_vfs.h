@@ -125,5 +125,6 @@ extern void *ebpf_vfs_thread(void *ptr);
 extern void clean_vfs_pid_structures();
 
 extern netdata_publish_vfs_t **vfs_pid;
+extern struct config vfs_config;
 
 #endif /* NETDATA_EBPF_VFS_H */

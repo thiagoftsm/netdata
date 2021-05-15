@@ -220,8 +220,6 @@ void *ebpf_md_thread(void *ptr)
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     fill_ebpf_data(&md_data);
 
-    ebpf_update_module(em, &md_config, NETDATA_MD_CONFIG_FILE);
-
     if (!em->enabled)
         goto endmd;
 

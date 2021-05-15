@@ -582,7 +582,7 @@ static void ebpf_create_apps_charts(ebpf_module_t *em, struct target *root)
     for (counter = 0; ebpf_modules[counter].thread_name; counter++) {
         ebpf_module_t *current = &ebpf_modules[counter];
         if (current->enabled && current->apps_charts && current->apps_routine)
-            current->apps_routine(em, root);
+            current->apps_routine(current, root);
     }
 }
 
@@ -796,7 +796,6 @@ void *ebpf_process_thread(void *ptr)
         goto endprocess;
     }
 
-    ebpf_update_module(em, &process_config, NETDATA_PROCESS_CONFIG_FILE);
     ebpf_update_pid_table(&process_maps[0], em);
 
     set_local_pointers();

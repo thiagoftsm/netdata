@@ -23,5 +23,6 @@ enum md_counters {
 };
 
 extern void *ebpf_md_thread(void *ptr);
+extern struct config md_config;
 
 #endif /* NETDATA_EBPF_MD_H */

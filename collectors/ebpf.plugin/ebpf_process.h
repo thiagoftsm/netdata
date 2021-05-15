@@ -89,4 +89,6 @@ typedef struct ebpf_process_publish_apps {
     uint64_t ecall_sys_clone;
 } ebpf_process_publish_apps_t;
 
+extern struct config process_config;
+
 #endif /* NETDATA_EBPF_PROCESS_H */

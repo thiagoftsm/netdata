@@ -483,17 +483,17 @@ static netdata_run_mode_t ebpf_select_mode(char *mode)
     return MODE_ENTRY;
 }
 
-void ebpf_update_module_using_config(ebpf_module_t *modules, struct config *cfg)
+void ebpf_update_module_using_config(ebpf_module_t *modules)
 {
-    char *mode = appconfig_get(cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_LOAD_MODE, EBPF_CFG_LOAD_MODE_DEFAULT);
+    char *mode = appconfig_get(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_LOAD_MODE, EBPF_CFG_LOAD_MODE_DEFAULT);
     modules->mode = ebpf_select_mode(mode);
 
-    modules->update_time = (int)appconfig_get_number(cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_UPDATE_EVERY, 1);
+    modules->update_time = (int)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_UPDATE_EVERY, 1);
 
-    modules->apps_charts = appconfig_get_boolean(cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_APPLICATION,
+    modules->apps_charts = appconfig_get_boolean(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_APPLICATION,
                                                  CONFIG_BOOLEAN_YES);
 
-    modules->pid_map_size = (uint32_t)appconfig_get_number(cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_PID_SIZE,
+    modules->pid_map_size = (uint32_t)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_PID_SIZE,
                                                            modules->pid_map_size);
 }
 
@@ -506,22 +506,26 @@ void ebpf_update_module_using_config(ebpf_module_t *modules, struct config *cfg)
  * update the variables.
  *
  * @param em       the module structure
- * @param cfg      the configuration structure
  * @param cfg_file the filename to load
  */
-void ebpf_update_module(ebpf_module_t *em, struct config *cfg, char *cfg_file)
+void ebpf_update_module(ebpf_module_t *em, char *cfg_file)
 {
     char filename[FILENAME_MAX+1];
+    int source = 0;
     ebpf_mount_config_name(filename, FILENAME_MAX, ebpf_user_config_dir, cfg_file);
-    if (!ebpf_load_config(cfg, filename)) {
+    if (!ebpf_load_config(em->cfg, filename)) {
         ebpf_mount_config_name(filename, FILENAME_MAX, ebpf_stock_config_dir, cfg_file);
-        if (!ebpf_load_config(cfg, filename)) {
+        source++;
+        if (!ebpf_load_config(em->cfg, filename)) {
             error("Cannot load the ebpf configuration file %s", cfg_file);
             return;
         }
     }
 
-    ebpf_update_module_using_config(em, cfg);
+    if (!source)
+        ebpf_update_module_using_config(em);
+
+    error("KILLME %s %d", em->cfgfile, em->mode);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
