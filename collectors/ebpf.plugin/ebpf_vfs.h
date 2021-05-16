@@ -105,20 +105,20 @@ enum netdata_vfs_tables {
 #define NETDATA_VFS_GROUP "VFS (eBPF)"
 
 // Charts created on Apps submenu
-#define NETDATA_SYSCALL_APPS_FILE_OPEN "file_open"
-#define NETDATA_SYSCALL_APPS_FILE_CLOSED "file_closed"
 #define NETDATA_SYSCALL_APPS_FILE_DELETED "file_deleted"
 #define NETDATA_SYSCALL_APPS_VFS_WRITE_CALLS "vfs_write_call"
 #define NETDATA_SYSCALL_APPS_VFS_READ_CALLS "vfs_read_call"
 #define NETDATA_SYSCALL_APPS_VFS_WRITE_BYTES "vfs_write_bytes"
 #define NETDATA_SYSCALL_APPS_VFS_READ_BYTES "vfs_read_bytes"
-#define NETDATA_SYSCALL_APPS_TASK_PROCESS "process_create"
-#define NETDATA_SYSCALL_APPS_TASK_THREAD "thread_create"
-#define NETDATA_SYSCALL_APPS_TASK_CLOSE "task_close"
-#define NETDATA_SYSCALL_APPS_FILE_OPEN_ERROR "file_open_error"
-#define NETDATA_SYSCALL_APPS_FILE_CLOSE_ERROR "file_close_error"
+#define NETDATA_SYSCALL_APPS_VFS_FSYNC "vfs_fsync"
+#define NETDATA_SYSCALL_APPS_VFS_OPEN "vfs_open"
+#define NETDATA_SYSCALL_APPS_VFS_CREATE "vfs_create"
+
 #define NETDATA_SYSCALL_APPS_VFS_WRITE_CALLS_ERROR "vfs_write_error"
 #define NETDATA_SYSCALL_APPS_VFS_READ_CALLS_ERROR "vfs_read_error"
+#define NETDATA_SYSCALL_APPS_VFS_FSYNC_CALLS_ERROR "vfs_fsync_error"
+#define NETDATA_SYSCALL_APPS_VFS_OPEN_CALLS_ERROR "vfs_open_error"
+#define NETDATA_SYSCALL_APPS_VFS_CREATE_CALLS_ERROR "vfs_create_error"
 
 extern void ebpf_vfs_create_apps_charts(struct ebpf_module *em, void *ptr);
 extern void *ebpf_vfs_thread(void *ptr);

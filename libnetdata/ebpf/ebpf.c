@@ -524,8 +524,6 @@ void ebpf_update_module(ebpf_module_t *em, char *cfg_file)
 
     if (!source)
         ebpf_update_module_using_config(em);
-
-    error("KILLME %s %d", em->cfgfile, em->mode);
 }
 
 //----------------------------------------------------------------------------------------------------------------------

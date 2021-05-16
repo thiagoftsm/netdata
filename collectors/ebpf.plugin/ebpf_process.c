@@ -546,6 +546,7 @@ void ebpf_process_create_apps_charts(struct ebpf_module *em, void *ptr)
  */
 static void ebpf_create_apps_charts(ebpf_module_t *em, struct target *root)
 {
+    UNUSED(em);
     struct target *w;
     int newly_added = 0;
 
