@@ -558,7 +558,7 @@ int do_sys_fs_btrfs(int update_every, usec_t dt) {
                 netdata_fix_chart_name(name);
 
                 node->st_allocation_disks = rrdset_create_localhost(
-                        "btrfs"
+                        "filesystem"
                         , id
                         , name
                         , node->label
@@ -616,7 +616,7 @@ int do_sys_fs_btrfs(int update_every, usec_t dt) {
                 netdata_fix_chart_name(name);
 
                 node->st_allocation_data = rrdset_create_localhost(
-                        "btrfs"
+                        "filesystem"
                         , id
                         , name
                         , node->label
@@ -659,7 +659,7 @@ int do_sys_fs_btrfs(int update_every, usec_t dt) {
                 netdata_fix_chart_name(name);
 
                 node->st_allocation_metadata = rrdset_create_localhost(
-                        "btrfs"
+                        "filesystem"
                         , id
                         , name
                         , node->label
@@ -704,7 +704,7 @@ int do_sys_fs_btrfs(int update_every, usec_t dt) {
                 netdata_fix_chart_name(name);
 
                 node->st_allocation_system = rrdset_create_localhost(
-                        "btrfs"
+                        "filesystem"
                         , id
                         , name
                         , node->label
