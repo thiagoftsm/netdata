@@ -462,7 +462,7 @@ void ebpf_update_names(ebpf_specify_name_t *opt, ebpf_module_t *em)
 
 //----------------------------------------------------------------------------------------------------------------------
 
-void ebpf_mount_config_name(char *filename, size_t length, char *path, char *config)
+void ebpf_mount_config_name(char *filename, size_t length, char *path, const char *config)
 {
     snprintf(filename, length, "%s/ebpf.d/%s", path, config);
 }
@@ -506,23 +506,22 @@ void ebpf_update_module_using_config(ebpf_module_t *modules)
  * update the variables.
  *
  * @param em       the module structure
- * @param cfg_file the filename to load
  */
-void ebpf_update_module(ebpf_module_t *em, char *cfg_file)
+void ebpf_update_module(ebpf_module_t *em)
 {
     char filename[FILENAME_MAX+1];
-    int source = 0;
-    ebpf_mount_config_name(filename, FILENAME_MAX, ebpf_user_config_dir, cfg_file);
+    int read_from_user = 0;
+    ebpf_mount_config_name(filename, FILENAME_MAX, ebpf_user_config_dir, em->config_file);
     if (!ebpf_load_config(em->cfg, filename)) {
-        ebpf_mount_config_name(filename, FILENAME_MAX, ebpf_stock_config_dir, cfg_file);
-        source++;
+        ebpf_mount_config_name(filename, FILENAME_MAX, ebpf_stock_config_dir, em->config_file);
+        read_from_user++;
         if (!ebpf_load_config(em->cfg, filename)) {
-            error("Cannot load the ebpf configuration file %s", cfg_file);
+            error("Cannot load the ebpf configuration file %s", em->config_file);
             return;
         }
     }
 
-    if (!source)
+    if (read_from_user)
         ebpf_update_module_using_config(em);
 }
 
