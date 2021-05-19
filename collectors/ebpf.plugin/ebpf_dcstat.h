@@ -29,6 +29,7 @@ enum directory_cache_indexes {
 };
 
 enum directory_cache_tables {
+    NETDATA_DCSTAT_CONST_STATS,
     NETDATA_DCSTAT_GLOBAL_STATS,
     NETDATA_DCSTAT_PID_STATS
 };
