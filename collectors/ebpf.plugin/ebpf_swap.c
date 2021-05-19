@@ -23,8 +23,12 @@ struct config swap_config = { .first_section = NULL,
         .rwlock = AVL_LOCK_INITIALIZER } };
 
 static ebpf_local_maps_t swap_maps[] = {{.name = "tbl_pid_swap", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                            .user_input = 0},
-                                        {.name = NULL, .internal_input = 0, .user_input = 0}};
+                                         .user_input = 0, .flags = NETDATA_EBPF_PID_MAP},
+                                        {.name = "tbl_const_swap", .internal_input = 0, .user_input = 0,
+                                         .flags = NETDATA_EBPF_CONSTANT_MAP},
+                                        {.name = NULL, .internal_input = 0, .user_input = 0,
+                                         .flags = NETDATA_EBPF_NORMAL_MAP}
+                                        };
 
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;

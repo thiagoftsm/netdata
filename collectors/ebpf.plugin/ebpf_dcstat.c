@@ -31,8 +31,12 @@ struct netdata_static_thread dcstat_threads = {"DCSTAT KERNEL",
                                                NULL,  NULL};
 
 static ebpf_local_maps_t dcstat_maps[] = {{.name = "dcstat_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                           .user_input = 0},
-                                          {.name = NULL, .internal_input = 0, .user_input = 0}};
+                                           .user_input = 0, .flags = NETDATA_EBPF_PID_MAP},
+                                          {.name = "dcstat_const", .internal_input = 0, .user_input = 0,
+                                           .flags = NETDATA_EBPF_CONSTANT_MAP},
+                                          {.name = NULL, .internal_input = 0, .user_input = 0,
+                                           .flags = NETDATA_EBPF_NORMAL_MAP}
+                                          };
 
 static ebpf_specify_name_t dc_optional_name[] = { {.program_name = "netdata_lookup_fast",
                                                    .function_to_attach = "lookup_fast",

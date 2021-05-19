@@ -317,8 +317,14 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
 #ifdef NETDATA_INTERNAL_CHECKS
                 info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
 #endif
+                // KILLME: USE THIS FUNCTION TO SET MAP TO 1 WHEN I AM NOT LOADING IT
                 bpf_map__resize(map, w->user_input);
             }
+
+            // Allocate the minimum possible
+            if (w->flags & NETDATA_EBPF_PID_MAP && !em->apps_charts)
+                bpf_map__resize(map, 1);
+
             i++;
         }
     }
@@ -377,6 +383,27 @@ static struct bpf_link **ebpf_attach_programs(struct bpf_object *obj, size_t len
     return links;
 }
 
+static void ebpf_set_constant(struct bpf_object *program, ebpf_module_t *em)
+{
+    struct bpf_map *map;
+    ebpf_local_maps_t *maps = em->maps;
+    if (!maps)
+        return;
+
+    bpf_map__for_each(map, program)
+    {
+        int i = 0; ;
+        while (maps[i].name) {
+            ebpf_local_maps_t *w = &maps[i];
+            if (w->flags & NETDATA_EBPF_CONSTANT_MAP) {
+                int fd = bpf_map__fd(map);
+                uint32_t key = NETDATA_EBPF_MAP_APP_ENABLED;
+                bpf_map_update_elem(fd, &key, &em->apps_charts, BPF_ANY);
+            }
+        }
+    }
+}
+
 struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *kernel_string,
                                     struct bpf_object **obj, int *map_fd)
 {
@@ -410,6 +437,8 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
         map_fd[i] = bpf_map__fd(map);
         i++;
     }
+
+    ebpf_set_constant(*obj, em);
 
     size_t count_programs =  ebpf_count_programs(*obj);
 

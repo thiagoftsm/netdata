@@ -19,8 +19,9 @@ static char *vfs_id_names[NETDATA_KEY_PUBLISH_VFS_END] = { "vfs_unlink", "vfs_re
 static ebpf_data_t vfs_data;
 
 static ebpf_local_maps_t vfs_maps[] = {{.name = "tbl_vfs_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                               .user_input = 0},
-                                           {.name = NULL, .internal_input = 0, .user_input = 0}};
+                                        .user_input = 0, .flags = NETDATA_EBPF_PID_MAP},
+                                       {.name = NULL, .internal_input = 0, .user_input = 0,
+                                        .flags = NETDATA_EBPF_NORMAL_MAP}};
 
 struct config vfs_config = { .first_section = NULL,
     .last_section = NULL,

@@ -99,10 +99,22 @@ typedef enum {
 
 #define ND_EBPF_DEFAULT_PID_SIZE 32768U
 
+// This enum must have values with power of 2
+typedef enum {
+    NETDATA_EBPF_NORMAL_MAP = 0,
+    NETDATA_EBPF_PID_MAP = 1,
+    NETDATA_EBPF_CONSTANT_MAP = 2
+} netdata_maps_flags_t;
+
+typedef enum {
+    NETDATA_EBPF_MAP_APP_ENABLED
+} netdata_maps_values_t;
+
 typedef struct ebpf_local_maps {
     char *name;
     uint32_t internal_input;
     uint32_t user_input;
+    uint32_t flags;
 } ebpf_local_maps_t;
 
 typedef struct ebpf_specify_name {
