@@ -127,6 +127,11 @@ netdataDashboard.menu = {
         info: 'Charts with performance information for all the system disks. Special care has been given to present disk performance metrics in a way compatible with <code>iostat -x</code>. netdata by default prevents rendering performance charts for individual partitions and unmounted virtual disks. Disabled charts can still be enabled by configuring the relative settings in the netdata configuration file.'
     },
 
+    'mdstat': {
+        title: 'MD arrays',
+        icon: '<i class="fas fa-hdd"></i>'
+    },
+
     'mount_points': {
         title: 'Mount Points',
         icon: '<i class="fas fa-hdd"></i>',
@@ -3486,24 +3491,54 @@ netdataDashboard.context = {
             ' <a href="https://www.man7.org/linux/man-pages/man2/close.2.html" target="_blank">close(2)</a>. '
     },
 
-    'ebpf.deleted_objects': {
+    'filesystem.deleted_objects': {
         title : 'VFS remove',
         info: 'This chart does not show all events that remove files from the file system, because file systems can create their own functions to remove files, it shows calls for the function <a href="https://www.kernel.org/doc/htmldocs/filesystems/API-vfs-unlink.html" target="_blank">vfs_unlink</a>. '
     },
 
-    'ebpf.io': {
+    'filesystem.io': {
         title : 'VFS IO',
         info: 'Successful or failed calls to functions <a  href="https://topic.alibabacloud.com/a/kernel-state-file-operation-__-work-information-kernel_8_8_20287135.html" target="_blank">vfs_read</a> and <a href="https://topic.alibabacloud.com/a/kernel-state-file-operation-__-work-information-kernel_8_8_20287135.html" target="_blank">vfs_write</a>. This chart may not show all file system events if it uses other functions to store data on disk.'
     },
 
-    'ebpf.io_bytes': {
+    'filesystem.io_bytes': {
         title : 'VFS bytes written',
         info: 'Total of bytes read or written with success using the functions <a  href="https://topic.alibabacloud.com/a/kernel-state-file-operation-__-work-information-kernel_8_8_20287135.html" target="_blank">vfs_read</a> and <a href="https://topic.alibabacloud.com/a/kernel-state-file-operation-__-work-information-kernel_8_8_20287135.html" target="_blank">vfs_write</a>.'
     },
 
-    'ebpf.io_error': {
+    'filesystem.io_error': {
         title : 'VFS IO error',
         info: 'Failed calls to functions <a  href="https://topic.alibabacloud.com/a/kernel-state-file-operation-__-work-information-kernel_8_8_20287135.html" target="_blank">vfs_read</a> and <a href="https://topic.alibabacloud.com/a/kernel-state-file-operation-__-work-information-kernel_8_8_20287135.html" target="_blank">vfs_write</a>.'
+    },
+
+    'filesystem.fsync': {
+        title : 'VFS fsync',
+        info: 'Write back data and metadata for file to disk.'
+    },
+
+    'filesystem.fsync_error': {
+        title : 'VFS fsync',
+        info: 'Errors when kernel synchronize metdata to disk.'
+    },
+
+    'filesystem.open': {
+        title : 'VFS open',
+        info: 'Open the file at the given path.'
+    },
+
+    'filesystem.open_error': {
+        title : 'VFS open errors',
+        info: 'Erros to open a file.'
+    },
+
+    'filesystem.create': {
+        title : 'VFS create',
+        info: 'Create a new file.'
+    },
+
+    'filesystem.create_error': {
+        title : 'VFS create error',
+        info: 'Count errors to create a new file.'
     },
 
     'ebpf.process_thread': {

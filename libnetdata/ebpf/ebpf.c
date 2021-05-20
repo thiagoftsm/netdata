@@ -321,9 +321,11 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
                 bpf_map__resize(map, w->user_input);
             }
 
+            /*
             // Allocate the minimum possible
             if (w->flags & NETDATA_EBPF_PID_MAP && !em->apps_charts)
                 bpf_map__resize(map, 1);
+             */
 
             i++;
         }
@@ -383,6 +385,7 @@ static struct bpf_link **ebpf_attach_programs(struct bpf_object *obj, size_t len
     return links;
 }
 
+/*
 static void ebpf_set_constant(struct bpf_object *program, ebpf_module_t *em)
 {
     struct bpf_map *map;
@@ -403,6 +406,7 @@ static void ebpf_set_constant(struct bpf_object *program, ebpf_module_t *em)
         }
     }
 }
+*/
 
 struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *kernel_string,
                                     struct bpf_object **obj, int *map_fd)
@@ -438,7 +442,7 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
         i++;
     }
 
-    ebpf_set_constant(*obj, em);
+//    ebpf_set_constant(*obj, em);
 
     size_t count_programs =  ebpf_count_programs(*obj);
 

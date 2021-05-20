@@ -20,7 +20,7 @@ typedef struct netdata_publish_swap {
 } netdata_publish_swap_t;
 
 enum swap_tables {
-    NETDATA_PID_CONST_TABLE,
+//    NETDATA_PID_CONST_TABLE,
     NETDATA_PID_SWAP_TABLE,
     NETDATA_SWAP_GLOBAL_TABLE
 };
