@@ -26,8 +26,9 @@ struct netdata_static_thread cachestat_threads = {"CACHESTAT KERNEL",
                                                   NULL,  NULL};
 
 static ebpf_local_maps_t cachestat_maps[] = {{.name = "cstat_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                             .user_input = 0},
-                                             {.name = NULL, .internal_input = 0, .user_input = 0}};
+                                             .user_input = 0, .type = NETDATA_EBPF_MAP_RESIZABLE},
+                                             {.name = NULL, .internal_input = 0, .user_input = 0,
+                                             .type = NETDATA_EBPF_MAP_CONTROLLER}};
 
 static int *map_fd = NULL;
 

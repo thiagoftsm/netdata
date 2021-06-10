@@ -115,10 +115,16 @@ typedef enum {
 
 #define ND_EBPF_DEFAULT_PID_SIZE 32768U
 
+enum netdata_ebpf_map_type {
+    NETDATA_EBPF_MAP_RESIZABLE = 1,
+    NETDATA_EBPF_MAP_CONTROLLER = 2
+};
+
 typedef struct ebpf_local_maps {
     char *name;
     uint32_t internal_input;
     uint32_t user_input;
+    uint32_t type;
 } ebpf_local_maps_t;
 
 typedef struct ebpf_specify_name {

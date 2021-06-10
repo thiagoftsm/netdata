@@ -18,8 +18,9 @@ static char *process_id_names[NETDATA_KEY_PUBLISH_PROCESS_END] = { "do_sys_open"
 static char *status[] = { "process", "zombie" };
 
 static ebpf_local_maps_t process_maps[] = {{.name = "tbl_pid_stats", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                                 .user_input = 0},
-                                             {.name = NULL, .internal_input = 0, .user_input = 0}};
+                                            .user_input = 0, .type = NETDATA_EBPF_MAP_RESIZABLE},
+                                             {.name = NULL, .internal_input = 0, .user_input = 0,
+                                              .type = NETDATA_EBPF_MAP_CONTROLLER}};
 
 static netdata_idx_t *process_hash_values = NULL;
 static netdata_syscall_stat_t process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_END];

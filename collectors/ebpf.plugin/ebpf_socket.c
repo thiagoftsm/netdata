@@ -18,17 +18,22 @@ static char *socket_id_names[NETDATA_MAX_SOCKET_VECTOR] = { "tcp_sendmsg", "tcp_
 
 static ebpf_local_maps_t socket_maps[] = {{.name = "tbl_bandwidth",
                                            .internal_input = NETDATA_COMPILED_CONNECTIONS_ALLOWED,
-                                           .user_input = NETDATA_MAXIMUM_CONNECTIONS_ALLOWED},
+                                           .user_input = NETDATA_MAXIMUM_CONNECTIONS_ALLOWED,
+                                           .type = NETDATA_EBPF_MAP_RESIZABLE},
                                           {.name = "tbl_conn_ipv4",
                                            .internal_input = NETDATA_COMPILED_CONNECTIONS_ALLOWED,
-                                           .user_input = NETDATA_MAXIMUM_CONNECTIONS_ALLOWED},
+                                           .user_input = NETDATA_MAXIMUM_CONNECTIONS_ALLOWED,
+                                           .type = NETDATA_EBPF_MAP_RESIZABLE},
                                           {.name = "tbl_conn_ipv6",
                                            .internal_input = NETDATA_COMPILED_CONNECTIONS_ALLOWED,
-                                           .user_input = NETDATA_MAXIMUM_CONNECTIONS_ALLOWED},
+                                           .user_input = NETDATA_MAXIMUM_CONNECTIONS_ALLOWED,
+                                           .type = NETDATA_EBPF_MAP_RESIZABLE},
                                           {.name = "tbl_nv_udp_conn_stats",
                                            .internal_input = NETDATA_COMPILED_UDP_CONNECTIONS_ALLOWED,
-                                           .user_input = NETDATA_MAXIMUM_UDP_CONNECTIONS_ALLOWED},
-                                          {.name = NULL, .internal_input = 0, .user_input = 0}};
+                                           .user_input = NETDATA_MAXIMUM_UDP_CONNECTIONS_ALLOWED,
+                                           .type = NETDATA_EBPF_MAP_RESIZABLE},
+                                          {.name = NULL, .internal_input = 0, .user_input = 0,
+                                           .type = NETDATA_EBPF_MAP_CONTROLLER}};
 
 static netdata_idx_t *socket_hash_values = NULL;
 static netdata_syscall_stat_t socket_aggregated_data[NETDATA_MAX_SOCKET_VECTOR];
