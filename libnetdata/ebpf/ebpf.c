@@ -313,25 +313,35 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
         int i = 0; ;
         while (maps[i].name) {
             ebpf_local_maps_t *w = &maps[i];
-            switch (w->type) {
-                case NETDATA_EBPF_MAP_RESIZABLE : {
-                    if (w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
+            if (w->type & NETDATA_EBPF_MAP_RESIZABLE) {
+                if (w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
 #ifdef NETDATA_INTERNAL_CHECKS
-                        info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
+                    info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
 #endif
-                        bpf_map__resize(map, w->user_input);
-                    }
-                    break;
+                    bpf_map__resize(map, w->user_input);
                 }
-                case NETDATA_EBPF_MAP_CONTROLLER : {
-                    if (!strcmp(w->name, map_name)) {
-                        bpf_map__resize(map, w->internal_input);
-                    }
-                }
+            }
+            /* CREATE A NEW FUNCTION TO STORE THE VALUE AND ANOTHER FUNCTION TO RESET USER_INPUT FOR APPS
+    switch (w->type) {
+        case NETDATA_EBPF_MAP_RESIZABLE : {
+            if (w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
+#ifdef NETDATA_INTERNAL_CHECKS
+                info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
+#endif
+                bpf_map__resize(map, w->user_input);
+            }
+            break;
+        }
+        case NETDATA_EBPF_MAP_CONTROLLER : {
+            if (!strcmp(w->name, map_name)) {
+                bpf_map__resize(map, w->internal_input);
+            }
+        }
                 default: {
                     break;
                 }
             }
+             */
 
             i++;
         }
