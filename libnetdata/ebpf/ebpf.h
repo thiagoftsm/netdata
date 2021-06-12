@@ -114,10 +114,19 @@ typedef enum {
 } netdata_run_mode_t;
 
 #define ND_EBPF_DEFAULT_PID_SIZE 32768U
+#define ND_EBPF_DEFAULT_PID_LIMIT 256U
 
 enum netdata_ebpf_map_type {
+    NETDATA_EBPF_MAP_STATIC = 0,
     NETDATA_EBPF_MAP_RESIZABLE = 1,
-    NETDATA_EBPF_MAP_CONTROLLER = 2
+    NETDATA_EBPF_MAP_CONTROLLER = 2,
+    NETDATA_EBPF_MAP_PID = 4
+};
+
+enum netdata_controller {
+    NETDATA_CONTROLLER_APPS_ENABLED,
+
+    NETDATA_CONTROLLER_END
 };
 
 typedef struct ebpf_local_maps {
@@ -125,6 +134,8 @@ typedef struct ebpf_local_maps {
     uint32_t internal_input;
     uint32_t user_input;
     uint32_t type;
+    int map_fd;
+    uint32_t map_idx;
 } ebpf_local_maps_t;
 
 typedef struct ebpf_specify_name {
@@ -173,5 +184,6 @@ extern void ebpf_load_addresses(ebpf_addresses_t *fa, int fd);
 extern void ebpf_fill_algorithms(int *algorithms, size_t length, int algorithm);
 extern char **ebpf_fill_histogram_dimension(size_t maximum);
 extern void ebpf_histogram_dimension_cleanup(char **ptr, size_t length);
+extern void ebpf_update_disabled_table_size(ebpf_local_maps_t *w, uint32_t enabled, uint32_t flags, uint32_t limit);
 
 #endif /* NETDATA_EBPF_H */

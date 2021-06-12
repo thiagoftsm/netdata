@@ -25,10 +25,19 @@ struct netdata_static_thread cachestat_threads = {"CACHESTAT KERNEL",
                                                   NULL, NULL, 1, NULL,
                                                   NULL,  NULL};
 
-static ebpf_local_maps_t cachestat_maps[] = {{.name = "cstat_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                             .user_input = 0, .type = NETDATA_EBPF_MAP_RESIZABLE},
+static ebpf_local_maps_t cachestat_maps[] = {{.name = "cstat_global", .internal_input = NETDATA_CACHESTAT_END,
+                                              .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
+                                              .map_fd = -1, .map_idx = NETDATA_CACHESTAT_GLOBAL_STATS},
+                                             {.name = "cstat_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
+                                              .user_input = 0,
+                                              .type = NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_PID,
+                                              .map_fd = -1, .map_idx = NETDATA_CACHESTAT_PID_STATS},
+                                             {.name = "cstat_z", .internal_input = NETDATA_CONTROLLER_END,
+                                              .user_input = 0,
+                                              .type = NETDATA_EBPF_MAP_CONTROLLER,
+                                              .map_fd = -1, .map_idx = NETDATA_CACHESTAT_CONTROLLER},
                                              {.name = NULL, .internal_input = 0, .user_input = 0,
-                                             .type = NETDATA_EBPF_MAP_CONTROLLER}};
+                                             .type = NETDATA_EBPF_MAP_CONTROLLER, .map_fd = -1}};
 
 static int *map_fd = NULL;
 

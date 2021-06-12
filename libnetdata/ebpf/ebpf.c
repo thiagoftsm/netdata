@@ -300,6 +300,14 @@ void ebpf_update_pid_table(ebpf_local_maps_t *pid, ebpf_module_t *em)
     pid->user_input = em->pid_map_size;
 }
 
+void ebpf_update_disabled_table_size(ebpf_local_maps_t *w, uint32_t enabled, uint32_t flags, uint32_t limit)
+{
+    if (((w->type & flags) != flags) && (!enabled))
+        return;
+
+    w->user_input = limit;
+}
+
 void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
 {
     struct bpf_map *map;
@@ -307,6 +315,7 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
     if (!maps)
         return;
 
+    uint32_t apps_flags = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE;
     bpf_map__for_each(map, program)
     {
         const char *map_name = bpf_map__name(map);
@@ -315,33 +324,14 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
             ebpf_local_maps_t *w = &maps[i];
             if (w->type & NETDATA_EBPF_MAP_RESIZABLE) {
                 if (w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
+                    ebpf_update_disabled_table_size(w, em->apps_charts, apps_flags, ND_EBPF_DEFAULT_PID_LIMIT);
+
 #ifdef NETDATA_INTERNAL_CHECKS
                     info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
 #endif
                     bpf_map__resize(map, w->user_input);
                 }
             }
-            /* CREATE A NEW FUNCTION TO STORE THE VALUE AND ANOTHER FUNCTION TO RESET USER_INPUT FOR APPS
-    switch (w->type) {
-        case NETDATA_EBPF_MAP_RESIZABLE : {
-            if (w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
-#ifdef NETDATA_INTERNAL_CHECKS
-                info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
-#endif
-                bpf_map__resize(map, w->user_input);
-            }
-            break;
-        }
-        case NETDATA_EBPF_MAP_CONTROLLER : {
-            if (!strcmp(w->name, map_name)) {
-                bpf_map__resize(map, w->internal_input);
-            }
-        }
-                default: {
-                    break;
-                }
-            }
-             */
 
             i++;
         }
@@ -401,6 +391,18 @@ static struct bpf_link **ebpf_attach_programs(struct bpf_object *obj, size_t len
     return links;
 }
 
+static void ebpf_update_maps(ebpf_module_t *em, int *map_fd, struct bpf_object *obj)
+{
+    struct bpf_map *map;
+    size_t i = 0;
+    bpf_map__for_each(map, obj)
+    {
+        error("KILLME %s", bpf_map__name(map));
+        map_fd[i] = bpf_map__fd(map);
+        i++;
+    }
+}
+
 struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *kernel_string,
                                     struct bpf_object **obj, int *map_fd)
 {
@@ -427,15 +429,10 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
         return NULL;
     }
 
-    struct bpf_map *map;
-    size_t i = 0;
-    bpf_map__for_each(map, *obj)
-    {
-        map_fd[i] = bpf_map__fd(map);
-        i++;
-    }
+    ebpf_update_maps(em, map_fd, *obj);
+    // test map update map here, on success reset to 1 the size.
 
-    size_t count_programs =  ebpf_count_programs(*obj);
+    size_t count_programs = ebpf_count_programs(*obj);
 
     return ebpf_attach_programs(*obj, count_programs, em->names);
 }
