@@ -37,7 +37,7 @@ static ebpf_local_maps_t cachestat_maps[] = {{.name = "cstat_global", .internal_
                                               .type = NETDATA_EBPF_MAP_CONTROLLER,
                                               .map_fd = -1, .map_idx = NETDATA_CACHESTAT_CONTROLLER},
                                              {.name = NULL, .internal_input = 0, .user_input = 0,
-                                             .type = NETDATA_EBPF_MAP_CONTROLLER, .map_fd = -1}};
+                                             .type = NETDATA_EBPF_MAP_CONTROLLER, .map_fd = -1, .map_idx = 0}};
 
 static int *map_fd = NULL;
 
