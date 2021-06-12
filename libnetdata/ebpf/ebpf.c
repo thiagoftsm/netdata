@@ -302,7 +302,7 @@ void ebpf_update_pid_table(ebpf_local_maps_t *pid, ebpf_module_t *em)
 
 void ebpf_update_disabled_table_size(ebpf_local_maps_t *w, uint32_t enabled, uint32_t flags, uint32_t limit)
 {
-    if (((w->type & flags) != flags) && (!enabled))
+    if (((w->type & flags) != flags) && (enabled))
         return;
 
     w->user_input = limit;
@@ -315,7 +315,7 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
     if (!maps)
         return;
 
-    uint32_t apps_flags = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE;
+    uint32_t apps_flags = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_REMOVEME;
     bpf_map__for_each(map, program)
     {
         const char *map_name = bpf_map__name(map);

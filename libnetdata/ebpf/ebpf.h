@@ -120,7 +120,8 @@ enum netdata_ebpf_map_type {
     NETDATA_EBPF_MAP_STATIC = 0,
     NETDATA_EBPF_MAP_RESIZABLE = 1,
     NETDATA_EBPF_MAP_CONTROLLER = 2,
-    NETDATA_EBPF_MAP_PID = 4
+    NETDATA_EBPF_MAP_PID = 4,
+    NETDATA_EBPF_MAP_REMOVEME = 8
 };
 
 enum netdata_controller {

@@ -19,7 +19,7 @@ netdata_publish_vfs_t *vfs_vector = NULL;
 static ebpf_data_t vfs_data;
 
 static ebpf_local_maps_t vfs_maps[] = {{.name = "tbl_vfs_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                        .user_input = 0, .type = NETDATA_EBPF_MAP_RESIZABLE},
+                                        .user_input = 0, .type = NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_PID},
                                        {.name = NULL, .internal_input = 0, .user_input = 0,
                                         .type = NETDATA_EBPF_MAP_CONTROLLER}};
 

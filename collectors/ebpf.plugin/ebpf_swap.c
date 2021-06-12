@@ -24,7 +24,9 @@ struct config swap_config = { .first_section = NULL,
         .rwlock = AVL_LOCK_INITIALIZER } };
 
 static ebpf_local_maps_t swap_maps[] = {{.name = "tbl_pid_swap", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
-                                         .user_input = 0, .type = NETDATA_EBPF_MAP_RESIZABLE},
+                                         .user_input = 0,
+                                         .type = NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_PID,
+                                         .map_fd = -1, .map_idx = NETDATA_PID_SWAP_TABLE},
                                         {.name = NULL, .internal_input = 0, .user_input = 0,
                                          .type = NETDATA_EBPF_MAP_CONTROLLER}};
 
