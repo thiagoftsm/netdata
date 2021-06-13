@@ -439,7 +439,7 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
                 if (ret)
                     error("Add key(%u) for controller table failed.", key);
 
-                error("KILLME CONTROLLER %s: %d", w->name, w->map_fd);
+                error("KILLME CONTROLLER %s: %d", w->name, em->apps_charts);
             }
             i++;
         }

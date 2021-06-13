@@ -116,7 +116,8 @@ enum vfs_counters {
 
 enum netdata_vfs_tables {
     NETDATA_VFS_PID,
-    NETDATA_VFS_ALL
+    NETDATA_VFS_ALL,
+    NETDATA_VFS_CONTROLLER
 };
 
 extern netdata_publish_vfs_t **vfs_pid;

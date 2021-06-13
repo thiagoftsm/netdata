@@ -40,6 +40,11 @@ static ebpf_local_maps_t dcstat_maps[] = {{.name = "dcstat_global", .internal_in
                                            .type = NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_PID,
                                            .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
                                            .map_idx = NETDATA_DCSTAT_PID_STATS},
+                                          {.name = "dcstat_ctrl", .internal_input = NETDATA_CONTROLLER_END,
+                                           .user_input = 0,
+                                           .type = NETDATA_EBPF_MAP_CONTROLLER,
+                                           .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
+                                           .map_idx = NETDATA_CACHESTAT_CONTROLLER},
                                           {.name = NULL, .internal_input = 0, .user_input = 0,
                                            .type = NETDATA_EBPF_MAP_CONTROLLER,
                                            .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED, .map_idx = 0}};
