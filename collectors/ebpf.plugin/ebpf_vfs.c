@@ -23,13 +23,11 @@ static ebpf_local_maps_t vfs_maps[] = {{.name = "tbl_vfs_pid", .internal_input =
                                         .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                        {.name = "tbl_vfs_stats", .internal_input = NETDATA_VFS_COUNTER,
                                         .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
-                                        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
-                                        .map_idx = NETDATA_CACHESTAT_GLOBAL_STATS},
+                                        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                        {.name = "vfs_ctrl", .internal_input = NETDATA_CONTROLLER_END,
                                         .user_input = 0,
                                         .type = NETDATA_EBPF_MAP_CONTROLLER,
-                                        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
-                                        .map_idx = NETDATA_CACHESTAT_CONTROLLER},
+                                        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                        {.name = NULL, .internal_input = 0, .user_input = 0,
                                         .type = NETDATA_EBPF_MAP_CONTROLLER}};
 

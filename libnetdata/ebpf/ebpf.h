@@ -138,7 +138,6 @@ typedef struct ebpf_local_maps {
     uint32_t user_input;
     uint32_t type;
     int map_fd;
-    uint32_t map_idx;
 } ebpf_local_maps_t;
 
 typedef struct ebpf_specify_name {

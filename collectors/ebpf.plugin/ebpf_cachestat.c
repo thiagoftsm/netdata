@@ -27,22 +27,18 @@ struct netdata_static_thread cachestat_threads = {"CACHESTAT KERNEL",
 
 static ebpf_local_maps_t cachestat_maps[] = {{.name = "cstat_global", .internal_input = NETDATA_CACHESTAT_END,
                                               .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
-                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
-                                              .map_idx = NETDATA_CACHESTAT_GLOBAL_STATS},
+                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                              {.name = "cstat_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
                                               .user_input = 0,
                                               .type = NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_PID,
-                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
-                                              .map_idx = NETDATA_CACHESTAT_PID_STATS},
+                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                              {.name = "cstat_ctrl", .internal_input = NETDATA_CONTROLLER_END,
                                               .user_input = 0,
                                               .type = NETDATA_EBPF_MAP_CONTROLLER,
-                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
-                                              .map_idx = NETDATA_CACHESTAT_CONTROLLER},
+                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                              {.name = NULL, .internal_input = 0, .user_input = 0,
                                               .type = NETDATA_EBPF_MAP_CONTROLLER,
-                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
-                                              .map_idx = NETDATA_CACHSTAT_NO_TABLE}};
+                                              .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED}};
 
 static int *map_fd = NULL;
 
