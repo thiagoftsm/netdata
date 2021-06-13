@@ -33,13 +33,16 @@ struct netdata_static_thread dcstat_threads = {"DCSTAT KERNEL",
 
 static ebpf_local_maps_t dcstat_maps[] = {{.name = "dcstat_global", .internal_input = NETDATA_DIRECTORY_CACHE_END,
                                            .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
-                                           .map_fd = -1, .map_idx = NETDATA_DCSTAT_GLOBAL_STATS},
+                                           .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
+                                           .map_idx = NETDATA_DCSTAT_GLOBAL_STATS},
                                           {.name = "dcstat_pid", .internal_input = ND_EBPF_DEFAULT_PID_SIZE,
                                            .user_input = 0,
                                            .type = NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_PID,
-                                           .map_fd = -1, .map_idx = NETDATA_DCSTAT_PID_STATS},
+                                           .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
+                                           .map_idx = NETDATA_DCSTAT_PID_STATS},
                                           {.name = NULL, .internal_input = 0, .user_input = 0,
-                                           .type = NETDATA_EBPF_MAP_CONTROLLER, .map_fd = -1, .map_idx = 0}};
+                                           .type = NETDATA_EBPF_MAP_CONTROLLER,
+                                           .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED, .map_idx = 0}};
 
 static ebpf_specify_name_t dc_optional_name[] = { {.program_name = "netdata_lookup_fast",
                                                    .function_to_attach = "lookup_fast",
@@ -262,7 +265,7 @@ static void read_apps_table()
     netdata_dcstat_pid_t *cv = dcstat_vector;
     uint32_t key;
     struct pid_stat *pids = root_of_pids;
-    int fd = map_fd[NETDATA_DCSTAT_PID_STATS];
+    int fd = dcstat_maps[NETDATA_DCSTAT_PID_STATS].map_fd;
     size_t length = sizeof(netdata_dcstat_pid_t)*ebpf_nprocs;
     while (pids) {
         key = pids->pid;
@@ -293,7 +296,7 @@ static void read_global_table()
     uint32_t idx;
     netdata_idx_t *val = dcstat_hash_values;
     netdata_idx_t *stored = dcstat_values;
-    int fd = map_fd[NETDATA_DCSTAT_GLOBAL_STATS];
+    int fd = dcstat_maps[NETDATA_DCSTAT_GLOBAL_STATS].map_fd;
 
     for (idx = NETDATA_KEY_DC_REFERENCE; idx < NETDATA_DIRECTORY_CACHE_END; idx++) {
         if (!bpf_map_lookup_elem(fd, &idx, stored)) {
@@ -582,7 +585,7 @@ void *ebpf_dcstat_thread(void *ptr)
     em->maps = dcstat_maps;
     fill_ebpf_data(&dcstat_data);
 
-    ebpf_update_pid_table(&dcstat_maps[0], em);
+    ebpf_update_pid_table(&dcstat_maps[NETDATA_DCSTAT_PID_STATS], em);
 
     ebpf_update_names(dc_optional_name, em);
 
