@@ -21,7 +21,8 @@ typedef struct netdata_publish_swap {
 
 enum swap_tables {
     NETDATA_PID_SWAP_TABLE,
-    NETDATA_SWAP_GLOBAL_TABLE
+    NETDATA_SWAP_GLOBAL_TABLE,
+    NETDATA_SWAP_CONTROLLER
 };
 
 enum swap_counters {
