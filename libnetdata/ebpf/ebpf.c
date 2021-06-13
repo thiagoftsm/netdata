@@ -350,7 +350,7 @@ size_t ebpf_count_programs(struct bpf_object *obj)
     return tot;
 }
 
-static ebpf_specify_name_t *ebpf_find_names(ebpf_specify_name_t *names, const char *prog_name)
+static ebpf_specify_name_t *ebpf_find_program_names(ebpf_specify_name_t *names, const char *prog_name)
 {
     size_t i = 0;
     while (names[i].program_name) {
@@ -373,7 +373,7 @@ static struct bpf_link **ebpf_attach_programs(struct bpf_object *obj, size_t len
         links[i] = bpf_program__attach(prog);
         if (libbpf_get_error(links[i]) && names) {
             const char *name = bpf_program__name(prog);
-            ebpf_specify_name_t *w = ebpf_find_names(names, name);
+            ebpf_specify_name_t *w = ebpf_find_program_names(names, name);
             if (w) {
                 enum bpf_prog_type type = bpf_program__get_type(prog);
                 if (type == BPF_PROG_TYPE_KPROBE)
@@ -393,15 +393,54 @@ static struct bpf_link **ebpf_attach_programs(struct bpf_object *obj, size_t len
 
 static void ebpf_update_maps(ebpf_module_t *em, int *map_fd, struct bpf_object *obj)
 {
+    if (!map_fd)
+        return;
+
+    ebpf_local_maps_t *maps = em->maps;
     struct bpf_map *map;
     size_t i = 0;
     bpf_map__for_each(map, obj)
     {
-        error("KILLME %s", bpf_map__name(map));
-        map_fd[i] = bpf_map__fd(map);
+        int fd = bpf_map__fd(map);
+        if (maps) {
+            const char *map_name = bpf_map__name(map);
+            int j = 0; ;
+            while (maps[j].name) {
+                ebpf_local_maps_t *w = &maps[j];
+                if (!strcmp(map_name, w->name))
+                    w->map_fd = fd;
+
+                error("KILLME LOAD %s: %d", w->name, w->map_fd);
+                j++;
+            }
+        }
+        map_fd[i] = fd;
         i++;
     }
 }
+
+static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
+{
+    ebpf_local_maps_t *maps = em->maps;
+    if (!maps)
+        return;
+
+    struct bpf_map *map;
+    bpf_map__for_each(map, obj)
+    {
+        size_t i = 0;
+        while (maps[i].name) {
+            ebpf_local_maps_t *w = &maps[i];
+            if (w->type & NETDATA_EBPF_MAP_CONTROLLER) {
+                w->type &= ~NETDATA_EBPF_MAP_CONTROLLER;
+                w->type |= NETDATA_EBPF_MAP_CONTROLLER_UPDATED;
+                error("KILLME CONTROLLER %s: %d", w->name, w->map_fd);
+            }
+            i++;
+        }
+    }
+}
+
 
 struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *kernel_string,
                                     struct bpf_object **obj, int *map_fd)
@@ -430,7 +469,7 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
     }
 
     ebpf_update_maps(em, map_fd, *obj);
-    // test map update map here, on success reset to 1 the size.
+    ebpf_update_controller(em, *obj);
 
     size_t count_programs = ebpf_count_programs(*obj);
 
