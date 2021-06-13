@@ -323,7 +323,7 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
         while (maps[i].name) {
             ebpf_local_maps_t *w = &maps[i];
             if (w->type & NETDATA_EBPF_MAP_RESIZABLE) {
-                if (w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
+                if (w->user_input && w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
                     ebpf_update_disabled_table_size(w, em->apps_charts, apps_flags, ND_EBPF_DEFAULT_PID_LIMIT);
 
 #ifdef NETDATA_INTERNAL_CHECKS
@@ -407,10 +407,9 @@ static void ebpf_update_maps(ebpf_module_t *em, int *map_fd, struct bpf_object *
             int j = 0; ;
             while (maps[j].name) {
                 ebpf_local_maps_t *w = &maps[j];
-                if (!strcmp(map_name, w->name))
+                if (w->map_fd == ND_EBPF_MAP_FD_NOT_INITIALIZED && !strcmp(map_name, w->name))
                     w->map_fd = fd;
 
-                error("KILLME LOAD %s: %d", w->name, w->map_fd);
                 j++;
             }
         }
@@ -431,9 +430,15 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
         size_t i = 0;
         while (maps[i].name) {
             ebpf_local_maps_t *w = &maps[i];
-            if (w->type & NETDATA_EBPF_MAP_CONTROLLER) {
+            if (w->map_fd != ND_EBPF_MAP_FD_NOT_INITIALIZED && (w->type & NETDATA_EBPF_MAP_CONTROLLER)) {
                 w->type &= ~NETDATA_EBPF_MAP_CONTROLLER;
                 w->type |= NETDATA_EBPF_MAP_CONTROLLER_UPDATED;
+
+                uint32_t key = NETDATA_CONTROLLER_APPS_ENABLED;
+                int ret = bpf_map_update_elem(w->map_fd, &key, &em->apps_charts, 0);
+                if (ret)
+                    error("Add key(%u) for controller table failed.", key);
+
                 error("KILLME CONTROLLER %s: %d", w->name, w->map_fd);
             }
             i++;

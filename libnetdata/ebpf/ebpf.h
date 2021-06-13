@@ -115,6 +115,7 @@ typedef enum {
 
 #define ND_EBPF_DEFAULT_PID_SIZE 32768U
 #define ND_EBPF_DEFAULT_PID_LIMIT 256U
+#define ND_EBPF_MAP_FD_NOT_INITIALIZED (int)-1
 
 enum netdata_ebpf_map_type {
     NETDATA_EBPF_MAP_STATIC = 0,
@@ -122,7 +123,7 @@ enum netdata_ebpf_map_type {
     NETDATA_EBPF_MAP_CONTROLLER = 2,
     NETDATA_EBPF_MAP_CONTROLLER_UPDATED = 4,
     NETDATA_EBPF_MAP_PID = 8,
-    NETDATA_EBPF_MAP_REMOVEME = 16
+    NETDATA_EBPF_MAP_REMOVEME = 16,
 };
 
 enum netdata_controller {
