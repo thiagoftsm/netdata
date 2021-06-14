@@ -147,6 +147,12 @@ typedef struct ebpf_specify_name {
     bool retprobe;
 } ebpf_specify_name_t;
 
+enum netdata_ebpf_apps_flags {
+    NETDATA_EBPF_APPS_NOT_INITIALIZED = 0,
+    NETDATA_EBPF_APPS_CHARTS_ENABLED = 1,
+    NETDATA_EBPF_APPS_CHARTS_CREATED = 2
+};
+
 typedef struct ebpf_module {
     const char *thread_name;
     const char *config_name;
@@ -154,7 +160,7 @@ typedef struct ebpf_module {
     void *(*start_routine)(void *);
     int update_time;
     int global_charts;
-    int apps_charts;
+    uint32_t apps_charts;
     netdata_run_mode_t mode;
     uint32_t thread_id;
     int optional;

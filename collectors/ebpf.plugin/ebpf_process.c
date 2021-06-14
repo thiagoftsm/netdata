@@ -589,8 +589,10 @@ static void ebpf_create_apps_charts(struct target *root)
     int counter;
     for (counter = 0; ebpf_modules[counter].thread_name; counter++) {
         ebpf_module_t *current = &ebpf_modules[counter];
-        if (current->enabled && current->apps_charts && current->apps_routine)
+        if (current->enabled && current->apps_charts && current->apps_routine) {
             current->apps_routine(current, root);
+            current->apps_charts |= NETDATA_EBPF_APPS_CHARTS_CREATED;
+        }
     }
 }
 
@@ -611,7 +613,7 @@ static void process_collector(usec_t step, ebpf_module_t *em)
     heartbeat_t hb;
     heartbeat_init(&hb);
     int publish_global = em->global_charts;
-    int apps_enabled = em->apps_charts;
+    uint32_t apps_enabled = (em->apps_charts & NETDATA_EBPF_APPS_CHARTS_CREATED);
     int pid_fd = process_maps[NETDATA_PROCESS_PID_TABLE].map_fd;
     while (!close_ebpf_plugin) {
         usec_t dt = heartbeat_next(&hb, step);

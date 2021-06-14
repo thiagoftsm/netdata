@@ -1643,7 +1643,7 @@ static void socket_collector(usec_t step, ebpf_module_t *em)
     netdata_thread_create(socket_threads.thread, socket_threads.name,
                           NETDATA_THREAD_OPTION_JOINABLE, ebpf_socket_read_hash, em);
 
-    int socket_apps_enabled = ebpf_modules[EBPF_MODULE_SOCKET_IDX].apps_charts;
+    uint32_t socket_apps_enabled = (ebpf_modules[EBPF_MODULE_SOCKET_IDX].apps_charts & NETDATA_EBPF_APPS_CHARTS_CREATED);
     int socket_global_enabled = ebpf_modules[EBPF_MODULE_SOCKET_IDX].global_charts;
     int network_connection = em->optional;
     while (!close_ebpf_plugin) {

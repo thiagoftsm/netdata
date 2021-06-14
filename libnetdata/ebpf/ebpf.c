@@ -435,11 +435,12 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
                 w->type |= NETDATA_EBPF_MAP_CONTROLLER_UPDATED;
 
                 uint32_t key = NETDATA_CONTROLLER_APPS_ENABLED;
-                int ret = bpf_map_update_elem(w->map_fd, &key, &em->apps_charts, 0);
+                uint32_t value = (em->apps_charts & NETDATA_EBPF_APPS_CHARTS_CREATED);
+                int ret = bpf_map_update_elem(w->map_fd, &key, &value, 0);
                 if (ret)
                     error("Add key(%u) for controller table failed.", key);
 
-                error("KILLME CONTROLLER %s: %d", w->name, em->apps_charts);
+                error("KILLME CONTROLLER %s: %u", w->name, em->apps_charts);
             }
             i++;
         }
