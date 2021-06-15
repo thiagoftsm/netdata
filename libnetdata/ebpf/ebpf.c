@@ -324,7 +324,6 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
                     } else if (((w->type & apps_flags) == apps_flags) && (!em->apps_charts)) {
                         w->user_input = ND_EBPF_DEFAULT_MIN_PID;
                         bpf_map__resize(map, w->user_input);
-                        error("KILLME DISABLE SIZE %s: %d", w->name, w->user_input);
                     }
                 }
             }
@@ -435,8 +434,6 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
                 int ret = bpf_map_update_elem(w->map_fd, &key, &value, 0);
                 if (ret)
                     error("Add key(%u) for controller table failed.", key);
-
-                error("KILLME CONTROLLER %s: %u", w->name, em->apps_charts);
             }
             i++;
         }
@@ -550,11 +547,12 @@ void ebpf_update_module_using_config(ebpf_module_t *modules)
     char *mode = appconfig_get(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_LOAD_MODE, EBPF_CFG_LOAD_MODE_DEFAULT);
     modules->mode = ebpf_select_mode(mode);
 
-    modules->update_time = (int)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_UPDATE_EVERY, 1);
+    modules->update_time = (int)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION,
+                                                     EBPF_CFG_UPDATE_EVERY, modules->update_time);
 
+    error("KILLME CFG %d", modules->apps_charts);
     modules->apps_charts = appconfig_get_boolean(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_APPLICATION,
-                                                 CONFIG_BOOLEAN_YES);
-    error("KILLME %s: %d", modules->thread_name, modules->apps_charts);
+                                                 modules->apps_charts);
 
     modules->pid_map_size = (uint32_t)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_PID_SIZE,
                                                            modules->pid_map_size);
