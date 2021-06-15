@@ -533,7 +533,7 @@ static void vfs_collector(ebpf_module_t *em)
     netdata_thread_create(vfs_threads.thread, vfs_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
                           ebpf_vfs_read_hash, em);
 
-    uint32_t apps = (em->apps_charts & NETDATA_EBPF_APPS_CHARTS_CREATED);
+    int apps = em->apps_charts;
     while (!close_ebpf_plugin) {
         pthread_mutex_lock(&collect_data_mutex);
         pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);

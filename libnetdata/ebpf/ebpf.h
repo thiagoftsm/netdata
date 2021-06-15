@@ -114,7 +114,7 @@ typedef enum {
 } netdata_run_mode_t;
 
 #define ND_EBPF_DEFAULT_PID_SIZE 32768U
-#define ND_EBPF_DEFAULT_PID_LIMIT 256U
+#define ND_EBPF_DEFAULT_MIN_PID 1U
 #define ND_EBPF_MAP_FD_NOT_INITIALIZED (int)-1
 
 enum netdata_ebpf_map_type {
@@ -122,8 +122,7 @@ enum netdata_ebpf_map_type {
     NETDATA_EBPF_MAP_RESIZABLE = 1,
     NETDATA_EBPF_MAP_CONTROLLER = 2,
     NETDATA_EBPF_MAP_CONTROLLER_UPDATED = 4,
-    NETDATA_EBPF_MAP_PID = 8,
-    NETDATA_EBPF_MAP_REMOVEME = 16,
+    NETDATA_EBPF_MAP_PID = 8
 };
 
 enum netdata_controller {
@@ -147,12 +146,6 @@ typedef struct ebpf_specify_name {
     bool retprobe;
 } ebpf_specify_name_t;
 
-enum netdata_ebpf_apps_flags {
-    NETDATA_EBPF_APPS_NOT_INITIALIZED = 0,
-    NETDATA_EBPF_APPS_CHARTS_ENABLED = 1,
-    NETDATA_EBPF_APPS_CHARTS_CREATED = 2
-};
-
 typedef struct ebpf_module {
     const char *thread_name;
     const char *config_name;
@@ -160,7 +153,7 @@ typedef struct ebpf_module {
     void *(*start_routine)(void *);
     int update_time;
     int global_charts;
-    uint32_t apps_charts;
+    int apps_charts;
     netdata_run_mode_t mode;
     uint32_t thread_id;
     int optional;
@@ -192,6 +185,5 @@ extern void ebpf_load_addresses(ebpf_addresses_t *fa, int fd);
 extern void ebpf_fill_algorithms(int *algorithms, size_t length, int algorithm);
 extern char **ebpf_fill_histogram_dimension(size_t maximum);
 extern void ebpf_histogram_dimension_cleanup(char **ptr, size_t length);
-extern void ebpf_update_disabled_table_size(ebpf_local_maps_t *w, uint32_t enabled, uint32_t flags, uint32_t limit);
 
 #endif /* NETDATA_EBPF_H */

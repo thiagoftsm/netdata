@@ -308,7 +308,7 @@ static void swap_collector(ebpf_module_t *em)
     netdata_thread_create(swap_threads.thread, swap_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
                           ebpf_swap_read_hash, em);
 
-    uint32_t apps = (em->apps_charts & NETDATA_EBPF_APPS_CHARTS_CREATED);
+    int apps = em->apps_charts;
     while (!close_ebpf_plugin) {
         pthread_mutex_lock(&collect_data_mutex);
         pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);

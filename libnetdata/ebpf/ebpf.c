@@ -300,14 +300,6 @@ void ebpf_update_pid_table(ebpf_local_maps_t *pid, ebpf_module_t *em)
     pid->user_input = em->pid_map_size;
 }
 
-void ebpf_update_disabled_table_size(ebpf_local_maps_t *w, uint32_t enabled, uint32_t flags, uint32_t limit)
-{
-    if (((w->type & flags) != flags) && (enabled))
-        return;
-
-    w->user_input = limit;
-}
-
 void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
 {
     struct bpf_map *map;
@@ -315,7 +307,7 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
     if (!maps)
         return;
 
-    uint32_t apps_flags = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE | NETDATA_EBPF_MAP_REMOVEME;
+    uint32_t apps_flags = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE;
     bpf_map__for_each(map, program)
     {
         const char *map_name = bpf_map__name(map);
@@ -323,13 +315,17 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
         while (maps[i].name) {
             ebpf_local_maps_t *w = &maps[i];
             if (w->type & NETDATA_EBPF_MAP_RESIZABLE) {
-                if (w->user_input && w->user_input != w->internal_input && !strcmp(w->name, map_name)) {
-                    ebpf_update_disabled_table_size(w, em->apps_charts, apps_flags, ND_EBPF_DEFAULT_PID_LIMIT);
-
+                if (!strcmp(w->name, map_name)) {
+                    if (w->user_input && w->user_input != w->internal_input) {
 #ifdef NETDATA_INTERNAL_CHECKS
-                    info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
+                        info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
 #endif
-                    bpf_map__resize(map, w->user_input);
+                        bpf_map__resize(map, w->user_input);
+                    } else if (((w->type & apps_flags) == apps_flags) && (!em->apps_charts)) {
+                        w->user_input = ND_EBPF_DEFAULT_MIN_PID;
+                        bpf_map__resize(map, w->user_input);
+                        error("KILLME DISABLE SIZE %s: %d", w->name, w->user_input);
+                    }
                 }
             }
 
@@ -435,7 +431,7 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
                 w->type |= NETDATA_EBPF_MAP_CONTROLLER_UPDATED;
 
                 uint32_t key = NETDATA_CONTROLLER_APPS_ENABLED;
-                uint32_t value = (em->apps_charts & NETDATA_EBPF_APPS_CHARTS_CREATED);
+                int value = em->apps_charts;
                 int ret = bpf_map_update_elem(w->map_fd, &key, &value, 0);
                 if (ret)
                     error("Add key(%u) for controller table failed.", key);
@@ -558,6 +554,7 @@ void ebpf_update_module_using_config(ebpf_module_t *modules)
 
     modules->apps_charts = appconfig_get_boolean(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_APPLICATION,
                                                  CONFIG_BOOLEAN_YES);
+    error("KILLME %s: %d", modules->thread_name, modules->apps_charts);
 
     modules->pid_map_size = (uint32_t)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_PID_SIZE,
                                                            modules->pid_map_size);
