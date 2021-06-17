@@ -88,6 +88,7 @@
 #define VERSION_STRING_LEN 256
 #define EBPF_KERNEL_REJECT_LIST_FILE "ebpf_kernel_reject_list.txt"
 
+#define NETDATA_EBPF_HIST_MAX_BINS 24UL
 
 typedef struct ebpf_addresses {
     char *function;

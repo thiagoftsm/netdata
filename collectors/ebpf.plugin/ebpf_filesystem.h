@@ -5,7 +5,7 @@
 
 #include "ebpf.h"
 
-#define NETDATA_FILESYSTEM_MAX_BINS 24UL
+
 #define NETDATA_FS_MAX_DIST_NAME 64UL
 
 #define NETDATA_FILESYSTEM_CONFIG_NAME "filesystem"
@@ -36,7 +36,7 @@ typedef struct netdata_ebpf_histogram {
     char *name;
     char *title;
     int order;
-    uint64_t histogram[NETDATA_FILESYSTEM_MAX_BINS];
+    uint64_t histogram[NETDATA_EBPF_HIST_MAX_BINS];
 } netdata_ebpf_histogram_t;
 
 
