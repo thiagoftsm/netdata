@@ -32,14 +32,6 @@ enum netdata_filesystem_flags {
     NETDATA_FILESYSTEM_REMOVE_CHARTS = 16
 };
 
-typedef struct netdata_ebpf_histogram {
-    char *name;
-    char *title;
-    int order;
-    uint64_t histogram[NETDATA_EBPF_HIST_MAX_BINS];
-} netdata_ebpf_histogram_t;
-
-
 enum netdata_filesystem_table {
     NETDATA_MAIN_FS_TABLE,
     NETDATA_ADDR_FS_TABLE

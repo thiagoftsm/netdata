@@ -9,6 +9,7 @@
 
 #define NETDATA_DEBUGFS "/sys/kernel/debug/tracing/"
 #define NETDATA_KALLSYMS "/proc/kallsyms"
+#define NETDATA_EBPF_PROC_PARTITIONS "/proc/partitions"
 
 // Config files
 #define EBPF_GLOBAL_SECTION "global"
@@ -88,14 +89,21 @@
 #define VERSION_STRING_LEN 256
 #define EBPF_KERNEL_REJECT_LIST_FILE "ebpf_kernel_reject_list.txt"
 
-#define NETDATA_EBPF_HIST_MAX_BINS 24UL
-
 typedef struct ebpf_addresses {
     char *function;
     uint32_t hash;
     // We use long as address, because it matches system length
     unsigned long addr;
 } ebpf_addresses_t;
+
+#define NETDATA_EBPF_HIST_MAX_BINS 24UL
+
+typedef struct netdata_ebpf_histogram {
+    char *name;
+    char *title;
+    int order;
+    uint64_t histogram[NETDATA_EBPF_HIST_MAX_BINS];
+} netdata_ebpf_histogram_t;
 
 extern char *ebpf_user_config_dir;
 extern char *ebpf_stock_config_dir;
@@ -186,5 +194,8 @@ extern void ebpf_load_addresses(ebpf_addresses_t *fa, int fd);
 extern void ebpf_fill_algorithms(int *algorithms, size_t length, int algorithm);
 extern char **ebpf_fill_histogram_dimension(size_t maximum);
 extern void ebpf_histogram_dimension_cleanup(char **ptr, size_t length);
+extern int ebpf_is_tracepoint_enabled(char *type, char *tracepoint);
+extern int ebpf_enable_tracing_values(char *type, char *tracepoint);
+extern int ebpf_disable_tracing_values(char *type, char *tracepoint);
 
 #endif /* NETDATA_EBPF_H */

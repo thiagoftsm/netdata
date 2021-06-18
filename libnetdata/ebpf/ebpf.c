@@ -703,3 +703,77 @@ void ebpf_histogram_dimension_cleanup(char **ptr, size_t length)
     }
     freez(ptr);
 }
+
+//----------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Open tracepoint path
+ *
+ * @param filename    pointer to store the path
+ * @param length      file length
+ * @param type        tracepoint type
+ * @param tracepoint  function to attach tracepoint
+ * @param flags       flags used with syscall open
+ *
+ * @return it returns a positive value on success and a negative otherwise.
+ */
+static inline int ebpf_open_tracepoint_path(char *filename, size_t length, char *type, char *tracepoint, int flags)
+{
+    snprintfz(filename, length, "%s/events/%s/%s/enable", NETDATA_DEBUGFS, type, tracepoint);
+    return open(filename, flags, 0);
+}
+
+/**
+ * Is tracepoint enabled
+ *
+ * Check whether the tracepoint is enabled.
+ *
+ * @param type        tracepoint type
+ * @param tracepoint  function to attach tracepoint
+ *
+ * @return  it returns 1 when it is enabled and 0 otherwise.
+ */
+int ebpf_is_tracepoint_enabled(char *type, char *tracepoint)
+{
+    char text[FILENAME_MAX + 1];
+    int fd = ebpf_open_tracepoint_path(text, FILENAME_MAX, type, tracepoint, O_RDONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t length = read(fd, text, 1);
+    if (length != 1) {
+        close(fd);
+        return -1;
+    }
+
+    return (text[0] == '1') ? CONFIG_BOOLEAN_YES : CONFIG_BOOLEAN_NO;
+}
+
+static int ebpf_change_tracing_values(char *type, char *tracepoint, char *value)
+{
+    char filename[1024];
+    int fd = ebpf_open_tracepoint_path(filename, 1023, type, tracepoint, O_WRONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ssize_t written = write(fd, value, strlen(value));
+    if (written < 0) {
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+int ebpf_enable_tracing_values(char *type, char *tracepoint)
+{
+    return ebpf_change_tracing_values(type, tracepoint, "1");
+}
+
+int ebpf_disable_tracing_values(char *type, char *tracepoint)
+{
+    return ebpf_change_tracing_values(type, tracepoint, "0");
+}
