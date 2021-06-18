@@ -39,7 +39,7 @@ static int read_thread_closed = 1;
 static netdata_syscall_stat_t filesystem_aggregated_data[NETDATA_EBPF_HIST_MAX_BINS];
 static netdata_publish_syscall_t filesystem_publish_aggregated[NETDATA_EBPF_HIST_MAX_BINS];
 
-char **dimensions = NULL;
+static char **dimensions = NULL;
 static netdata_idx_t *filesystem_hash_values = NULL;
 
 /*****************************************************************

@@ -23,6 +23,13 @@ static int block_rq_complete_enabled = 0;
 static avl_tree_lock disk_tree;
 netdata_ebpf_disks_t *disk_list = NULL;
 
+static char **dimensions = NULL;
+static netdata_syscall_stat_t disk_aggregated_data[NETDATA_EBPF_HIST_MAX_BINS];
+static netdata_publish_syscall_t disk_publish_aggregated[NETDATA_EBPF_HIST_MAX_BINS];
+
+static struct bpf_link **probe_links = NULL;
+static struct bpf_object *objects = NULL;
+
 /*****************************************************************
  *
  *  FUNCTIONS TO MANIPULATE HARD DISKS
@@ -331,6 +338,17 @@ static void ebpf_disk_cleanup(void *ptr)
     if (!em->enabled)
         return;
 
+    ebpf_histogram_dimension_cleanup(dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+
+    if (probe_links) {
+        struct bpf_program *prog;
+        size_t i = 0 ;
+        bpf_object__for_each_program(prog, objects) {
+            bpf_link__destroy(probe_links[i]);
+            i++;
+        }
+        bpf_object__close(objects);
+    }
 }
 
 /*****************************************************************
@@ -404,8 +422,16 @@ void *ebpf_disk_thread(void *ptr)
         goto enddisk;
     }
 
+    probe_links = ebpf_load_program(ebpf_plugin_dir, em, kernel_string, &objects, disk_data.map_fd);
+    if (!probe_links) {
+        goto enddisk;
+    }
+
     int algorithms[NETDATA_EBPF_HIST_MAX_BINS];
     ebpf_fill_algorithms(algorithms, NETDATA_EBPF_HIST_MAX_BINS, NETDATA_EBPF_INCREMENTAL_IDX);
+    dimensions = ebpf_fill_histogram_dimension(NETDATA_EBPF_HIST_MAX_BINS);
+    ebpf_global_labels(disk_aggregated_data, disk_publish_aggregated, dimensions, dimensions, algorithms,
+                       NETDATA_EBPF_HIST_MAX_BINS);
 
 enddisk:
     netdata_thread_cleanup_pop(1);
