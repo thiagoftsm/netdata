@@ -4,17 +4,23 @@
 #define NETDATA_EBPF_DISK_H 1
 
 #include "libnetdata/avl/avl.h"
+#include "libnetdata/ebpf/ebpf.h"
+
+#define NETDATA_LATENCY_DISK_SLEEP_MS 650000ULL
 
 // Decode function extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L7
 #define MINORBITS       20
 #define MKDEV(ma,mi)    (((ma) << MINORBITS) | (mi))
 
+#define NETDATA_DISK_MAX 256U
+#define NETDATA_DISK_VECTOR_LIMIT 254U
+#define NETDATA_DISK_HISTOGRAM_LENGTH (NETDATA_DISK_MAX * NETDATA_EBPF_HIST_MAX_BINS)
+
 enum netdata_latency_disks_flags {
-    NETDATA_DISK_CREATED = 1,
-    NETDATA_DISK_PLOT = 2,
-    NETDATA_DISK_HAS_EFI = 4,
-    NETDATA_DISK_EFI_CHART_CREATED = 8,
-    NETDATA_DISK_EFI_RECREATE_CHART = 16
+    NETDATA_DISK_ADDED_TO_PLOT_LIST = 1,
+    NETDATA_DISK_CHART_CREATED = 2,
+    NETDATA_DISK_PLOT = 4,
+    NETDATA_DISK_HAS_EFI = 8
 };
 
 /*
@@ -36,12 +42,30 @@ typedef struct netdata_ebpf_disks {
     char family[NETDATA_DISK_NAME_LEN];
     char *boot_chart;
 
+    netdata_ebpf_histogram_t hread;
+    netdata_ebpf_histogram_t hwrite;
+
     uint32_t flags;
 
     struct netdata_ebpf_disks *main;
     struct netdata_ebpf_disks *boot_partition;
     struct netdata_ebpf_disks *next;
 } netdata_ebpf_disks_t;
+
+typedef struct netdata_ebpf_publish_disk {
+    netdata_ebpf_disks_t *plot;
+    struct netdata_ebpf_publish_disk *next;
+} ebpf_publish_disk_t;
+
+enum ebpf_disk_tables {
+    NETDATA_DISK_READ,
+    NETDATA_DISK_WRITE
+};
+
+typedef struct block_key {
+    uint32_t bin;
+    uint32_t dev;
+} block_key_t;
 
 extern struct config disk_config;
 

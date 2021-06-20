@@ -550,7 +550,6 @@ void ebpf_update_module_using_config(ebpf_module_t *modules)
     modules->update_time = (int)appconfig_get_number(modules->cfg, EBPF_GLOBAL_SECTION,
                                                      EBPF_CFG_UPDATE_EVERY, modules->update_time);
 
-    error("KILLME CFG %d", modules->apps_charts);
     modules->apps_charts = appconfig_get_boolean(modules->cfg, EBPF_GLOBAL_SECTION, EBPF_CFG_APPLICATION,
                                                  modules->apps_charts);
 

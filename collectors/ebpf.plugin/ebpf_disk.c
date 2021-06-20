@@ -30,6 +30,24 @@ static netdata_publish_syscall_t disk_publish_aggregated[NETDATA_EBPF_HIST_MAX_B
 static struct bpf_link **probe_links = NULL;
 static struct bpf_object *objects = NULL;
 
+static ebpf_local_maps_t disk_maps[] = {{.name = "tbl_disk_rcall", .internal_input = NETDATA_DISK_HISTOGRAM_LENGTH,
+                                         .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
+                                         .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
+                                        {.name = "tbl_disk_wcall", .internal_input = NETDATA_DISK_HISTOGRAM_LENGTH,
+                                         .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
+                                         .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
+                                        {.name = NULL, .internal_input = 0, .user_input = 0,
+                                         .type = NETDATA_EBPF_MAP_CONTROLLER,
+                                         .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED}};
+
+static struct netdata_static_thread disk_threads = {"DISK KERNEL",
+                                                   NULL, NULL, 1, NULL,
+                                                   NULL, NULL };
+static int read_thread_closed = 1;
+static netdata_idx_t *disk_hash_values = NULL;
+
+ebpf_publish_disk_t plot_disks[NETDATA_DISK_MAX];
+
 /*****************************************************************
  *
  *  FUNCTIONS TO MANIPULATE HARD DISKS
@@ -46,7 +64,7 @@ static struct bpf_object *objects = NULL;
  *
  * @return It returns 0 on success and -1 otherwise
  */
-static inline int ebpf_latency_parse_start(netdata_ebpf_disks_t *w, char *text)
+static inline int ebpf_disk_parse_start(netdata_ebpf_disks_t *w, char *text)
 {
     int fd = open(text, O_RDONLY, 0);
     if (fd < 0) {
@@ -163,7 +181,7 @@ static void ebpf_read_disk_info(netdata_ebpf_disks_t *w, char *name)
         return;
 
     snprintfz(text, FILENAME_MAX, "%s/%s/%s/start", path, disk, name);
-    if (ebpf_latency_parse_start(w, text))
+    if (ebpf_disk_parse_start(w, text))
         return;
 
     snprintfz(text, FILENAME_MAX, "%s/%s/%s/size", path, disk, name);
@@ -190,8 +208,8 @@ static inline uint32_t netdata_new_encode_dev(uint32_t major, uint32_t minor) {
  *
  * Compare major and minor values to add disks to tree.
  *
- * @param a pointer to netdata_latency_disks
- * @param b pointer to netdata_latency_disks
+ * @param a pointer to netdata_ebpf_disks
+ * @param b pointer to netdata_ebpf_disks
  *
  * @return It returns 0 case the values are equal, 1 case a is bigger than b and -1 case a is smaller than b.
 */
@@ -311,7 +329,7 @@ static int read_local_disks()
  *
  *****************************************************************/
 
-static void ebpf_latency_disable_tracepoints()
+static void ebpf_disk_disable_tracepoints()
 {
     char *default_message = { "Cannot disable the tracepoint" };
     if (!block_issue_enabled) {
@@ -332,13 +350,25 @@ static void ebpf_latency_disable_tracepoints()
  */
 static void ebpf_disk_cleanup(void *ptr)
 {
-    ebpf_latency_disable_tracepoints();
+    ebpf_disk_disable_tracepoints();
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     if (!em->enabled)
         return;
 
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+    uint32_t tick = 2 * USEC_PER_MS;
+    while (!read_thread_closed) {
+        usec_t dt = heartbeat_next(&hb, tick);
+        UNUSED(dt);
+    }
+
     ebpf_histogram_dimension_cleanup(dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+    freez(disk_hash_values);
+    freez(disk_threads.thread);
+
+    ebpf_cleanup_publish_syscall(disk_publish_aggregated);
 
     if (probe_links) {
         struct bpf_program *prog;
@@ -349,6 +379,221 @@ static void ebpf_disk_cleanup(void *ptr)
         }
         bpf_object__close(objects);
     }
+}
+
+/*****************************************************************
+ *
+ *  MAIN LOOP
+ *
+ *****************************************************************/
+
+/**
+ * Fill Plot list
+ *
+ * @param ptr a pointer for current disk
+ */
+static void ebpf_fill_plot_disks(netdata_ebpf_disks_t *ptr)
+{
+    ebpf_publish_disk_t *move = plot_disks;
+    uint32_t i = 0, limit = NETDATA_DISK_VECTOR_LIMIT;
+    while (move->next && i <= limit) {
+        move = move->next;
+        i++;
+    }
+
+    if (i == limit && move->next) {
+        error("Collector reached the maximum number of allowed hard disk, we won't monitor %s", ptr->family);
+        return;
+    }
+
+    move->plot = ptr;
+    move->next = &plot_disks[++i];
+
+    ptr->flags |= NETDATA_DISK_ADDED_TO_PLOT_LIST;
+}
+
+/**
+ * Read hard disk table
+ *
+ * @param table file descriptor for table
+ *
+ * Read the table with number of calls for all functions
+ */
+static void read_hard_disk_tables(int table)
+{
+    netdata_idx_t *values = disk_hash_values;
+    block_key_t key = {};
+    block_key_t next_key = {};
+    int cmp_table = disk_maps[NETDATA_DISK_READ].map_fd;
+
+    netdata_ebpf_disks_t *ret = NULL;
+
+    while (bpf_map_get_next_key(table, &key, &next_key) == 0) {
+        int test = bpf_map_lookup_elem(table, &key, values);
+        if (test < 0) {
+            key = next_key;
+            continue;
+        }
+
+        netdata_ebpf_disks_t find;
+        find.dev = key.dev;
+
+        if (likely(ret)) {
+            if (find.dev != ret->dev)
+                ret = (netdata_ebpf_disks_t *) avl_search_lock(&disk_tree, (avl_t *)&find);
+        } else
+            ret = (netdata_ebpf_disks_t *) avl_search_lock(&disk_tree, (avl_t *)&find);
+
+        // Disk was inserted after we parse /proc/partitions
+        if (!ret) {
+            if (read_local_disks()) {
+                key = next_key;
+                continue;
+            }
+
+            ret = (netdata_ebpf_disks_t *) avl_search_lock(&disk_tree, (avl_t *)&find);
+            if (!ret) {
+                // We should never reach this point, but we are adding it to keep a safe code
+                key = next_key;
+                continue;
+            }
+        }
+
+        uint64_t total = 0;
+        int i;
+        int end = (running_on_kernel < NETDATA_KERNEL_V4_15) ? 1 : ebpf_nprocs;
+        for (i = 0; i < end; i++) {
+            total += values[i];
+        }
+
+        if (table == cmp_table) {
+            ret->hread.histogram[key.bin] = total;
+        } else {
+            ret->hwrite.histogram[key.bin] = total;
+        }
+
+        if (!(ret->flags & NETDATA_DISK_ADDED_TO_PLOT_LIST))
+            ebpf_fill_plot_disks(ret);
+
+        key = next_key;
+    }
+}
+
+/**
+ * Disk read hash
+ *
+ * This is the thread callback.
+ * This thread is necessary, because we cannot freeze the whole plugin to read the data on very busy socket.
+ *
+ * @param ptr It is a NULL value for this thread.
+ *
+ * @return It always returns NULL.
+ */
+void *ebpf_disk_read_hash(void *ptr)
+{
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+
+    ebpf_module_t *em = (ebpf_module_t *)ptr;
+
+    usec_t step = NETDATA_LATENCY_DISK_SLEEP_MS * em->update_time;
+    while (!close_ebpf_plugin) {
+        usec_t dt = heartbeat_next(&hb, step);
+        (void)dt;
+
+        read_hard_disk_tables(disk_maps[NETDATA_DISK_READ].map_fd);
+        read_hard_disk_tables(disk_maps[NETDATA_DISK_WRITE].map_fd);
+    }
+
+    return NULL;
+}
+
+/**
+ * Create Hard Disk charts
+ *
+ * @param w the structure with necessary information to create the chart
+ *
+ * Make Hard disk charts and fill chart name
+ */
+static void ebpf_create_hd_charts(netdata_ebpf_disks_t *w)
+{
+    char title[256];
+    int order = NETDATA_CHART_PRIO_DISK_LATENCY;
+    char *family = w->family;
+
+    snprintf(title, 255, "Disk latency %s for output.", family);
+    w->hread.name = strdupz("disk_latency_output");
+    w->hread.title = strdupz(title);
+    w->hread.order = order;
+
+    ebpf_create_chart(w->hread.name, family, title, EBPF_COMMON_DIMENSION_CALL,
+                      family, "disk.latency_output", NETDATA_EBPF_CHART_TYPE_STACKED, order,
+                      ebpf_create_global_dimension, disk_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
+    order++;
+
+    snprintf(title, 255, "Disk latency %s for input.", family);
+    w->hwrite.name = strdupz("disk_latency_input");
+    w->hwrite.title = strdupz(title);
+    w->hwrite.order = order;
+
+    ebpf_create_chart(w->hwrite.name, family, title, EBPF_COMMON_DIMENSION_CALL,
+                      family, "disk.latency_input", NETDATA_EBPF_CHART_TYPE_STACKED, order,
+                      ebpf_create_global_dimension, disk_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
+
+    w->flags |= NETDATA_DISK_CHART_CREATED;
+}
+
+/**
+ * Send Hard disk data
+ *
+ * Send hard disk information to Netdata.
+ */
+static void ebpf_latency_send_hd_data()
+{
+    ebpf_publish_disk_t *move = plot_disks;
+    while (move->plot) {
+        netdata_ebpf_disks_t *ned = move->plot;
+        if (!(ned->flags & NETDATA_DISK_CHART_CREATED)) {
+            ebpf_create_hd_charts(ned);
+        }
+
+        write_histogram_chart(ned->hread.name, ned->family,
+                              ned->hread.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+
+        write_histogram_chart(ned->hwrite.name, ned->family,
+                              ned->hwrite.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+
+        move = move->next;
+    }
+}
+
+/**
+* Main loop for this collector.
+*/
+static void disk_collector(ebpf_module_t *em)
+{
+    disk_hash_values = callocz(ebpf_nprocs, sizeof(netdata_idx_t));
+    disk_threads.thread = mallocz(sizeof(netdata_thread_t));
+    disk_threads.start_routine = ebpf_disk_read_hash;
+
+    memset(plot_disks, 0, sizeof(plot_disks));
+
+    netdata_thread_create(disk_threads.thread, disk_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
+                          ebpf_disk_read_hash, em);
+
+
+    read_thread_closed = 0;
+    while (!close_ebpf_plugin) {
+        pthread_mutex_lock(&collect_data_mutex);
+        pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        pthread_mutex_lock(&lock);
+        ebpf_latency_send_hd_data();
+
+        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&collect_data_mutex);
+    }
+    read_thread_closed = 1;
 }
 
 /*****************************************************************
@@ -401,6 +646,7 @@ void *ebpf_disk_thread(void *ptr)
     netdata_thread_cleanup_push(ebpf_disk_cleanup, ptr);
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
+    em->maps = disk_maps;
 
     if (!em->enabled)
         goto enddisk;
@@ -432,6 +678,8 @@ void *ebpf_disk_thread(void *ptr)
     dimensions = ebpf_fill_histogram_dimension(NETDATA_EBPF_HIST_MAX_BINS);
     ebpf_global_labels(disk_aggregated_data, disk_publish_aggregated, dimensions, dimensions, algorithms,
                        NETDATA_EBPF_HIST_MAX_BINS);
+
+    disk_collector(em);
 
 enddisk:
     netdata_thread_cleanup_pop(1);
