@@ -19,7 +19,7 @@
 enum netdata_latency_disks_flags {
     NETDATA_DISK_ADDED_TO_PLOT_LIST = 1,
     NETDATA_DISK_CHART_CREATED = 2,
-    NETDATA_DISK_PLOT = 4,
+    NETDATA_DISK_IS_HERE = 4,
     NETDATA_DISK_HAS_EFI = 8
 };
 

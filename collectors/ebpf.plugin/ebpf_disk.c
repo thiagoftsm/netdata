@@ -241,8 +241,10 @@ static void update_disk_table(char *name, int major, int minor)
     uint32_t dev = netdata_new_encode_dev(major, minor);
     find.dev = dev;
     netdata_ebpf_disks_t *ret = (netdata_ebpf_disks_t *) avl_search_lock(&disk_tree, (avl_t *)&find);
-    if (ret) // Disk is already present
+    if (ret) { // Disk is already present
+        ret->flags |= NETDATA_DISK_IS_HERE;
         return;
+    }
 
     netdata_ebpf_disks_t *update_next = disk_list;
     if (likely(disk_list)) {
@@ -281,6 +283,8 @@ static void update_disk_table(char *name, int major, int minor)
 #ifdef NETDATA_INTERNAL_CHECKS
     info("The Latency is monitoring the hard disk %s (Major = %d, Minor = %d, Device = %u)", name, major, minor,w->dev);
 #endif
+
+    w->flags |= NETDATA_DISK_IS_HERE;
 }
 
 /**
@@ -321,6 +325,23 @@ static int read_local_disks()
     procfile_close(ff);
 
     return 0;
+}
+
+/**
+ * Update disks
+ *
+ * @param em main thread structure
+ */
+void ebpf_update_disks(ebpf_module_t *em)
+{
+    static time_t update_time = 0;
+    time_t curr = now_realtime_sec();
+    if (curr < update_time)
+        return;
+
+    update_time = curr + 5 * em->update_time;
+
+    (void)read_local_disks();
 }
 
 /*****************************************************************
@@ -553,15 +574,23 @@ static void ebpf_latency_send_hd_data()
     ebpf_publish_disk_t *move = plot_disks;
     while (move->plot) {
         netdata_ebpf_disks_t *ned = move->plot;
-        if (!(ned->flags & NETDATA_DISK_CHART_CREATED)) {
+        uint32_t flags = ned->flags;
+        if (!(flags & NETDATA_DISK_CHART_CREATED)) {
             ebpf_create_hd_charts(ned);
         }
 
-        write_histogram_chart(ned->hread.name, ned->family,
-                              ned->hread.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+        if ((flags & NETDATA_DISK_IS_HERE)) {
+            write_histogram_chart(ned->hread.name, ned->family,
+                                  ned->hread.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
 
-        write_histogram_chart(ned->hwrite.name, ned->family,
-                              ned->hwrite.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+            write_histogram_chart(ned->hwrite.name, ned->family,
+                                  ned->hwrite.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+        } else {
+            // CONVERT ARRAY TO LINK LIST
+            // REMOVE DISK FROM AVL WHEN IT IS NOT MORE PRESENT
+        }
+
+        ned->flags &= ~NETDATA_DISK_IS_HERE;
 
         move = move->next;
     }
@@ -586,6 +615,8 @@ static void disk_collector(ebpf_module_t *em)
     while (!close_ebpf_plugin) {
         pthread_mutex_lock(&collect_data_mutex);
         pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
+
+        ebpf_update_disks(em);
 
         pthread_mutex_lock(&lock);
         ebpf_latency_send_hd_data();
