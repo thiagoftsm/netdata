@@ -307,7 +307,7 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
     if (!maps)
         return;
 
-    uint32_t apps_flags = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE;
+    uint32_t apps_type = NETDATA_EBPF_MAP_PID | NETDATA_EBPF_MAP_RESIZABLE;
     bpf_map__for_each(map, program)
     {
         const char *map_name = bpf_map__name(map);
@@ -321,7 +321,7 @@ void ebpf_update_map_sizes(struct bpf_object *program, ebpf_module_t *em)
                         info("Changing map %s from size %u to %u ", map_name, w->internal_input, w->user_input);
 #endif
                         bpf_map__resize(map, w->user_input);
-                    } else if (((w->type & apps_flags) == apps_flags) && (!em->apps_charts)) {
+                    } else if (((w->type & apps_type) == apps_type) && (!em->apps_charts)) {
                         w->user_input = ND_EBPF_DEFAULT_MIN_PID;
                         bpf_map__resize(map, w->user_input);
                     }
@@ -345,7 +345,7 @@ size_t ebpf_count_programs(struct bpf_object *obj)
     return tot;
 }
 
-static ebpf_specify_name_t *ebpf_find_program_names(ebpf_specify_name_t *names, const char *prog_name)
+static ebpf_specify_name_t *ebpf_find_names(ebpf_specify_name_t *names, const char *prog_name)
 {
     size_t i = 0;
     while (names[i].program_name) {
@@ -368,7 +368,7 @@ static struct bpf_link **ebpf_attach_programs(struct bpf_object *obj, size_t len
         links[i] = bpf_program__attach(prog);
         if (libbpf_get_error(links[i]) && names) {
             const char *name = bpf_program__name(prog);
-            ebpf_specify_name_t *w = ebpf_find_program_names(names, name);
+            ebpf_specify_name_t *w = ebpf_find_names(names, name);
             if (w) {
                 enum bpf_prog_type type = bpf_program__get_type(prog);
                 if (type == BPF_PROG_TYPE_KPROBE)
@@ -394,7 +394,7 @@ static void ebpf_update_maps(ebpf_module_t *em, int *map_fd, struct bpf_object *
     ebpf_local_maps_t *maps = em->maps;
     struct bpf_map *map;
     size_t i = 0;
-    bpf_map__for_each(map, obj)
+        bpf_map__for_each(map, obj)
     {
         int fd = bpf_map__fd(map);
         if (maps) {
@@ -420,7 +420,7 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
         return;
 
     struct bpf_map *map;
-    bpf_map__for_each(map, obj)
+        bpf_map__for_each(map, obj)
     {
         size_t i = 0;
         while (maps[i].name) {
@@ -439,7 +439,6 @@ static void ebpf_update_controller(ebpf_module_t *em, struct bpf_object *obj)
         }
     }
 }
-
 
 struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *kernel_string,
                                     struct bpf_object **obj, int *map_fd)
@@ -470,7 +469,7 @@ struct bpf_link **ebpf_load_program(char *plugins_dir, ebpf_module_t *em, char *
     ebpf_update_maps(em, map_fd, *obj);
     ebpf_update_controller(em, *obj);
 
-    size_t count_programs = ebpf_count_programs(*obj);
+    size_t count_programs =  ebpf_count_programs(*obj);
 
     return ebpf_attach_programs(*obj, count_programs, em->names);
 }
@@ -708,17 +707,17 @@ void ebpf_histogram_dimension_cleanup(char **ptr, size_t length)
 /**
  * Open tracepoint path
  *
- * @param filename    pointer to store the path
- * @param length      file length
- * @param type        tracepoint type
- * @param tracepoint  function to attach tracepoint
- * @param flags       flags used with syscall open
+ * @param filename   pointer to store the path
+ * @param length     file length
+ * @param subsys     is the name of your subsystem.
+ * @param eventname  is the name of the event to trace.
+ * @param flags      flags used with syscall open
  *
  * @return it returns a positive value on success and a negative otherwise.
  */
-static inline int ebpf_open_tracepoint_path(char *filename, size_t length, char *type, char *tracepoint, int flags)
+static inline int ebpf_open_tracepoint_path(char *filename, size_t length, char *subsys, char *eventname, int flags)
 {
-    snprintfz(filename, length, "%s/events/%s/%s/enable", NETDATA_DEBUGFS, type, tracepoint);
+    snprintfz(filename, length, "%s/events/%s/%s/enable", NETDATA_DEBUGFS, subsys, eventname);
     return open(filename, flags, 0);
 }
 
@@ -727,15 +726,15 @@ static inline int ebpf_open_tracepoint_path(char *filename, size_t length, char 
  *
  * Check whether the tracepoint is enabled.
  *
- * @param type        tracepoint type
- * @param tracepoint  function to attach tracepoint
+ * @param subsys     is the name of your subsystem.
+ * @param eventname  is the name of the event to trace.
  *
- * @return  it returns 1 when it is enabled and 0 otherwise.
+ * @return  it returns 1 when it is enabled, 0 when it is disabled and -1 on error.
  */
-int ebpf_is_tracepoint_enabled(char *type, char *tracepoint)
+int ebpf_is_tracepoint_enabled(char *subsys, char *eventname)
 {
     char text[FILENAME_MAX + 1];
-    int fd = ebpf_open_tracepoint_path(text, FILENAME_MAX, type, tracepoint, O_RDONLY);
+    int fd = ebpf_open_tracepoint_path(text, FILENAME_MAX, subsys, eventname, O_RDONLY);
     if (fd < 0) {
         return -1;
     }
@@ -745,14 +744,31 @@ int ebpf_is_tracepoint_enabled(char *type, char *tracepoint)
         close(fd);
         return -1;
     }
+    close(fd);
 
     return (text[0] == '1') ? CONFIG_BOOLEAN_YES : CONFIG_BOOLEAN_NO;
 }
 
-static int ebpf_change_tracing_values(char *type, char *tracepoint, char *value)
+/**
+ *  Change Tracing values
+ *
+ * Change value for specific tracepoint enabling or disabling it according value given.
+ *
+ * @param subsys     is the name of your subsystem.
+ * @param eventname  is the name of the event to trace.
+ * @param value      a value to enable (1) or disable (0) a tracepoint.
+ *
+ * @return It returns 0 on success and -1 otherwise
+ */
+static int ebpf_change_tracing_values(char *subsys, char *eventname, char *value)
 {
+    if (strcmp("0", value) && strcmp("1", value)) {
+        error("Invalid value given to either enable or disable a tracepoint.");
+        return -1;
+    }
+
     char filename[1024];
-    int fd = ebpf_open_tracepoint_path(filename, 1023, type, tracepoint, O_WRONLY);
+    int fd = ebpf_open_tracepoint_path(filename, 1023, subsys, eventname, O_WRONLY);
     if (fd < 0) {
         return -1;
     }
@@ -767,12 +783,32 @@ static int ebpf_change_tracing_values(char *type, char *tracepoint, char *value)
     return 0;
 }
 
-int ebpf_enable_tracing_values(char *type, char *tracepoint)
+/**
+ * Enable tracing values
+ *
+ * Enable a tracepoint on a system
+ *
+ * @param subsys     is the name of your subsystem.
+ * @param eventname  is the name of the event to trace.
+ *
+ * @return It returns 0 on success and -1 otherwise
+ */
+int ebpf_enable_tracing_values(char *subsys, char *eventname)
 {
-    return ebpf_change_tracing_values(type, tracepoint, "1");
+    return ebpf_change_tracing_values(subsys, eventname, "1");
 }
 
-int ebpf_disable_tracing_values(char *type, char *tracepoint)
+/**
+ * Disable tracing values
+ *
+ * Disable tracing points enabled by collector
+ *
+ * @param subsys     is the name of your subsystem.
+ * @param eventname  is the name of the event to trace.
+ *
+ * @return It returns 0 on success and -1 otherwise
+ */
+int ebpf_disable_tracing_values(char *subsys, char *eventname)
 {
-    return ebpf_change_tracing_values(type, tracepoint, "0");
+    return ebpf_change_tracing_values(subsys, eventname, "0");
 }

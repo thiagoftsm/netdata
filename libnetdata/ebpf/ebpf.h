@@ -9,7 +9,6 @@
 
 #define NETDATA_DEBUGFS "/sys/kernel/debug/tracing/"
 #define NETDATA_KALLSYMS "/proc/kallsyms"
-#define NETDATA_EBPF_PROC_PARTITIONS "/proc/partitions"
 
 // Config files
 #define EBPF_GLOBAL_SECTION "global"
@@ -89,21 +88,15 @@
 #define VERSION_STRING_LEN 256
 #define EBPF_KERNEL_REJECT_LIST_FILE "ebpf_kernel_reject_list.txt"
 
+#define ND_EBPF_DEFAULT_MIN_PID 1U
+#define ND_EBPF_MAP_FD_NOT_INITIALIZED (int)-1
+
 typedef struct ebpf_addresses {
     char *function;
     uint32_t hash;
     // We use long as address, because it matches system length
     unsigned long addr;
 } ebpf_addresses_t;
-
-#define NETDATA_EBPF_HIST_MAX_BINS 24UL
-
-typedef struct netdata_ebpf_histogram {
-    char *name;
-    char *title;
-    int order;
-    uint64_t histogram[NETDATA_EBPF_HIST_MAX_BINS];
-} netdata_ebpf_histogram_t;
 
 extern char *ebpf_user_config_dir;
 extern char *ebpf_stock_config_dir;
@@ -123,8 +116,6 @@ typedef enum {
 } netdata_run_mode_t;
 
 #define ND_EBPF_DEFAULT_PID_SIZE 32768U
-#define ND_EBPF_DEFAULT_MIN_PID 1U
-#define ND_EBPF_MAP_FD_NOT_INITIALIZED (int)-1
 
 enum netdata_ebpf_map_type {
     NETDATA_EBPF_MAP_STATIC = 0,
@@ -193,9 +184,25 @@ extern void ebpf_update_names(ebpf_specify_name_t *opt, ebpf_module_t *em);
 extern void ebpf_load_addresses(ebpf_addresses_t *fa, int fd);
 extern void ebpf_fill_algorithms(int *algorithms, size_t length, int algorithm);
 extern char **ebpf_fill_histogram_dimension(size_t maximum);
+
+// Histogram
+#define NETDATA_EBPF_HIST_MAX_BINS 24UL
+#define NETDATA_DISK_MAX 256U
+#define NETDATA_DISK_HISTOGRAM_LENGTH (NETDATA_DISK_MAX * NETDATA_EBPF_HIST_MAX_BINS)
+
+typedef struct netdata_ebpf_histogram {
+    char *name;
+    char *title;
+    int order;
+    uint64_t histogram[NETDATA_EBPF_HIST_MAX_BINS];
+} netdata_ebpf_histogram_t;
+
 extern void ebpf_histogram_dimension_cleanup(char **ptr, size_t length);
-extern int ebpf_is_tracepoint_enabled(char *type, char *tracepoint);
-extern int ebpf_enable_tracing_values(char *type, char *tracepoint);
-extern int ebpf_disable_tracing_values(char *type, char *tracepoint);
+
+// Tracepoint helpers
+// For more information related to tracepoints read https://www.kernel.org/doc/html/latest/trace/tracepoints.html
+extern int ebpf_is_tracepoint_enabled(char *subsys, char *eventname);
+extern int ebpf_enable_tracing_values(char *subsys, char *eventname);
+extern int ebpf_disable_tracing_values(char *subsys, char *eventname);
 
 #endif /* NETDATA_EBPF_H */
