@@ -115,6 +115,11 @@ ebpf_module_t ebpf_modules[] = {
       .optional = 0, .apps_routine = NULL, .maps = NULL,
       .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL, .cfg = &fs_config,
       .config_file = NETDATA_SYNC_CONFIG_FILE},
+    { .thread_name = "disk", .config_name = "disk", .enabled = 0, .start_routine = ebpf_disk_thread,
+      .update_time = 1, .global_charts = 1, .apps_charts = CONFIG_BOOLEAN_NO, .mode = MODE_ENTRY,
+      .optional = 0, .apps_routine = NULL, .maps = NULL,
+      .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL, .cfg = &disk_config,
+      .config_file = NETDATA_SYNC_CONFIG_FILE},
     { .thread_name = NULL, .enabled = 0, .start_routine = NULL, .update_time = 1,
       .global_charts = 0, .apps_charts = CONFIG_BOOLEAN_NO, .mode = MODE_ENTRY,
       .optional = 0, .apps_routine = NULL, .maps = NULL, .pid_map_size = 0, .names = NULL,
@@ -509,6 +514,31 @@ void ebpf_create_charts_on_apps(char *id, char *title, char *units, char *family
     }
 }
 
+/**
+ * Call the necessary functions to create a name.
+ *
+ *  @param family     family name
+ *  @param name       chart name
+ *  @param hist0      histogram values
+ *  @param dimensions dimension values.
+ *  @param end        number of bins that will be sent to Netdata.
+ *
+ * @return It returns a variable tha maps the charts that did not have zero values.
+ */
+void write_histogram_chart(char *family, char *name, const netdata_idx_t *hist, char **dimensions, uint32_t end)
+{
+    write_begin_chart(family, name);
+
+    uint32_t i;
+    for (i = 0; i < end; i++) {
+        write_chart_dimension(dimensions[i], (long long) hist[i]);
+    }
+
+    write_end_chart();
+
+    fflush(stdout);
+}
+
 /*****************************************************************
  *
  *  FUNCTIONS TO DEFINE OPTIONS
@@ -657,6 +687,8 @@ void ebpf_print_help()
             " --cachestat or -c   Enable charts related to process run time.\n"
             "\n"
             " --dcstat or -d      Enable charts related to directory cache.\n"
+            "\n"
+            " --disk or -k        Enable charts related to disk monitoring.\n"
             "\n"
             " --filesystem or -i  Enable chart related to filesystem run time.\n"
             "\n"
@@ -982,6 +1014,13 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "disk",
+                                    CONFIG_BOOLEAN_NO);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_DISK_IDX, *disable_apps);
+        started++;
+    }
+
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
         // Read network viewer section
@@ -1066,6 +1105,7 @@ static void parse_args(int argc, char **argv)
         {"all",        no_argument,    0,  'a' },
         {"cachestat",  no_argument,    0,  'c' },
         {"dcstat",     no_argument,    0,  'd' },
+        {"disk",       no_argument,    0,  'k' },
         {"filesystem", no_argument,    0,  'i' },
         {"net",        no_argument,    0,  'n' },
         {"process",    no_argument,    0,  'p' },
@@ -1139,6 +1179,14 @@ static void parse_args(int argc, char **argv)
                 ebpf_enable_chart(EBPF_MODULE_FILESYSTEM_IDX, disable_apps);
 #ifdef NETDATA_INTERNAL_CHECKS
                 info("EBPF enabling \"filesystem\" chart, because it was started with the option \"--filesystem\" or \"-i\".");
+#endif
+                break;
+            }
+            case 'k': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_DISK_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info("EBPF enabling \"disk\" chart, because it was started with the option \"--disk\" or \"-k\".");
 #endif
                 break;
             }
@@ -1243,132 +1291,6 @@ static void parse_args(int argc, char **argv)
  *****************************************************************/
 
 /**
- * Update PID file
- *
- * Update the content of PID file
- *
- * @param filename is the full name of the file.
- * @param pid that identifies the process
- */
-static void ebpf_update_pid_file(char *filename, pid_t pid)
-{
-    FILE *fp = fopen(filename, "w");
-    if (!fp)
-        return;
-
-    fprintf(fp, "%d", pid);
-    fclose(fp);
-}
-
-/**
- * Get Process Name
- *
- * Get process name from /proc/PID/status
- *
- * @param pid that identifies the process
- */
-static char *ebpf_get_process_name(pid_t pid)
-{
-    char *name = NULL;
-    char filename[FILENAME_MAX + 1];
-    snprintfz(filename, FILENAME_MAX, "/proc/%d/status", pid);
-
-    procfile *ff = procfile_open(filename, " \t", PROCFILE_FLAG_DEFAULT);
-    if(unlikely(!ff)) {
-        error("Cannot open %s", filename);
-        return name;
-    }
-
-    ff = procfile_readall(ff);
-    if(unlikely(!ff))
-        return name;
-
-    procfile_close(ff);
-
-    unsigned long i, lines = procfile_lines(ff);
-    for(i = 0; i < lines ; i++) {
-        char *cmp = procfile_lineword(ff, i, 0);
-        if (!strcmp(cmp, "Name:")) {
-            return strdupz(procfile_lineword(ff, i, 1));
-        }
-    }
-
-    return name;
-}
-
-/**
- * Read Previous PID
- *
- * @param filename is the full name of the file.
- *
- * @return It returns the PID used during previous execution on success or 0 otherwise
- */
-static pid_t ebpf_read_previous_pid(char *filename)
-{
-    FILE *fp = fopen(filename, "r");
-    if (!fp)
-        return 0;
-
-    char buffer[64];
-    size_t length = fread(buffer, sizeof(*buffer), 63, fp);
-    pid_t old_pid = 0;
-    if (length) {
-        buffer[length] = '\0';
-        old_pid = (pid_t)str2uint32_t(buffer);
-    }
-    fclose(fp);
-
-    return old_pid;
-}
-
-/**
- * Kill previous process
- *
- * Kill previous process whether it was not closed.
- *
- * @param filename is the full name of the file.
- * @param pid that identifies the process
- */
-static void ebpf_kill_previous_process(char *filename, pid_t pid)
-{
-    pid_t old_pid =  ebpf_read_previous_pid(filename);
-    if (!old_pid)
-        return;
-
-    // Process is not running
-    char *prev_name =  ebpf_get_process_name(old_pid);
-    if (!prev_name)
-        return;
-
-    char *current_name =  ebpf_get_process_name(pid);
-
-    if (!strcmp(prev_name, current_name))
-        kill(old_pid, SIGKILL);
-
-    freez(prev_name);
-    freez(current_name);
-
-    // wait few microseconds before start new plugin
-    sleep_usec(USEC_PER_MS * 300);
-}
-
-/**
- * Manage PID
- *
- * This function kills another instance of eBPF whether it is necessary and update the file content.
- *
- * @param pid that identifies the process
- */
-static void ebpf_manage_pid(pid_t pid)
-{
-    char filename[FILENAME_MAX + 1];
-    snprintfz(filename, FILENAME_MAX, "%s%s/ebpf.d/ebpf.pid", netdata_configured_host_prefix, ebpf_plugin_dir);
-
-    ebpf_kill_previous_process(filename, pid);
-    ebpf_update_pid_file(filename, pid);
-}
-
-/**
  * Load collector config
  *
  * @param lmode  the mode that will be used for them.
@@ -1394,7 +1316,6 @@ int main(int argc, char **argv)
     set_global_variables();
     parse_args(argc, argv);
     ebpf_load_thread_config();
-    ebpf_manage_pid(getpid());
 
     running_on_kernel = get_kernel_version(kernel_string, 63);
     if (!has_condition_to_run(running_on_kernel)) {
@@ -1460,6 +1381,8 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_VFS_IDX].start_routine},
         {"EBPF FILESYSTEM" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].start_routine},
+        {"EBPF DISK" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_DISK_IDX].start_routine},
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };

@@ -39,7 +39,7 @@ static int read_thread_closed = 1;
 static netdata_syscall_stat_t filesystem_aggregated_data[NETDATA_EBPF_HIST_MAX_BINS];
 static netdata_publish_syscall_t filesystem_publish_aggregated[NETDATA_EBPF_HIST_MAX_BINS];
 
-static char **dimensions = NULL;
+char **dimensions = NULL;
 static netdata_idx_t *filesystem_hash_values = NULL;
 
 /*****************************************************************
@@ -138,8 +138,7 @@ static void ebpf_create_fs_charts()
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
-                              filesystem_publish_aggregated,
-                NETDATA_EBPF_HIST_MAX_BINS);
+                              filesystem_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
             order++;
 
             snprintfz(title, 255, "%s latency for each sync request.", efp->filesystem);
@@ -151,8 +150,7 @@ static void ebpf_create_fs_charts()
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
-                              filesystem_publish_aggregated,
-                NETDATA_EBPF_HIST_MAX_BINS);
+                              filesystem_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
             order++;
             efp->flags |= NETDATA_FILESYSTEM_FLAG_CHART_CREATED;
         }
@@ -353,7 +351,8 @@ static void ebpf_filesystem_cleanup(void *ptr)
     ebpf_cleanup_publish_syscall(filesystem_publish_aggregated);
 
     ebpf_filesystem_cleanup_ebpf_data();
-    ebpf_histogram_dimension_cleanup(dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+    if (dimensions)
+        ebpf_histogram_dimension_cleanup(dimensions, NETDATA_EBPF_HIST_MAX_BINS);
     freez(filesystem_hash_values);
 }
 
@@ -593,8 +592,7 @@ void *ebpf_filesystem_thread(void *ptr)
     int algorithms[NETDATA_EBPF_HIST_MAX_BINS];
     ebpf_fill_algorithms(algorithms, NETDATA_EBPF_HIST_MAX_BINS, NETDATA_EBPF_INCREMENTAL_IDX);
     ebpf_global_labels(filesystem_aggregated_data, filesystem_publish_aggregated, dimensions, dimensions,
-                       algorithms,
-        NETDATA_EBPF_HIST_MAX_BINS);
+                       algorithms, NETDATA_EBPF_HIST_MAX_BINS);
 
     pthread_mutex_lock(&lock);
     ebpf_create_fs_charts();

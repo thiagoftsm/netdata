@@ -5,7 +5,6 @@
 
 #include "ebpf.h"
 
-
 #define NETDATA_FS_MAX_DIST_NAME 64UL
 
 #define NETDATA_FILESYSTEM_CONFIG_NAME "filesystem"
