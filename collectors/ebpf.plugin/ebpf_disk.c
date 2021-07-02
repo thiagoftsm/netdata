@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <sys/resource.h>
+#include <stdlib.h>
 
 #include "ebpf.h"
 #include "ebpf_disk.h"
@@ -11,10 +12,7 @@ struct config disk_config = { .first_section = NULL,
     .index = { .avl_tree = { .root = NULL, .compar = appconfig_section_compare },
         .rwlock = AVL_LOCK_INITIALIZER } };
 
-static ebpf_local_maps_t disk_maps[] = {{.name = "tbl_disk_rcall", .internal_input = NETDATA_DISK_HISTOGRAM_LENGTH,
-                                         .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
-                                         .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
-                                        {.name = "tbl_disk_wcall", .internal_input = NETDATA_DISK_HISTOGRAM_LENGTH,
+static ebpf_local_maps_t disk_maps[] = {{.name = "tbl_disk_iocall", .internal_input = NETDATA_DISK_HISTOGRAM_LENGTH,
                                          .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
                                          .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED},
                                         {.name = NULL, .internal_input = 0, .user_input = 0,
@@ -60,26 +58,26 @@ pthread_mutex_t plot_mutex;
  *
  * Parse start address of disk
  *
- * @param w      structure where data is stored
- * @param text   variable used to store value
- * @param length max allowed size for text vector.
+ * @param w          structure where data is stored
+ * @param filename   variable used to store value
  *
  * @return It returns 0 on success and -1 otherwise
  */
-static inline int ebpf_disk_parse_start(netdata_ebpf_disks_t *w, char *text, ssize_t length)
+static inline int ebpf_disk_parse_start(netdata_ebpf_disks_t *w, char *filename)
 {
-    int fd = open(text, O_RDONLY, 0);
+    char content[FILENAME_MAX + 1];
+    int fd = open(filename, O_RDONLY, 0);
     if (fd < 0) {
         return -1;
     }
 
-    ssize_t file_length = read(fd, text, 4095);
+    ssize_t file_length = read(fd, content, 4095);
     if (file_length > 0) {
-        if (file_length > length)
-            file_length = length;
+        if (file_length > FILENAME_MAX)
+            file_length = FILENAME_MAX;
 
-        text[file_length] = '\0';
-        w->start = str2uint64_t(text);
+        content[file_length] = '\0';
+        w->start = strtoul(content, NULL, 10);
     }
     close(fd);
 
@@ -91,27 +89,27 @@ static inline int ebpf_disk_parse_start(netdata_ebpf_disks_t *w, char *text, ssi
  *
  * Parse uevent file
  *
- * @param w      structure where data is stored
- * @param text   variable used to store value
- * @param length max allowed size for text vector.
+ * @param w          structure where data is stored
+ * @param filename   variable used to store value
  *
  * @return It returns 0 on success and -1 otherwise
  */
-static inline int ebpf_parse_uevent(netdata_ebpf_disks_t *w, char *text, ssize_t length)
+static inline int ebpf_parse_uevent(netdata_ebpf_disks_t *w, char *filename)
 {
-    int fd = open(text, O_RDONLY, 0);
+    char content[FILENAME_MAX + 1];
+    int fd = open(filename, O_RDONLY, 0);
     if (fd < 0) {
         return -1;
     }
 
-    ssize_t file_length = read(fd, text, FILENAME_MAX);
+    ssize_t file_length = read(fd, content, FILENAME_MAX);
     if (file_length > 0) {
-        if (file_length > length)
-            file_length = length;
+        if (file_length > FILENAME_MAX)
+            file_length = FILENAME_MAX;
 
-        text[file_length] = '\0';
+        content[file_length] = '\0';
 
-        char *s = strstr(text, "PARTNAME=EFI");
+        char *s = strstr(content, "PARTNAME=EFI");
         if (s) {
             w->main->boot_partition = w;
             w->flags |= NETDATA_DISK_HAS_EFI;
@@ -126,26 +124,26 @@ static inline int ebpf_parse_uevent(netdata_ebpf_disks_t *w, char *text, ssize_t
 /**
  * Parse Size
  *
- * @param w      structure where data is stored
- * @param text   variable used to store value
- * @param length max allowed size for text vector.
+ * @param w          structure where data is stored
+ * @param filename   variable used to store value
  *
  * @return It returns 0 on success and -1 otherwise
  */
-static inline int ebpf_parse_size(netdata_ebpf_disks_t *w, char *text, ssize_t length)
+static inline int ebpf_parse_size(netdata_ebpf_disks_t *w, char *filename)
 {
-    int fd = open(text, O_RDONLY, 0);
+    char content[FILENAME_MAX + 1];
+    int fd = open(filename, O_RDONLY, 0);
     if (fd < 0) {
         return -1;
     }
 
-    ssize_t file_length = read(fd, text, FILENAME_MAX);
+    ssize_t file_length = read(fd, content, FILENAME_MAX);
     if (file_length > 0) {
-        if (file_length > length)
-            file_length = length;
+        if (file_length > FILENAME_MAX)
+            file_length = FILENAME_MAX;
 
-        text[file_length] = '\0';
-        w->end = w->start + str2uint64_t(text) -1;
+        content[file_length] = '\0';
+        w->end = w->start + strtoul(content, NULL, 10) -1;
     }
     close(fd);
 
@@ -166,7 +164,7 @@ static void ebpf_read_disk_info(netdata_ebpf_disks_t *w, char *name)
     static uint32_t key = 0;
     char *path = { "/sys/block" };
     char disk[NETDATA_DISK_NAME_LEN + 1];
-    char text[FILENAME_MAX + 1];
+    char filename[FILENAME_MAX + 1];
     snprintfz(disk, NETDATA_DISK_NAME_LEN, "%s", name);
     size_t length = strlen(disk);
     if (!length) {
@@ -189,23 +187,22 @@ static void ebpf_read_disk_info(netdata_ebpf_disks_t *w, char *name)
     w->bootsector_key = key;
     w->main = main_disk;
 
-    snprintfz(text, FILENAME_MAX, "%s/%s/%s/uevent", path, disk, name);
-    if (ebpf_parse_uevent(w, text, FILENAME_MAX))
+    snprintfz(filename, FILENAME_MAX, "%s/%s/%s/uevent", path, disk, name);
+    if (ebpf_parse_uevent(w, filename))
         return;
 
-    snprintfz(text, FILENAME_MAX, "%s/%s/%s/start", path, disk, name);
-    if (ebpf_disk_parse_start(w, text, FILENAME_MAX))
+    snprintfz(filename, FILENAME_MAX, "%s/%s/%s/start", path, disk, name);
+    if (ebpf_disk_parse_start(w, filename))
         return;
 
-    snprintfz(text, FILENAME_MAX, "%s/%s/%s/size", path, disk, name);
-    ebpf_parse_size(w, text, FILENAME_MAX);
+    snprintfz(filename, FILENAME_MAX, "%s/%s/%s/size", path, disk, name);
+    ebpf_parse_size(w, filename);
 }
 
-// Decode function extracted from: https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L46
 /**
  * New encode dev
  *
- * New enconde algorithm
+ * New encode algorithm extracted from https://elixir.bootlin.com/linux/v5.10.8/source/include/linux/kdev_t.h#L39
  *
  * @param major  driver major number
  * @param minor  driver minor number
@@ -244,9 +241,9 @@ static int ebpf_compare_disks(void *a, void *b)
  *
  * Update link list when it is necessary.
  *
- * @param name  the    disk name
- * @param major major  disk identifier
- * @param minor minor  disk identifier
+ * @param name         disk name
+ * @param major        major disk identifier
+ * @param minor        minor disk identifier
  * @param current_time current timestamp
  */
 static void update_disk_table(char *name, int major, int minor, time_t current_time)
@@ -316,7 +313,7 @@ static void update_disk_table(char *name, int major, int minor, time_t current_t
 }
 
 /**
- *  Read Local Ports
+ *  Read Local Disks
  *
  *  Parse /proc/partitions to get block disks used to measure latency.
  *
@@ -408,7 +405,25 @@ static void ebpf_cleanup_plot_disks()
     ebpf_publish_disk_t *move = plot_disks, *next;
     while (move) {
         next = move->next;
-        free(move);
+
+        freez(move);
+
+        move = next;
+    }
+}
+
+/**
+ * Cleanup Disk List
+ */
+static void ebpf_cleanup_disk_list()
+{
+    netdata_ebpf_disks_t *move = disk_list;
+    while (move) {
+        netdata_ebpf_disks_t *next = move->next;
+
+        freez(move->histogram.name);
+        freez(move->boot_chart);
+        freez(move);
 
         move = next;
     }
@@ -439,9 +454,11 @@ static void ebpf_disk_cleanup(void *ptr)
         ebpf_histogram_dimension_cleanup(dimensions, NETDATA_EBPF_HIST_MAX_BINS);
 
     freez(disk_hash_values);
+    freez(disk_threads.thread);
     pthread_mutex_destroy(&plot_mutex);
 
     ebpf_cleanup_plot_disks();
+    ebpf_cleanup_disk_list();
 
     if (probe_links) {
         struct bpf_program *prog;
@@ -505,7 +522,6 @@ static void read_hard_disk_tables(int table)
     netdata_idx_t *values = disk_hash_values;
     block_key_t key = {};
     block_key_t next_key = {};
-    int cmp_table = disk_maps[NETDATA_DISK_READ].map_fd;
 
     netdata_ebpf_disks_t *ret = NULL;
 
@@ -547,11 +563,7 @@ static void read_hard_disk_tables(int table)
             total += values[i];
         }
 
-        if (table == cmp_table) {
-            ret->hread.histogram[key.bin] = total;
-        } else {
-            ret->hwrite.histogram[key.bin] = total;
-        }
+        ret->histogram.histogram[key.bin] = total;
 
         if (!(ret->flags & NETDATA_DISK_ADDED_TO_PLOT_LIST))
             ebpf_fill_plot_disks(ret);
@@ -583,7 +595,6 @@ void *ebpf_disk_read_hash(void *ptr)
         (void)dt;
 
         read_hard_disk_tables(disk_maps[NETDATA_DISK_READ].map_fd);
-        read_hard_disk_tables(disk_maps[NETDATA_DISK_WRITE].map_fd);
     }
 
     return NULL;
@@ -598,13 +609,9 @@ void *ebpf_disk_read_hash(void *ptr)
  */
 static void ebpf_obsolete_hd_charts(netdata_ebpf_disks_t *w)
 {
-    ebpf_write_chart_obsolete(w->hread.name, w->family, w->hread.title, EBPF_COMMON_DIMENSION_CALL,
-                              w->family, "disk.latency_output", NETDATA_EBPF_CHART_TYPE_STACKED,
-                              w->hread.order);
-
-    ebpf_write_chart_obsolete(w->hwrite.name, w->family, w->hwrite.title, EBPF_COMMON_DIMENSION_CALL,
-                              w->family, "disk.latency_output", NETDATA_EBPF_CHART_TYPE_STACKED,
-                              w->hwrite.order);
+    ebpf_write_chart_obsolete(w->histogram.name, w->family, w->histogram.title, EBPF_COMMON_DIMENSION_CALL,
+                              w->family, "disk.latency_io", NETDATA_EBPF_CHART_TYPE_STACKED,
+                              w->histogram.order);
 
     w->flags = 0;
 }
@@ -618,28 +625,17 @@ static void ebpf_obsolete_hd_charts(netdata_ebpf_disks_t *w)
  */
 static void ebpf_create_hd_charts(netdata_ebpf_disks_t *w)
 {
-    char title[256];
     int order = NETDATA_CHART_PRIO_DISK_LATENCY;
     char *family = w->family;
 
-    snprintf(title, 255, "Disk latency %s for output.", family);
-    w->hread.name = strdupz("disk_latency_output");
-    w->hread.title = strdupz(title);
-    w->hread.order = order;
+    w->histogram.name = strdupz("disk_latency_io");
+    w->histogram.title = NULL;
+    w->histogram.order = order;
 
-    ebpf_create_chart(w->hread.name, family, title, EBPF_COMMON_DIMENSION_CALL,
-                      family, "disk.latency_output", NETDATA_EBPF_CHART_TYPE_STACKED, order,
+    ebpf_create_chart(w->histogram.name, family, "Disk latency.", EBPF_COMMON_DIMENSION_CALL,
+                      family, "disk.latency_io", NETDATA_EBPF_CHART_TYPE_STACKED, order,
                       ebpf_create_global_dimension, disk_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
     order++;
-
-    snprintf(title, 255, "Disk latency %s for input.", family);
-    w->hwrite.name = strdupz("disk_latency_input");
-    w->hwrite.title = strdupz(title);
-    w->hwrite.order = order;
-
-    ebpf_create_chart(w->hwrite.name, family, title, EBPF_COMMON_DIMENSION_CALL,
-                      family, "disk.latency_input", NETDATA_EBPF_CHART_TYPE_STACKED, order,
-                      ebpf_create_global_dimension, disk_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
 
     w->flags |= NETDATA_DISK_CHART_CREATED;
 }
@@ -702,11 +698,8 @@ static void ebpf_latency_send_hd_data()
         }
 
         if ((flags & NETDATA_DISK_CHART_CREATED)) {
-            write_histogram_chart(ned->hread.name, ned->family,
-                                  ned->hread.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
-
-            write_histogram_chart(ned->hwrite.name, ned->family,
-                                  ned->hwrite.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+            write_histogram_chart(ned->histogram.name, ned->family,
+                                  ned->histogram.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
         }
 
         ned->flags &= ~NETDATA_DISK_IS_HERE;
