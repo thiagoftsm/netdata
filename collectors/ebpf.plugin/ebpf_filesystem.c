@@ -85,10 +85,10 @@ static void ebpf_obsolete_fs_charts()
                                       EBPF_COMMON_DIMENSION_CALL, efp->family_name,
                                       NULL, NETDATA_EBPF_CHART_TYPE_STACKED, efp->hopen.order);
 
-            ebpf_write_chart_obsolete(NETDATA_FILESYSTEM_FAMILY, efp->haddittional.name,
-                                      efp->haddittional.title,
+            ebpf_write_chart_obsolete(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name,
+                                      efp->hadditional.title,
                                       EBPF_COMMON_DIMENSION_CALL, efp->family_name,
-                                      NULL, NETDATA_EBPF_CHART_TYPE_STACKED, efp->haddittional.order);
+                                      NULL, NETDATA_EBPF_CHART_TYPE_STACKED, efp->hadditional.order);
         }
         efp->flags = flags;
     }
@@ -151,10 +151,10 @@ static void ebpf_create_fs_charts()
             char *type = (efp->flags & NETDATA_FILESYSTEM_ATTR_CHARTS) ? "attribute" : "sync" ;
             snprintfz(title, 255, "%s latency for each %s request.", type, efp->filesystem);
             snprintfz(chart_name, 63, "%s_%s_latency", type, efp->filesystem);
-            efp->haddittional.name = strdupz(chart_name);
-            efp->haddittional.title = strdupz(title);
-            efp->haddittional.order = order;
-            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->haddittional.name,
+            efp->hadditional.name = strdupz(chart_name);
+            efp->hadditional.title = strdupz(title);
+            efp->hadditional.order = order;
+            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name,
                               title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
@@ -321,8 +321,8 @@ void ebpf_filesystem_cleanup_ebpf_data()
             freez(efp->hopen.name);
             freez(efp->hopen.title);
 
-            freez(efp->haddittional.name);
-            freez(efp->haddittional.title);
+            freez(efp->hadditional.name);
+            freez(efp->hadditional.title);
 
             struct bpf_link **probe_links = efp->probe_links;
             size_t j = 0 ;
@@ -393,7 +393,7 @@ static inline netdata_ebpf_histogram_t *select_hist(ebpf_filesystem_partitions_t
         return &efp->hopen;
     } else if (id < NETDATA_KEY_CALLS_SYNC ){
         *idx = id - NETDATA_KEY_CALLS_OPEN;
-        return &efp->haddittional;
+        return &efp->hadditional;
     }
 
     return NULL;
@@ -511,8 +511,8 @@ static void ebpf_histogram_send_data()
             write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->hopen.name,
                                   efp->hopen.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
 
-            write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->haddittional.name,
-                                  efp->haddittional.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
+            write_histogram_chart(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name,
+                                  efp->hadditional.histogram, dimensions, NETDATA_EBPF_HIST_MAX_BINS);
         }
     }
 }
