@@ -10,6 +10,7 @@ struct config fs_config = { .first_section = NULL,
 
 ebpf_filesystem_partitions_t localfs[] =
     {{.filesystem = "ext4",
+      .optional_filesystem = NULL,
       .family = "EXT4",
       .objects = NULL,
       .probe_links = NULL,
@@ -17,6 +18,7 @@ ebpf_filesystem_partitions_t localfs[] =
       .enabled = CONFIG_BOOLEAN_YES,
       .addresses = {.function = NULL, .addr = 0}},
      {.filesystem = "xfs",
+      .optional_filesystem = NULL,
       .family = "XFS",
       .objects = NULL,
       .probe_links = NULL,
@@ -24,20 +26,15 @@ ebpf_filesystem_partitions_t localfs[] =
       .enabled = CONFIG_BOOLEAN_YES,
       .addresses = {.function = NULL, .addr = 0}},
      {.filesystem = "nfs",
+      .optional_filesystem = "nfs4",
       .family = "NFS",
       .objects = NULL,
       .probe_links = NULL,
       .flags = NETDATA_FILESYSTEM_ATTR_CHARTS,
       .enabled = CONFIG_BOOLEAN_YES,
       .addresses = {.function = NULL, .addr = 0}},
-     {.filesystem = "zfs",
-      .family = "ZFS",
-      .objects = NULL,
-      .probe_links = NULL,
-      .flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION,
-      .enabled = CONFIG_BOOLEAN_YES,
-      .addresses = {.function = NULL, .addr = 0}},
      {.filesystem = NULL,
+      .optional_filesystem = NULL,
       .family = NULL,
       .objects = NULL,
       .probe_links = NULL,
@@ -87,13 +84,11 @@ static void ebpf_obsolete_fs_charts()
                                       EBPF_COMMON_DIMENSION_CALL, efp->family_name,
                                       NULL, NETDATA_EBPF_CHART_TYPE_STACKED, efp->hwrite.order);
 
-            ebpf_write_chart_obsolete(NETDATA_FILESYSTEM_FAMILY, efp->hopen.name,
-                                      efp->hopen.title,
+            ebpf_write_chart_obsolete(NETDATA_FILESYSTEM_FAMILY, efp->hopen.name, efp->hopen.title,
                                       EBPF_COMMON_DIMENSION_CALL, efp->family_name,
                                       NULL, NETDATA_EBPF_CHART_TYPE_STACKED, efp->hopen.order);
 
-            ebpf_write_chart_obsolete(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name,
-                                      efp->hadditional.title,
+            ebpf_write_chart_obsolete(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name, efp->hadditional.title,
                                       EBPF_COMMON_DIMENSION_CALL, efp->family_name,
                                       NULL, NETDATA_EBPF_CHART_TYPE_STACKED, efp->hadditional.order);
         }
@@ -155,14 +150,13 @@ static void ebpf_create_fs_charts()
                               filesystem_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
             order++;
 
-            char *type = (efp->flags & NETDATA_FILESYSTEM_ATTR_CHARTS) ? "attribute" : "sync" ;
-            snprintfz(title, 255, "%s latency for each %s request.", type, efp->filesystem);
-            snprintfz(chart_name, 63, "%s_%s_latency", type, efp->filesystem);
+            char *type = (efp->flags & NETDATA_FILESYSTEM_ATTR_CHARTS) ? "attribute" : "sync";
+            snprintfz(title, 255, "%s latency for each %s request.", efp->filesystem, type);
+            snprintfz(chart_name, 63, "%s_%s_latency", efp->filesystem, type);
             efp->hadditional.name = strdupz(chart_name);
             efp->hadditional.title = strdupz(title);
             efp->hadditional.order = order;
-            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name,
-                              title,
+            ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, efp->hadditional.name, title,
                               EBPF_COMMON_DIMENSION_CALL, family,
                               NULL, NETDATA_EBPF_CHART_TYPE_STACKED, order, ebpf_create_global_dimension,
                               filesystem_publish_aggregated, NETDATA_EBPF_HIST_MAX_BINS);
@@ -259,7 +253,8 @@ static int ebpf_read_local_partitions()
 
         for (i = 0; localfs[i].filesystem; i++) {
             ebpf_filesystem_partitions_t *w = &localfs[i];
-            if (w->enabled && !strcmp(fs, w->filesystem)) {
+            if (w->enabled && (!strcmp(fs, w->filesystem) ||
+                              (w->optional_filesystem && !strcmp(fs, w->optional_filesystem)))) {
                 localfs[i].flags |= NETDATA_FILESYSTEM_LOAD_EBPF_PROGRAM;
                 localfs[i].flags &= ~NETDATA_FILESYSTEM_REMOVE_CHARTS;
                 count++;
