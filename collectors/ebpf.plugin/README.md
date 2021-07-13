@@ -224,6 +224,7 @@ The eBPF collector enables and runs the following eBPF programs by default:
     bandwidth consumed by each.
 -   `sync`: Montitor calls for syscalls sync(2), fsync(2), fdatasync(2), syncfs(2), msync(2), and sync_file_range(2).
 -   `vfs`: This eBPF program creates charts that show information about VFS (Virtual File System) functions.
+-   `mount` : This eBPF program creates charts that monitors when devices are inserted or removed from host.
 
 ## Thread configuration
 
@@ -243,6 +244,7 @@ The following configuration files are available:
 - `dcstat.conf`: Configuration for the `dcstat` thread.
 - `disk.conf`: Configuration for the `disk` thread.
 - `filesystem.conf`: Configuration for the `filesystem` thread.
+- `mount.conf`: Configuration for the `mount` thread.
 - `process.conf`: Configuration for the `process` thread.
 - `network.conf`: Configuration for the `network viewer` thread. This config file overwrites the global options and
   also lets you specify which network the eBPF collector monitors.
