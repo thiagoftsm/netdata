@@ -3532,20 +3532,21 @@ netdataDashboard.context = {
     },
 
     'filesystem.zfs_read_latency': {
-        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_iter_read</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/nfsdist_example.txt" target="_blank">nfsdist</a> from BCC tools.'
+        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_iter_read</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/zfsdist_example.txt" target="_blank">zfsdist</a> from BCC tools.'
     },
 
     'filesystem.zfs_write_latency': {
-        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_iter_write</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/nfsdist_example.txt" target="_blank">nfsdist</a> from BCC tools.'
+        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_iter_write</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/zfsdist_example.txt" target="_blank">zfsdist</a> from BCC tools.'
     },
 
     'filesystem.zfs_open_latency': {
-        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when function <code>zpl_open</code> is called and another for when they finish the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/nfsdist_example.txt" target="_blank">nfsdist</a> from BCC tools.'
+        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_open</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/zfsdist_example.txt" target="_blank">zfsdist</a> from BCC tools.'
     },
 
     'filesystem.zfs_sync_latency': {
-        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_fsync</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="http://www.brendangregg.com/blog/2016-10-06/linux-bcc-ext4dist-ext4slower.html" target="_blank">ext4dist</a> from BCC tools.'
+        info: 'Latency is the time it takes for an event to be completed. Netdata is attaching a kprobe for when the function <code>zpl_fsync</code> is called and another for when it finishes the execution. We calculate the difference between the calling and return times, we get the logarithmic for the final result and we sum one value to the respective bin. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/zfsdist_example.txt" target="_blank">zfsdist</a> from BCC tools.'
     },
+
 
     // ------------------------------------------------------------------------
     // eBPF
