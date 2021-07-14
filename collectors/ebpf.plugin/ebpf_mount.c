@@ -115,9 +115,6 @@ void *ebpf_mount_read_hash(void *ptr)
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
 
-    netdata_thread_create(mount_threads.thread, mount_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
-                          ebpf_mount_read_hash, em);
-
     usec_t step = NETDATA_LATENCY_MOUNT_SLEEP_MS * em->update_time;
     while (!close_ebpf_plugin) {
         usec_t dt = heartbeat_next(&hb, step);
@@ -135,18 +132,20 @@ void *ebpf_mount_read_hash(void *ptr)
  *
  * @param em the structure with thread information
 */
-static void ebpf_mount_send_data(ebpf_module_t *em)
+static void ebpf_mount_send_data()
 {
-    int i;
-    int end = NETDATA_MOUNT_END;
-    for (i = NETDATA_KEY_MOUNT_CALL; i < end; i++)
+    int i, j;
+    int end = NETDATA_EBPF_MOUNT_SYSCALL;
+    for (i = NETDATA_KEY_MOUNT_CALL, j = NETDATA_KEY_MOUNT_ERROR; i < end; i++, j++) {
         mount_publish_aggregated[i].ncall = mount_hash_values[i];
+        mount_publish_aggregated[i].nerr = mount_hash_values[j];
+    }
 
     write_count_chart(NETDATA_EBPF_MOUNT_CALLS, NETDATA_FILESYSTEM_FAMILY,
-                      &mount_publish_aggregated[NETDATA_KEY_MOUNT_CALL], NETDATA_EBPF_MOUNT_SYSCALL);
+                      mount_publish_aggregated, NETDATA_EBPF_MOUNT_SYSCALL);
 
-    write_count_chart(NETDATA_EBPF_MOUNT_ERRORS, NETDATA_FILESYSTEM_FAMILY,
-                      &mount_publish_aggregated[NETDATA_KEY_MOUNT_ERROR], NETDATA_EBPF_MOUNT_SYSCALL);
+    write_err_chart(NETDATA_EBPF_MOUNT_ERRORS, NETDATA_FILESYSTEM_FAMILY,
+                      mount_publish_aggregated, NETDATA_EBPF_MOUNT_SYSCALL);
 }
 
 /**
@@ -160,13 +159,16 @@ static void mount_collector(ebpf_module_t *em)
 
     mount_values = callocz((size_t)ebpf_nprocs, sizeof(netdata_idx_t));
 
+    netdata_thread_create(mount_threads.thread, mount_threads.name, NETDATA_THREAD_OPTION_JOINABLE,
+                          ebpf_mount_read_hash, em);
+
     while (!close_ebpf_plugin) {
         pthread_mutex_lock(&collect_data_mutex);
         pthread_cond_wait(&collect_data_cond_var, &collect_data_mutex);
 
         pthread_mutex_lock(&lock);
 
-        ebpf_mount_send_data(em);
+        ebpf_mount_send_data();
 
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&collect_data_mutex);
