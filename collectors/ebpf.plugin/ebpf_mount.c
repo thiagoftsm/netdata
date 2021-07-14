@@ -141,10 +141,10 @@ static void ebpf_mount_send_data()
         mount_publish_aggregated[i].nerr = mount_hash_values[j];
     }
 
-    write_count_chart(NETDATA_EBPF_MOUNT_CALLS, NETDATA_FILESYSTEM_FAMILY,
+    write_count_chart(NETDATA_EBPF_MOUNT_CALLS, NETDATA_EBPF_MOUNT_GLOBAL_FAMILY,
                       mount_publish_aggregated, NETDATA_EBPF_MOUNT_SYSCALL);
 
-    write_err_chart(NETDATA_EBPF_MOUNT_ERRORS, NETDATA_FILESYSTEM_FAMILY,
+    write_err_chart(NETDATA_EBPF_MOUNT_ERRORS, NETDATA_EBPF_MOUNT_GLOBAL_FAMILY,
                       mount_publish_aggregated, NETDATA_EBPF_MOUNT_SYSCALL);
 }
 
@@ -188,21 +188,21 @@ static void mount_collector(ebpf_module_t *em)
  */
 static void ebpf_create_mount_charts()
 {
-    ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, NETDATA_EBPF_MOUNT_CALLS,
-                      "Calls to mount and umount mountpoints",
+    ebpf_create_chart(NETDATA_EBPF_MOUNT_GLOBAL_FAMILY, NETDATA_EBPF_MOUNT_CALLS,
+                      "Calls to mount and umount mountpoints.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_EBPF_MOUNT_FAMILY,
                       NULL,
                       NETDATA_EBPF_CHART_TYPE_LINE,
-                      21200,
+                      NETDATA_CHART_PRIO_EBPF_MOUNT_CHARTS,
                       ebpf_create_global_dimension,
                       mount_publish_aggregated, NETDATA_EBPF_MOUNT_SYSCALL);
 
-    ebpf_create_chart(NETDATA_FILESYSTEM_FAMILY, NETDATA_EBPF_MOUNT_ERRORS,
-                      "Errors to mount and umount mountpoints",
+    ebpf_create_chart(NETDATA_EBPF_MOUNT_GLOBAL_FAMILY, NETDATA_EBPF_MOUNT_ERRORS,
+                      "Errors to mount and umount mountpoints.",
                       EBPF_COMMON_DIMENSION_CALL, NETDATA_EBPF_MOUNT_FAMILY,
                       NULL,
                       NETDATA_EBPF_CHART_TYPE_LINE,
-                      21200,
+                      NETDATA_CHART_PRIO_EBPF_MOUNT_CHARTS + 1,
                       ebpf_create_global_dimension,
                       mount_publish_aggregated, NETDATA_EBPF_MOUNT_SYSCALL);
 

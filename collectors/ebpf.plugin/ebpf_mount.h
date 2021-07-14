@@ -7,8 +7,8 @@
 
 #define NETDATA_LATENCY_MOUNT_SLEEP_MS 700000ULL
 
-#define NETDATA_EBPF_MOUNT_CALLS "mount_points_call"
-#define NETDATA_EBPF_MOUNT_ERRORS "mount_points_error"
+#define NETDATA_EBPF_MOUNT_CALLS "call"
+#define NETDATA_EBPF_MOUNT_ERRORS "error"
 #define NETDATA_EBPF_MOUNT_FAMILY "mount (eBPF)"
 
 enum mount_counters {
