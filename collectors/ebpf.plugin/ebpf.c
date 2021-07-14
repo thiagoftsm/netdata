@@ -1029,7 +1029,7 @@ static void read_collector_values(int *disable_apps)
     }
 
     enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "mount",
-                                    CONFIG_BOOLEAN_NO);
+                                    CONFIG_BOOLEAN_YES);
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_MOUNT_IDX, *disable_apps);
         started++;
