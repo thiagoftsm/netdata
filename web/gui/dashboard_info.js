@@ -3578,6 +3578,13 @@ netdataDashboard.context = {
     },
 
     // ------------------------------------------------------------------------
+    // perf
+
+    'perf.instructions_cycle' : {
+        info: 'An IPC < 1.0 likely means memory bound, and an IPC > 1.0 likely means instruction bound. \n.\n'
+    },
+
+    // ------------------------------------------------------------------------
     // eBPF
 
     'ebpf.tcp_functions': {
