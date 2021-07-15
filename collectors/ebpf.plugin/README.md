@@ -244,6 +244,7 @@ The following configuration files are available:
 - `dcstat.conf`: Configuration for the `dcstat` thread.
 - `disk.conf`: Configuration for the `disk` thread.
 - `filesystem.conf`: Configuration for the `filesystem` thread.
+- `md.conf`: Configuration for the `multi disk` thread.
 - `mount.conf`: Configuration for the `mount` thread.
 - `process.conf`: Configuration for the `process` thread.
 - `network.conf`: Configuration for the `network viewer` thread. This config file overwrites the global options and
