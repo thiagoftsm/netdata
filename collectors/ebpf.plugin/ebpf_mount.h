@@ -28,4 +28,4 @@ extern struct config mount_config;
 
 extern void *ebpf_mount_thread(void *ptr);
 
-#endif
+#endif /* NETDATA_EBPF_MOUNT_H */

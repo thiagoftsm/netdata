@@ -492,6 +492,8 @@ set(EBPF_PROCESS_PLUGIN_FILES
         collectors/ebpf.plugin/ebpf_dcstat.h
         collectors/ebpf.plugin/ebpf_disk.c
         collectors/ebpf.plugin/ebpf_disk.h
+        collectors/ebpf.plugin/ebpf_md.c
+        collectors/ebpf.plugin/ebpf_md.h
         collectors/ebpf.plugin/ebpf_mount.c
         collectors/ebpf.plugin/ebpf_mount.h
         collectors/ebpf.plugin/ebpf_filesystem.c
