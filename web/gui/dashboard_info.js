@@ -3570,12 +3570,17 @@ netdataDashboard.context = {
     },
 
     'mount_points.call': {
-        info: 'Monitor calls for syscalls mount() and umount() that are responsible to attach or remove file systems given as argument.\n'
+        info: 'Monitor calls for syscalls mount() and umount() that are responsible to attach or remove file systems given as argument.'
     },
 
     'mount_points.error': {
-        info: 'Monitor errors when syscalls mount() and umount() were called.\n'
+        info: 'Monitor errors when syscalls mount() and umount() were called.'
     },
+
+    'mdstat.call': {
+        info: 'This eBPF chart monitors consolidation of flushes and submitting any flushes needed for an input or output using the specific flag REQ_PREFLUSH. Based on the eBPF <a href="https://github.com/iovisor/bcc/blob/master/tools/mdflush_example.txt" target="_blank">mdflush</a> from BCC tools.'
+    },
+
 
     // ------------------------------------------------------------------------
     // perf

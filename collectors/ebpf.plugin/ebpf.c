@@ -702,6 +702,8 @@ void ebpf_print_help()
             "\n"
             " --mount or -m       Enable charts related to mount monitoring.\n"
             "\n"
+            " --md or -u          Enable charts related to multi disk monitoring.\n"
+            "\n"
             " --filesystem or -i  Enable chart related to filesystem run time.\n"
             "\n"
             " --net or -n         Enable network viewer charts.\n"
@@ -1040,6 +1042,13 @@ static void read_collector_values(int *disable_apps)
         started++;
     }
 
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "md",
+                                    CONFIG_BOOLEAN_YES);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_MD_IDX, *disable_apps);
+        started++;
+    }
+
     if (!started){
         ebpf_enable_all_charts(*disable_apps);
         // Read network viewer section
@@ -1125,6 +1134,7 @@ static void parse_args(int argc, char **argv)
         {"cachestat",  no_argument,    0,  'c' },
         {"dcstat",     no_argument,    0,  'd' },
         {"disk",       no_argument,    0,  'k' },
+        {"md",      no_argument,    0,  'u' },
         {"mount",      no_argument,    0,  'm' },
         {"filesystem", no_argument,    0,  'i' },
         {"net",        no_argument,    0,  'n' },
@@ -1263,6 +1273,14 @@ static void parse_args(int argc, char **argv)
                 ebpf_enable_chart(EBPF_MODULE_VFS_IDX, disable_apps);
 #ifdef NETDATA_INTERNAL_CHECKS
                 info("EBPF enabling \"vfs\" chart, because it was started with the option \"--vfs\" or \"-f\".");
+#endif
+                break;
+            }
+            case 'u': {
+                enabled = 1;
+                ebpf_enable_chart(EBPF_MODULE_MD_IDX, disable_apps);
+#ifdef NETDATA_INTERNAL_CHECKS
+                info("EBPF enabling \"multi device\" chart, because it was started with the option \"--md\" or \"-u\".");
 #endif
                 break;
             }
@@ -1413,6 +1431,8 @@ int main(int argc, char **argv)
             NULL, NULL, ebpf_modules[EBPF_MODULE_DISK_IDX].start_routine},
         {"EBPF MOUNT" , NULL, NULL, 1,
             NULL, NULL, ebpf_modules[EBPF_MODULE_MOUNT_IDX].start_routine},
+        {"EBPF MD" , NULL, NULL, 1,
+            NULL, NULL, ebpf_modules[EBPF_MODULE_MD_IDX].start_routine},
         {NULL          , NULL, NULL, 0,
           NULL, NULL, NULL}
     };
