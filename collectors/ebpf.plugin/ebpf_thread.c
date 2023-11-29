@@ -257,8 +257,7 @@ void ebpf_bugs_sum_pids(ebpf_mem_publish_stat_t *publish, Pvoid_t JudyLArray, RW
                 data->signal = src->signal;
             data->size_allocated += src->size_allocated;
             data->size_released += src->size_released;
-            if (data->stopped)
-                data->stopped = src->stopped;
+            data->stopped += src->stopped;
             if (pid_ptr->thread.data.stopped && !pid_ptr->thread.published) {
                 publish->leak += pid_ptr->thread.leak;
                 pid_ptr->thread.published = 1;
@@ -305,7 +304,7 @@ void ebpf_thread_create_apps_charts(struct ebpf_module *em, void *ptr)
                              w->clean_name,
                              "_ebpf_thread_thread_exit",
                              "Threads that were stopped.",
-                             EBPF_COMMON_DIMENSION_BOOL,
+                             EBPF_COMMON_DIMENSION_CALL,
                              NETDATA_BUG_SUBMENU,
                              NETDATA_EBPF_CHART_TYPE_LINE,
                              "app.ebpf_thread_thread_exit",
@@ -314,7 +313,7 @@ void ebpf_thread_create_apps_charts(struct ebpf_module *em, void *ptr)
                              NETDATA_EBPF_MODULE_NAME_BUG);
         ebpf_create_chart_labels("app_group", w->name, 0);
         ebpf_commit_label();
-        fprintf(stdout, "DIMENSION exit '' %s 1 1\n", ebpf_algorithms[NETDATA_EBPF_ABSOLUTE_IDX]);
+        fprintf(stdout, "DIMENSION call '' %s 1 1\n", ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX]);
 
         ebpf_write_chart_cmd(NETDATA_APP_FAMILY,
                              w->clean_name,
@@ -460,7 +459,7 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
 
         ebpf_write_begin_chart(NETDATA_APP_FAMILY, w->clean_name, "_ebpf_thread_thread_exit");
         value = (collected_number) w->thread.data.stopped;
-        write_chart_dimension("exit", value);
+        write_chart_dimension("call", value);
         ebpf_write_end_chart();
 
         NETDATA_DOUBLE mem_allocated = (NETDATA_DOUBLE)w->thread.data.size_allocated;
@@ -626,8 +625,7 @@ static void ebpf_bugs_apps_accumulator(ebpf_mem_stat_t *out, int maps_per_core)
             total->signal = w->signal;
         total->size_allocated += w->size_allocated;
         total->size_released += w->size_released;
-        if (total->stopped)
-            total->stopped = w->stopped;
+        total->stopped += w->stopped;
 
         if (!isascii(total->name[0]) && isascii(w->name[0])) {
             strncpyz(total->name, w->name, TASK_COMM_LEN);
