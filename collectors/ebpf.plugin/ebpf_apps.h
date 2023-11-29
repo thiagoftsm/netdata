@@ -34,6 +34,7 @@
 #include "ebpf_softirq.h"
 #include "ebpf_sync.h"
 #include "ebpf_swap.h"
+#include "ebpf_thread.h"
 #include "ebpf_vfs.h"
 
 #define EBPF_MAX_COMPARE_NAME 100

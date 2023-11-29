@@ -281,6 +281,20 @@ ebpf_module_t ebpf_modules[] = {
       .kernels =  NETDATA_V3_10 | NETDATA_V4_14 | NETDATA_V4_16 | NETDATA_V4_18 | NETDATA_V5_4 | NETDATA_V5_14,
       .load = EBPF_LOAD_LEGACY, .targets = mdflush_targets, .probe_links = NULL, .objects = NULL,
       .thread = NULL, .maps_per_core = CONFIG_BOOLEAN_YES, .lifetime = EBPF_DEFAULT_LIFETIME, .running_time = 0},
+    { .info = { .thread_name = "thread",
+      .config_name = "thread",
+      .thread_description = NETDATA_EBPF_MD_MODULE_DESC},
+      .functions = {.start_routine = ebpf_thread_monitoring,
+            .apps_routine = NULL,
+            .fnct_routine = NULL},
+      .enabled = NETDATA_THREAD_EBPF_NOT_RUNNING,
+      .update_every = EBPF_DEFAULT_UPDATE_EVERY, .global_charts = 1, .apps_charts = NETDATA_EBPF_APPS_FLAG_NO,
+      .apps_level = NETDATA_APPS_NOT_SET, .cgroup_charts = CONFIG_BOOLEAN_NO, .mode = MODE_ENTRY, .optional = 0,
+      .maps = NULL, .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL, .cfg = &thread_config,
+      .config_file = NETDATA_DIRECTORY_MDFLUSH_CONFIG_FILE,
+      .kernels =  NETDATA_V3_10 | NETDATA_V4_14 | NETDATA_V4_16 | NETDATA_V4_18 | NETDATA_V5_4 | NETDATA_V5_14,
+      .load = EBPF_LOAD_LEGACY, .targets = thread_targets, .probe_links = NULL, .objects = NULL,
+      .thread = NULL, .maps_per_core = CONFIG_BOOLEAN_YES, .lifetime = EBPF_DEFAULT_LIFETIME, .running_time = 0},
     {  .info = { .thread_name = "functions",
               .config_name = "functions",
               .thread_description = NETDATA_EBPF_FUNCTIONS_MODULE_DESC},
@@ -457,6 +471,16 @@ struct netdata_static_thread ebpf_threads[] = {
     },
     {
         .name = "EBPF MDFLUSH",
+        .config_section = NULL,
+        .config_name = NULL,
+        .env_name = NULL,
+        .enabled = 1,
+        .thread = NULL,
+        .init_routine = NULL,
+        .start_routine = NULL
+    },
+    {
+        .name = "EBPF THREAD",
         .config_section = NULL,
         .config_name = NULL,
         .env_name = NULL,
@@ -2975,6 +2999,12 @@ static void read_collector_values(int *disable_cgroups,
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_MDFLUSH_IDX, *disable_cgroups);
     }
+
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "thread",
+                                    CONFIG_BOOLEAN_YES);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_THREAD_IDX, *disable_cgroups);
+    }
 }
 
 /**
@@ -3121,6 +3151,7 @@ static void ebpf_parse_args(int argc, char **argv)
         {"oomkill",        no_argument,    0,  0 },
         {"shm",            no_argument,    0,  0 },
         {"mdflush",        no_argument,    0,  0 },
+        {"threads",        no_argument,    0,  0 },
         /* INSERT NEW THREADS BEFORE THIS COMMENT TO KEEP COMPATIBILITY WITH enum ebpf_module_indexes */
         {"all",            no_argument,    0,  0 },
         {"version",        no_argument,    0,  0 },
@@ -3274,6 +3305,13 @@ static void ebpf_parse_args(int argc, char **argv)
                 select_threads |= 1<<EBPF_MODULE_MDFLUSH_IDX;
 #ifdef NETDATA_INTERNAL_CHECKS
                 netdata_log_info("EBPF enabling \"MDFLUSH\" chart, because it was started with the option \"[-]-mdflush\".");
+#endif
+                break;
+            }
+            case EBPF_MODULE_THREAD_IDX: {
+                select_threads |= 1<<EBPF_MODULE_THREAD_IDX;
+#ifdef NETDATA_INTERNAL_CHECKS
+                netdata_log_info("EBPF enabling \"THREAD\" chart, because it was started with the option \"[-]-thread\".");
 #endif
                 break;
             }
