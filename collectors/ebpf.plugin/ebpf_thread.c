@@ -253,8 +253,7 @@ void ebpf_bugs_sum_pids(ebpf_mem_publish_stat_t *publish, Pvoid_t JudyLArray, RW
             data->released += src->released;
             data->safe_functions += src->safe_functions;
             data->unsafe_functions += src->unsafe_functions;
-            if (data->signal)
-                data->signal = src->signal;
+            data->signal = src->signal;
             data->size_allocated += src->size_allocated;
             data->size_released += src->size_released;
             data->stopped += src->stopped;
@@ -434,7 +433,7 @@ void ebpf_thread_create_apps_charts(struct ebpf_module *em, void *ptr)
                              NETDATA_EBPF_MODULE_NAME_BUG);
         ebpf_create_chart_labels("app_group", w->name, 0);
         ebpf_commit_label();
-        fprintf(stdout, "DIMENSION signal '' %s 1 1\n", ebpf_algorithms[NETDATA_EBPF_ABSOLUTE_IDX]);
+        fprintf(stdout, "DIMENSION signal '' %s 1 1\n", ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX]);
 
         w->charts_created |= 1<<EBPF_MODULE_THREAD_IDX;
     }
@@ -621,8 +620,7 @@ static void ebpf_bugs_apps_accumulator(ebpf_mem_stat_t *out, int maps_per_core)
         total->released += w->released;
         total->safe_functions += w->safe_functions;
         total->unsafe_functions += w->unsafe_functions;
-        if (w->signal)
-            total->signal = w->signal;
+        total->signal += w->signal;
         total->size_allocated += w->size_allocated;
         total->size_released += w->size_released;
         total->stopped += w->stopped;
