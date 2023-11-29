@@ -249,6 +249,8 @@ void ebpf_shm_aral_init();
 netdata_publish_shm_t *ebpf_shm_stat_get(void);
 void ebpf_shm_release(netdata_publish_shm_t *stat);
 
+extern uint32_t ebpf_find_pid(const char *name);
+
 // ARAL Section end
 
 // Threads integrated with apps

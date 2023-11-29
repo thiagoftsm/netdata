@@ -291,7 +291,7 @@ ebpf_module_t ebpf_modules[] = {
       .update_every = EBPF_DEFAULT_UPDATE_EVERY, .global_charts = 1, .apps_charts = NETDATA_EBPF_APPS_FLAG_NO,
       .apps_level = NETDATA_APPS_NOT_SET, .cgroup_charts = CONFIG_BOOLEAN_NO, .mode = MODE_ENTRY, .optional = 0,
       .maps = NULL, .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL, .cfg = &thread_config,
-      .config_file = NETDATA_DIRECTORY_MDFLUSH_CONFIG_FILE,
+      .config_file = NETDATA_EBPF_THREAD_CONFIG_FILE,
       .kernels =  NETDATA_V3_10 | NETDATA_V4_14 | NETDATA_V4_16 | NETDATA_V4_18 | NETDATA_V5_4 | NETDATA_V5_14,
       .load = EBPF_LOAD_LEGACY, .targets = thread_targets, .probe_links = NULL, .objects = NULL,
       .thread = NULL, .maps_per_core = CONFIG_BOOLEAN_YES, .lifetime = EBPF_DEFAULT_LIFETIME, .running_time = 0},

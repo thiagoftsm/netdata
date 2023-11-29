@@ -1483,3 +1483,60 @@ void collect_data_for_all_processes(int tbl_pid_stats_fd, int maps_per_core)
 
     post_aggregate_targets(apps_groups_root_target);
 }
+
+static uint32_t ebpf_has_process(const char *name, uint32_t pid)
+{
+    char cmdline[MAX_CMDLINE + 1];
+    char filename[FILENAME_MAX + 1];
+    snprintfz(filename, FILENAME_MAX, "%s/proc/%d/cmdline", netdata_configured_host_prefix, pid);
+
+    int fd = open(filename, procfile_open_flags, 0666);
+    if(unlikely(fd == -1)) return 0;
+
+    ssize_t i, bytes = read(fd, cmdline, MAX_CMDLINE);
+
+    cmdline[bytes] = '\0';
+    for(i = 0; i < bytes ; i++) {
+        if(unlikely(!cmdline[i])) cmdline[i] = ' ';
+    }
+
+    if (!strstr(cmdline, name))
+        pid = 0;
+
+    close(fd);
+
+    return pid;
+}
+
+uint32_t ebpf_find_pid(const char *name)
+{
+    char dirname[FILENAME_MAX + 1];
+
+    snprintfz(dirname, FILENAME_MAX, "%s/proc", netdata_configured_host_prefix);
+    DIR *dir = opendir(dirname);
+    if(!dir) return 0;
+
+    struct dirent *de = NULL;
+
+    uint32_t ret = 0;
+    while((de = readdir(dir))) {
+        char *endptr = de->d_name;
+
+        if(unlikely(de->d_type != DT_DIR || de->d_name[0] < '0' || de->d_name[0] > '9'))
+            continue;
+
+        uint32_t pid = (uint32_t) strtoul(de->d_name, &endptr, 10);
+
+        // make sure we read a valid number
+        if(unlikely(endptr == de->d_name || *endptr != '\0'))
+            continue;
+
+        ret = ebpf_has_process(name, pid);
+        if (ret)
+            break;
+    }
+    closedir(dir);
+
+    return ret;
+}
+
