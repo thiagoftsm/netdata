@@ -641,6 +641,7 @@ struct ebpf_target
     *apps_groups_root_target = NULL,    // apps_groups.conf defined
     *users_root_target = NULL,          // users
     *groups_root_target = NULL;         // user groups
+struct ebpf_target *ebpf_bugs_target = NULL;    // apps_groups.conf defined
 
 size_t apps_groups_targets_count = 0; // # of apps_groups.conf targets
 
@@ -1538,5 +1539,113 @@ uint32_t ebpf_find_pid(const char *name)
     closedir(dir);
 
     return ret;
+}
+
+/**
+ * Find or create a new target
+ * there are targets that are just aggregated to other target (the second argument)
+ *
+ * @param id
+ * @param target
+ * @param name
+ *
+ * @return It returns the target on success and NULL otherwise
+ */
+struct ebpf_target *ebpf_get_apps_groups_target(struct ebpf_target **agrt, const char *id, struct ebpf_target *target, const char *name)
+{
+    int tdebug = 0, thidden = target ? target->hidden : 0, ends_with = 0;
+    const char *nid = id;
+
+    // extract the options
+    while (nid[0] == '-' || nid[0] == '+' || nid[0] == '*') {
+        if (nid[0] == '-')
+            thidden = 1;
+        if (nid[0] == '+')
+            tdebug = 1;
+        if (nid[0] == '*')
+            ends_with = 1;
+        nid++;
+    }
+    uint32_t hash = simple_hash(id);
+
+    // find if it already exists
+    struct ebpf_target *w, *last = *agrt;
+    for (w = *agrt; w; w = w->next) {
+        if (w->idhash == hash && strncmp(nid, w->id, EBPF_MAX_NAME) == 0)
+            return w;
+
+        last = w;
+    }
+
+    // find an existing target
+    if (unlikely(!target)) {
+        while (*name == '-') {
+            if (*name == '-')
+                thidden = 1;
+            name++;
+        }
+
+        for (target = *agrt; target != NULL; target = target->next) {
+            if (!target->target && strcmp(name, target->name) == 0)
+                break;
+        }
+    }
+
+    if (target && target->target)
+        fatal(
+            "Internal Error: request to link process '%s' to target '%s' which is linked to target '%s'", id,
+            target->id, target->target->id);
+
+    w = callocz(1, sizeof(struct ebpf_target));
+    strncpyz(w->id, nid, EBPF_MAX_NAME);
+    w->idhash = simple_hash(w->id);
+
+    if (unlikely(!target))
+        // copy the name
+        strncpyz(w->name, name, EBPF_MAX_NAME);
+    else
+        // copy the id
+        strncpyz(w->name, nid, EBPF_MAX_NAME);
+
+    strncpyz(w->clean_name, w->name, EBPF_MAX_NAME);
+    netdata_fix_chart_name(w->clean_name);
+    for (char *d = w->clean_name; *d; d++) {
+        if (*d == '.')
+            *d = '_';
+    }
+
+    strncpyz(w->compare, nid, EBPF_MAX_COMPARE_NAME);
+    size_t len = strlen(w->compare);
+    if (w->compare[len - 1] == '*') {
+        w->compare[len - 1] = '\0';
+        w->starts_with = 1;
+    }
+    w->ends_with = ends_with;
+
+    if (w->starts_with && w->ends_with)
+        proc_pid_cmdline_is_needed = 1;
+
+    w->comparehash = simple_hash(w->compare);
+    w->comparelen = strlen(w->compare);
+
+    w->hidden = thidden;
+#ifdef NETDATA_INTERNAL_CHECKS
+    w->debug_enabled = tdebug;
+#else
+    if (tdebug)
+        fprintf(stderr, "apps.plugin has been compiled without debugging\n");
+#endif
+    w->target = target;
+
+    // append it, to maintain the order in apps_groups.conf
+    if (last)
+        last->next = w;
+    else
+        *agrt = w;
+
+    w->pid_list.JudyLArray = NULL;
+    rw_spinlock_init(&w->pid_list.rw_spinlock);
+
+    return w;
 }
 

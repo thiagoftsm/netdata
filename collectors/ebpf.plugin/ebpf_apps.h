@@ -18,6 +18,11 @@
 #define NETDATA_APPS_NET_GROUP "net"
 #define NETDATA_APPS_IPC_SHM_GROUP "ipc shm"
 
+// Constant defined inside kernel source (https://elixir.bootlin.com/linux/latest/source/include/linux/sched.h#L292)
+#ifndef TASK_COMM_LEN
+#define TASK_COMM_LEN 16
+#endif
+
 #include "ebpf_process.h"
 #include "ebpf_dcstat.h"
 #include "ebpf_disk.h"
@@ -54,6 +59,12 @@ struct ebpf_target {
 
     char name[EBPF_MAX_NAME + 1];
     char clean_name[EBPF_MAX_NAME + 1]; // sanitized name used in chart id (need to replace at least dots)
+                                        //
+    // Index for associated PIDs
+    struct {                            // support for multiple indexing engines
+        Pvoid_t JudyLArray;            // the hash table
+        RW_SPINLOCK rw_spinlock;        // protect the index
+    } pid_list;
 
     // Changes made to simplify integration between apps and eBPF.
     netdata_publish_cachestat_t cachestat;
@@ -62,6 +73,7 @@ struct ebpf_target {
     netdata_publish_vfs_t vfs;
     netdata_fd_stat_t fd;
     netdata_publish_shm_t shm;
+    ebpf_mem_publish_stat_t thread;
 
     kernel_uint_t starttime;
     kernel_uint_t collected_starttime;
@@ -248,8 +260,10 @@ extern ARAL *ebpf_aral_shm_pid;
 void ebpf_shm_aral_init();
 netdata_publish_shm_t *ebpf_shm_stat_get(void);
 void ebpf_shm_release(netdata_publish_shm_t *stat);
+extern struct ebpf_target *ebpf_bugs_target;    // apps_groups.conf defined
 
 extern uint32_t ebpf_find_pid(const char *name);
+extern struct ebpf_target *ebpf_get_apps_groups_target(struct ebpf_target **agrt, const char *id, struct ebpf_target *target, const char *name);
 
 // ARAL Section end
 

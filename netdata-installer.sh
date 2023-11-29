@@ -964,10 +964,10 @@ bundle_ebpf_co_re() {
 
   progress "eBPF CO-RE"
 
-  CORE_PACKAGE_VERSION="$(cat packaging/ebpf-co-re.version)"
+#  CORE_PACKAGE_VERSION="$(cat packaging/ebpf-co-re.version)"
 
-  tmp="$(mktemp -d -t netdata-ebpf-co-re-XXXXXX)"
-  CORE_PACKAGE_BASENAME="netdata-ebpf-co-re-glibc-${CORE_PACKAGE_VERSION}.tar.xz"
+#  tmp="$(mktemp -d -t netdata-ebpf-co-re-XXXXXX)"
+#  CORE_PACKAGE_BASENAME="netdata-ebpf-co-re-glibc-${CORE_PACKAGE_VERSION}.tar.xz"
 
   if fetch_and_verify "ebpf-co-re" \
     "https://github.com/netdata/ebpf-co-re/releases/download/${CORE_PACKAGE_VERSION}/${CORE_PACKAGE_BASENAME}" \

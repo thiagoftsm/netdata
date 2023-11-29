@@ -285,7 +285,7 @@ ebpf_module_t ebpf_modules[] = {
       .config_name = "thread",
       .thread_description = NETDATA_EBPF_MD_MODULE_DESC},
       .functions = {.start_routine = ebpf_thread_monitoring,
-            .apps_routine = NULL,
+                    .apps_routine = ebpf_thread_create_apps_charts,
             .fnct_routine = NULL},
       .enabled = NETDATA_THREAD_EBPF_NOT_RUNNING,
       .update_every = EBPF_DEFAULT_UPDATE_EVERY, .global_charts = 1, .apps_charts = NETDATA_EBPF_APPS_FLAG_NO,
@@ -715,6 +715,31 @@ void **ebpf_judy_insert_unsafe(PPvoid_t arr, Word_t key)
 }
 
 /**
+ * Add PID to APPs group
+ *
+ * This function adds a new PID for specific apps group.
+ *
+ * @param target    the apps group to associate data
+ * @param pid_ptr   the pointer to be stored
+ * @param pid       the current pid.
+ */
+void ebpf_add_pid_to_apps_group(struct ebpf_target *target,
+                                netdata_ebpf_judy_pid_stats_t *pid_ptr,
+                                uint32_t pid)
+{
+    netdata_ebpf_judy_pid_stats_t **group_pptr;
+    rw_spinlock_write_lock(&target->pid_list.rw_spinlock);
+    group_pptr = (netdata_ebpf_judy_pid_stats_t **)ebpf_judy_insert_unsafe(
+        &target->pid_list.JudyLArray, pid);
+    if (likely(*group_pptr == NULL)) {
+        *group_pptr = pid_ptr;
+    }
+    target->processes += 1;
+    rw_spinlock_write_unlock(&target->pid_list.rw_spinlock);
+}
+
+
+/**
  * Get PID from judy
  *
  * Get a pointer for the `pid` from judy_array;
@@ -1047,9 +1072,22 @@ static void ebpf_create_apps_charts(struct ebpf_target *root)
         }
     }
 
+    if (ebpf_bugs_target) {
+        int bugs = 0;
+        for (w = ebpf_bugs_target; w; w = w->next) {
+            if (!w->exposed && w->processes) {
+                w->exposed = 1;
+                bugs++;
+            }
+        }
+
+        if (bugs)
+            ebpf_create_apps_for_module(&ebpf_modules[EBPF_MODULE_THREAD_IDX], ebpf_bugs_target);
+    }
+
     int i;
     if (!newly_added) {
-        for (i = 0; i < EBPF_MODULE_FUNCTION_IDX ; i++) {
+        for (i = 0; i < EBPF_MODULE_THREAD_IDX ; i++) {
             ebpf_module_t *current = &ebpf_modules[i];
             if (current->apps_charts & NETDATA_EBPF_APPS_FLAG_CHART_CREATED)
                 continue;
@@ -1059,7 +1097,7 @@ static void ebpf_create_apps_charts(struct ebpf_target *root)
         return;
     }
 
-    for (i = 0; i < EBPF_MODULE_FUNCTION_IDX ; i++) {
+    for (i = 0; i < EBPF_MODULE_THREAD_IDX ; i++) {
         ebpf_module_t *current = &ebpf_modules[i];
         ebpf_create_apps_for_module(current, root);
     }

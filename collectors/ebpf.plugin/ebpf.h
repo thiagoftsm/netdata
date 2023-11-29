@@ -111,6 +111,12 @@ typedef struct netdata_ebpf_judy_pid {
 
 typedef struct netdata_ebpf_judy_pid_stats {
     char *cmdline;
+    char name[TASK_COMM_LEN + 1];
+    uint32_t hash_name;
+    size_t name_len;
+    struct ebpf_target *apps_target;
+
+    ebpf_mem_publish_stat_t thread;
 
     // Index for Socket timestamp
     struct {                            // support for multiple indexing engines
@@ -181,6 +187,8 @@ typedef struct ebpf_tracepoint {
 #define NETDATA_SYSTEM_CGROUP_SWAP_SUBMENU "swap (eBPF)"
 #define NETDATA_SYSTEM_IPC_SHM_SUBMENU "ipc shared memory"
 #define NETDATA_MONITORING_FAMILY "netdata"
+#define EBPF_COMMON_DIMENSION_BOOL "boolean"
+#define EBPF_COMMON_DIMENSION_LEAK "leak"
 
 // Statistics charts
 #define NETDATA_EBPF_THREADS "ebpf_threads"
@@ -388,6 +396,9 @@ extern ebpf_sync_syscalls_t local_syscalls[];
 extern bool ebpf_plugin_exit;
 void ebpf_stop_threads(int sig);
 extern netdata_ebpf_judy_pid_t ebpf_judy_pid;
+extern void ebpf_add_pid_to_apps_group(struct ebpf_target *target,
+                                netdata_ebpf_judy_pid_stats_t *pid_ptr,
+                                uint32_t pid);
 
 #define EBPF_MAX_SYNCHRONIZATION_TIME 300
 
