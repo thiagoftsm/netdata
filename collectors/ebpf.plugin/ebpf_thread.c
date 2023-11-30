@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "ebpf.h"
 #include "ebpf_thread.h"
 
@@ -729,18 +732,91 @@ void *ebpf_read_bugs_thread(void *ptr)
     return NULL;
 }
 
+/*
+ * Find the path of a library using ldconfig.
+ */
+static char *ebpf_find_library_path(const char *libname) {
+    char cmd[128];
+    static char path[FILENAME_MAX + 1];
+    char tmp[FILENAME_MAX + 1];
+    FILE *fp;
+
+    // Construct the ldconfig command with grep
+    snprintf(cmd, sizeof(cmd), "ldconfig -p | grep %s", libname);
+
+    // Execute the command and read the output
+    fp = popen(cmd, "r");
+    if (fp == NULL) {
+            perror("Failed to run ldconfig");
+            return NULL;
+    }
+
+    // Read the first line of output which should have the library path
+    if (fgets(path, sizeof(path) - 1, fp) != NULL) {
+        // Extract the path from the ldconfig output
+        char *start = strrchr(path, '>');
+        if (start && *(start + 1) == ' ') {
+            memmove(path, start + 2, strlen(start + 2) + 1);
+            char *end = strchr(path, '\n');
+            if (end) {
+                *end = '\0';  // Null-terminate the path
+            }
+            pclose(fp);
+            struct stat sb;
+            if (stat(path, &sb) == -1) {
+                return NULL;
+            }
+
+            switch (sb.st_mode & S_IFMT) {
+                case S_IFREG:{
+                    // Nothing to do, because it is a regular file
+                    break;
+                }
+                case S_IFLNK: {
+                    // When it is a symbolic link, it is necessary to find the regular file
+                    ssize_t nbytes = readlink(path, tmp, FILENAME_MAX);
+                    if (nbytes < 0)
+                        return NULL;
+
+                    tmp[nbytes] = '\0';
+                    char *overwrite = strrchr(path, '/');
+                    if (overwrite) {
+                        overwrite++;
+                        memcpy(overwrite, tmp, nbytes);
+                        overwrite[nbytes] = '\0';
+                    }
+
+                    break;
+                }
+                default: {
+                    return NULL;
+                }
+            }
+            return path;
+        }
+    }
+
+    pclose(fp);
+    return NULL;
+}
+
 
 /**
  * Parse table size options
  *
  * @param cfg configuration options read from user file.
  */
-void ebpf_parse_thread_opt(struct config *cfg)
+int ebpf_parse_thread_opt(struct config *cfg)
 {
+    char *path = ebpf_find_library_path((const char *)"libc.so.6");
     libc_path = appconfig_get(cfg,
                              EBPF_GLOBAL_SECTION,
                              NETDATA_EBPF_C_LIBRARY_OPT_PATH,
-                             NETDATA_EBPF_C_LIBRARY_PATH);
+                             path);
+    if (!libc_path) {
+        collector_error("Cannot find libc");
+        return -1;
+    }
 
     app_name = appconfig_get(cfg,
                               EBPF_GLOBAL_SECTION, NETDATA_EBPF_C_MONITOR_APP,
@@ -760,8 +836,10 @@ void ebpf_parse_thread_opt(struct config *cfg)
     }
 
 #ifdef NETDATA_DEV_MODE
-    collector_info("It was found the PID %u for process name %s", monitor_pid, app_name);
+    collector_info("It was found the PID %u for process name %s using library %s", monitor_pid, app_name, libc_path);
 #endif
+
+    return 0;
 }
 
 /**
@@ -791,7 +869,9 @@ void *ebpf_thread_monitoring(void *ptr)
     ebpf_module_t *em = (ebpf_module_t *)ptr;
     em->maps = thread_maps;
 
-    ebpf_parse_thread_opt(&thread_config);
+    if (ebpf_parse_thread_opt(&thread_config)) {
+        goto endbugs;
+    }
 
     ebpf_bug_pid.pid_table = ebpf_allocate_pid_aral(NETDATA_EBPF_PID_THREAD_ARAL_TABLE_NAME,
                                                     sizeof(netdata_ebpf_judy_pid_stats_t));
