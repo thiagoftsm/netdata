@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <stdio.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include "ebpf.h"
@@ -92,6 +93,8 @@ netdata_ebpf_targets_t thread_targets[] = { {.name = "malloc", .mode = EBPF_LOAD
 const char *libc_path = NULL;
 const char *app_name = NULL;
 static uint32_t monitor_pid = 0;
+static bool monitor_dad = false;
+static bool kill_pid = false;
 struct bugs_memleak_bpf *bugs_skel = NULL;
 ebpf_mem_stat_t *bugs_vector = NULL;
 
@@ -250,6 +253,9 @@ void ebpf_bugs_sum_pids(ebpf_mem_publish_stat_t *publish, Pvoid_t JudyLArray, RW
                                                                                1);
         if (pid_ptr) {
             ebpf_mem_stat_t *src = &pid_ptr->thread.data;
+            if (src->tgid)
+                data->tgid = src->tgid;
+
             data->alloc += src->alloc;
             data->oom += src->oom;
             data->str_copy_entry += src->str_copy_entry;
@@ -438,6 +444,22 @@ void ebpf_thread_create_apps_charts(struct ebpf_module *em, void *ptr)
         ebpf_commit_label();
         fprintf(stdout, "DIMENSION signal '' %s 1 1\n", ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX]);
 
+        ebpf_write_chart_cmd(NETDATA_APP_FAMILY,
+                             w->clean_name,
+                             "_ebpf_send_kill",
+                             "Plugin sent a signal to kill a process.",
+                             "signal",
+                             NETDATA_BUG_SUBMENU,
+                             NETDATA_EBPF_CHART_TYPE_LINE,
+                             "app.ebpf_send_kill",
+                             20569,
+                             update_every,
+                             NETDATA_EBPF_MODULE_NAME_BUG);
+        ebpf_create_chart_labels("app_group", w->name, 0);
+        ebpf_commit_label();
+        fprintf(stdout, "DIMENSION kill '' %s 1 1\n", ebpf_algorithms[NETDATA_EBPF_ABSOLUTE_IDX]);
+
+
         w->charts_created |= 1<<EBPF_MODULE_THREAD_IDX;
     }
     em->apps_charts |= NETDATA_EBPF_APPS_FLAG_CHART_CREATED;
@@ -459,6 +481,7 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
         if (unlikely(!(w->charts_created & (1 << EBPF_MODULE_THREAD_IDX))))
             continue;
 
+        collected_number send_kill = 0;
         ebpf_write_begin_chart(NETDATA_APP_FAMILY, w->clean_name, "_ebpf_thread_thread_exit");
         value = (collected_number) w->thread.data.stopped;
         write_chart_dimension("call", value);
@@ -486,6 +509,13 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
         write_chart_dimension("leak", value);
         ebpf_write_end_chart();
 
+        if (kill_pid && !monitor_dad && value) {
+            if (w->thread.data.tgid)
+                kill(w->thread.data.tgid, SIGKILL);
+
+            send_kill = 1;
+        }
+
         value = w->thread.data.oom;
         ebpf_write_begin_chart(NETDATA_APP_FAMILY, w->clean_name, "_ebpf_user_oom");
         write_chart_dimension("oom", value);
@@ -504,6 +534,10 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
         value = w->thread.data.signal;
         ebpf_write_begin_chart(NETDATA_APP_FAMILY, w->clean_name, "_ebpf_user_signal");
         write_chart_dimension("signal", value);
+        ebpf_write_end_chart();
+
+        ebpf_write_begin_chart(NETDATA_APP_FAMILY, w->clean_name, "_ebpf_send_kill");
+        write_chart_dimension("kill", send_kill);
         ebpf_write_end_chart();
     }
 }
@@ -823,9 +857,14 @@ int ebpf_parse_thread_opt(struct config *cfg)
                               NULL);
 
     monitor_pid = (uint32_t)appconfig_get_number(cfg,
-                               EBPF_GLOBAL_SECTION,
-                               NETDATA_EBPF_C_PID_SELECT,
-                               monitor_pid);
+                                                 EBPF_GLOBAL_SECTION,
+                                                 NETDATA_EBPF_C_PID_SELECT,
+                                                 monitor_pid);
+
+    kill_pid = appconfig_get_boolean(cfg,
+                                     EBPF_GLOBAL_SECTION,
+                                     NETDATA_EBPF_KILL_PID,
+                                     false);
 
     if (app_name) {
         monitor_pid =  ebpf_find_pid(app_name);
@@ -833,6 +872,7 @@ int ebpf_parse_thread_opt(struct config *cfg)
 
     if (!monitor_pid) {
         monitor_pid = getppid();
+        monitor_dad = true;
     }
 
 #ifdef NETDATA_DEV_MODE

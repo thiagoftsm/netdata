@@ -53,11 +53,12 @@ typedef struct ebpf_mem_publish_stat {
 #define NETDATA_EBPF_THREAD_CONFIG_FILE "thread.conf"
 
 #define NETDATA_EBPF_C_LIBRARY_OPT_PATH "libc path"
-#define NETDATA_EBPF_C_LIBRARY_PATH "/lib64/libc.so.6"
 
 #define NETDATA_EBPF_C_MONITOR_APP "monitor app"
 
 #define NETDATA_EBPF_C_PID_SELECT "monitor pid"
+
+#define NETDATA_EBPF_KILL_PID "kill parent pid"
 
 #define __ATTACH_UPROBE(skel, binary_path, pid, sym_name, prog_name, is_retprobe)   \
     do {                                                                       \
