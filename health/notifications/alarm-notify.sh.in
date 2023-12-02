@@ -1689,6 +1689,45 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
+# splunk sender
+
+send_splunk() {
+  local webhook="${1}" channels="${2}" httpcode sent=0 channel color payload
+
+  [ "${SEND_SPLUNK}" != "YES" ] && return 1
+
+  case "${status}" in
+  WARNING) color="warning" ;;
+  CRITICAL) color="danger" ;;
+  CLEAR) color="good" ;;
+  *) color="#777777" ;;
+  esac
+
+  for channel in ${channels}; do
+    # If channel is equal to "#" then do not send the channel attribute at all. Slack also defines channels and users in webhooks.
+    payload="$(
+      cat <<EOF
+        {
+            "event": "${alarm}, ${host}, ${status_message}, ${info}"
+        }
+EOF
+    )"
+
+    httpcode=$(docurl -k -H "Authorization: Splunk ${channel}" -d "${payload}" "${webhook}")
+    if [ "${httpcode}" = "200" ]; then
+      info "sent slack notification for: ${host} ${chart}.${name} is ${status} ${chstr}"
+      sent=$((sent + 1))
+    else
+      error "failed to send slack notification for: ${host} ${chart}.${name} is ${status} ${chstr}, with HTTP response status code ${httpcode}."
+    fi
+  done
+
+  [ ${sent} -gt 0 ] && return 0
+
+  return 1
+}
+
+# -----------------------------------------------------------------------------
 # rocketchat sender
 
 send_rocketchat() {
@@ -2569,6 +2608,16 @@ raised_for_html=
 send_slack "${SLACK_WEBHOOK_URL}" "${to_slack}"
 SENT_SLACK=$?
 
+# -----------------------------------------------------------------------------
+# send the splunk notification
+
+# slack aggregates posts from the same username
+# so we use "${host} ${status}" as the bot username, to make them diff
+
+send_splunk "${SPLUNK_WEBHOOK_URL}" "${to_splunk}"
+SENT_SPLUNK=$?
+
+# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # send the Microsoft Teams notification
 
@@ -3606,6 +3655,7 @@ for state in "${SENT_EMAIL}" \
   "${SENT_PUSHOVER}" \
   "${SENT_TELEGRAM}" \
   "${SENT_SLACK}" \
+  "${SENT_SPLUNK}" \
   "${SENT_ROCKETCHAT}" \
   "${SENT_ALERTA}" \
   "${SENT_FLOCK}" \

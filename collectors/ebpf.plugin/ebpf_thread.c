@@ -511,11 +511,11 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
         ebpf_write_end_chart();
 
         if (kill_pid && !monitor_dad && value) {
-            if (w->thread.data.tgid && !message_sent) {
-                kill(w->thread.data.tgid, SIGKILL);
+            if (!message_sent) {
+                kill(monitor_pid, SIGKILL);
                 message_sent = true;
-                send_kill = 1;
             }
+            send_kill = 1;
         }
 
         value = w->thread.data.oom;
