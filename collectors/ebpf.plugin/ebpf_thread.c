@@ -476,6 +476,7 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
 {
     struct ebpf_target *w;
     collected_number value;
+    static bool message_sent = false;
 
     for (w = root; w; w = w->next) {
         if (unlikely(!(w->charts_created & (1 << EBPF_MODULE_THREAD_IDX))))
@@ -510,10 +511,11 @@ void ebpf_bugs_send_apps_data(struct ebpf_target *root)
         ebpf_write_end_chart();
 
         if (kill_pid && !monitor_dad && value) {
-            if (w->thread.data.tgid)
+            if (w->thread.data.tgid && !message_sent) {
                 kill(w->thread.data.tgid, SIGKILL);
-
-            send_kill = 1;
+                message_sent = true;
+                send_kill = 1;
+            }
         }
 
         value = w->thread.data.oom;
@@ -702,6 +704,10 @@ static void ebpf_read_bugs_apps_table(int maps_per_core)
 
         ebpf_bugs_apps_accumulator(bv, maps_per_core);
 
+        if (key != monitor_pid && monitor_pid != bv->tgid) {
+            goto end_bugs_loop;
+        }
+
         rw_spinlock_write_lock(&ebpf_bug_pid.index.rw_spinlock);
         PPvoid_t judy_array = &ebpf_bug_pid.index.JudyLArray;
         netdata_ebpf_judy_pid_stats_t *pid_ptr = ebpf_get_pid_from_judy_bug_unsafe(judy_array,
@@ -870,7 +876,7 @@ int ebpf_parse_thread_opt(struct config *cfg)
         monitor_pid =  ebpf_find_pid(app_name);
     }
 
-    if (!monitor_pid) {
+    if (monitor_pid < 2) {
         monitor_pid = getppid();
         monitor_dad = true;
     }

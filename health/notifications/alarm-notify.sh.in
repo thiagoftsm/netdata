@@ -402,7 +402,7 @@ done
 # slack configs
 SLACK_WEBHOOK_URL=
 
-# splunk configs
+# slack configs
 SPLUNK_WEBHOOK_URL=
 
 # Microsoft Teams configs
@@ -1680,45 +1680,6 @@ EOF
       sent=$((sent + 1))
     else
       error "failed to send slack notification ${chstr} for ${notification_description}, with HTTP response status code ${httpcode}."
-    fi
-  done
-
-  [ ${sent} -gt 0 ] && return 0
-
-  return 1
-}
-
-# -----------------------------------------------------------------------------
-# splunk sender
-
-send_splunk() {
-  local webhook="${1}" channels="${2}" httpcode sent=0 channel color payload
-
-  [ "${SEND_SPLUNK}" != "YES" ] && return 1
-
-  case "${status}" in
-  WARNING) color="warning" ;;
-  CRITICAL) color="danger" ;;
-  CLEAR) color="good" ;;
-  *) color="#777777" ;;
-  esac
-
-  for channel in ${channels}; do
-    # If channel is equal to "#" then do not send the channel attribute at all. Slack also defines channels and users in webhooks.
-    payload="$(
-      cat <<EOF
-        {
-            "event": "${alarm}, ${host}, ${status_message}, ${info}"
-        }
-EOF
-    )"
-
-    httpcode=$(docurl -k -H "Authorization: Splunk ${channel}" -d "${payload}" "${webhook}")
-    if [ "${httpcode}" = "200" ]; then
-      info "sent slack notification for: ${host} ${chart}.${name} is ${status} ${chstr}"
-      sent=$((sent + 1))
-    else
-      error "failed to send slack notification for: ${host} ${chart}.${name} is ${status} ${chstr}, with HTTP response status code ${httpcode}."
     fi
   done
 
