@@ -76,7 +76,7 @@ if { [ "${1}" = "test" ] || [ "${2}" = "test" ]; } && [ "${#}" -le 2 ]; then
   exit $test_res
 fi
 
-export PATH="${PATH}:/sbin:/usr/sbin:/usr/local/sbin:@sbindir_POST@"
+export PATH="${PATH}:/sbin:/usr/sbin:/usr/local/sbin:/usr/sbin"
 export LC_ALL=C
 
 # -----------------------------------------------------------------------------
@@ -285,9 +285,9 @@ custom_sender() {
 # -----------------------------------------------------------------------------
 # defaults to allow running this script by hand
 
-[ -z "${NETDATA_USER_CONFIG_DIR}" ] && NETDATA_USER_CONFIG_DIR="@configdir_POST@"
-[ -z "${NETDATA_STOCK_CONFIG_DIR}" ] && NETDATA_STOCK_CONFIG_DIR="@libconfigdir_POST@"
-[ -z "${NETDATA_CACHE_DIR}" ] && NETDATA_CACHE_DIR="@cachedir_POST@"
+[ -z "${NETDATA_USER_CONFIG_DIR}" ] && NETDATA_USER_CONFIG_DIR="/etc/netdata"
+[ -z "${NETDATA_STOCK_CONFIG_DIR}" ] && NETDATA_STOCK_CONFIG_DIR="/usr/lib/netdata/conf.d"
+[ -z "${NETDATA_CACHE_DIR}" ] && NETDATA_CACHE_DIR="/var/cache/netdata"
 [ -z "${NETDATA_REGISTRY_URL}" ] && NETDATA_REGISTRY_URL="https://registry.my-netdata.io"
 [ -z "${NETDATA_REGISTRY_CLOUD_BASE_URL}" ] && NETDATA_REGISTRY_CLOUD_BASE_URL="https://app.netdata.cloud"
 
@@ -1712,8 +1712,10 @@ send_splunk() {
         }
 EOF
     )"
+    message="{\"event\": \"${alarm}, ${host}, ${status_message}, ${info}\"}";
 
-    httpcode=$(docurl -k -H "Authorization: Splunk ${channel}" -d "${payload}" "${webhook}")
+    #httpcode=$(docurl -k -H "Authorization: Splunk ${channel}" -d '{"event": "${alarm}, ${host}, ${status_message}, ${info}"}' "${webhook}")
+    httpcode=$(docurl -k -H "Authorization: Splunk ${channel}" -d "${message}" "${webhook}")
     if [ "${httpcode}" = "200" ]; then
       info "sent slack notification for: ${host} ${chart}.${name} is ${status} ${chstr}"
       sent=$((sent + 1))
@@ -2483,8 +2485,8 @@ url_value_string="${REPLY}"
 redirect_params="host=${url_host}&chart=${url_chart}&alarm=${url_name}&alarm_unique_id=${unique_id}&alarm_id=${alarm_id}&alarm_event_id=${event_id}&alarm_when=${when}&alarm_status=${status}&alarm_chart=${chart}&alarm_value=${url_value_string}"
 
 if [ -z "${NETDATA_REGISTRY_UNIQUE_ID}" ]; then
-  if [ -f "@registrydir_POST@/netdata.public.unique.id" ]; then
-    NETDATA_REGISTRY_UNIQUE_ID="$(cat "@registrydir_POST@/netdata.public.unique.id")"
+  if [ -f "/var/lib/netdata/registry/netdata.public.unique.id" ]; then
+    NETDATA_REGISTRY_UNIQUE_ID="$(cat "/var/lib/netdata/registry/netdata.public.unique.id")"
   else
     error "failed to identify this agent via its NETDATA_REGISTRY_UNIQUE_ID."
   fi
@@ -2614,7 +2616,7 @@ SENT_SLACK=$?
 # slack aggregates posts from the same username
 # so we use "${host} ${status}" as the bot username, to make them diff
 
-send_splunk "${SPLUNK_WEBHOOK_URL}" "${to_splunk}"
+send_splunk "${SPLUNK_WEBHOOK_URL}" "${DEFAULT_RECIPIENT_SPLUNK}"
 SENT_SPLUNK=$?
 
 # -----------------------------------------------------------------------------

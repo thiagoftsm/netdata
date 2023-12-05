@@ -79,14 +79,12 @@ netdata_ebpf_targets_t thread_targets[] = { {.name = "malloc", .mode = EBPF_LOAD
                                           {.name = "posix_memalign", .mode = EBPF_LOAD_RETPROBE},
                                           {.name = "memalign", .mode = EBPF_LOAD_PROBE},
                                           {.name = "memalign", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "sprintf", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "sprintf", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "snprintf", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "snprintf", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "vfprintf", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "vfprintf", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "memcpy", .mode = EBPF_LOAD_RETPROBE},
-                                          {.name = "memcpy", .mode = EBPF_LOAD_RETPROBE},
+                                          {.name = "sprintf", .mode = EBPF_LOAD_PROBE},
+                                          {.name = "snprintf", .mode = EBPF_LOAD_PROBE},
+                                          {.name = "vfprintf", .mode = EBPF_LOAD_PROBE},
+                                          {.name = "memcpy", .mode = EBPF_LOAD_PROBE},
+                                          {.name = "gets", .mode = EBPF_LOAD_PROBE},
+                                          {.name = "fgetc", .mode = EBPF_LOAD_PROBE},
                                           {.name = "release_task", .mode = EBPF_LOAD_TRAMPOLINE},
                                           {.name = NULL, .mode = EBPF_LOAD_TRAMPOLINE}};
 
@@ -167,16 +165,16 @@ int ebpf_bugs_attach_leak_uprobes(struct bugs_memleak_bpf *skel)
     ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, munmap, munmap_enter);
 
     ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, sprintf, sprintf_enter);
-//    ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, sprintf, sprintf_exit);
 
     ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, snprintf, snprintf_enter);
-//    ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, snprintf, snprintf_exit);
 
     ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, vfprintf, vfprintf_enter);
-//    ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, vfprintf, vfprintf_exit);
 
     ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, memcpy, memcpy_enter);
-//    ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, memcpy, memcpy_exit);
+
+    ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, gets, gets_enter);
+
+    ATTACH_UPROBE_CHECKED(skel, libc_path, monitor_pid, fgetc, fgetc_enter);
 
     return 0;
 }
@@ -611,6 +609,8 @@ static int ebpf_bugs_load_bpf(ebpf_module_t *em)
         return -1;
     }
 
+    bugs_skel->rodata->monitor_pid = monitor_pid;
+
     if (bugs_memleak_bpf__load(bugs_skel)) {
         collector_error("Fail to load bpf program.\n");
         goto ebpf_bugs_attach_err;
@@ -703,10 +703,6 @@ static void ebpf_read_bugs_apps_table(int maps_per_core)
         }
 
         ebpf_bugs_apps_accumulator(bv, maps_per_core);
-
-        if (key != monitor_pid && monitor_pid != bv->tgid) {
-            goto end_bugs_loop;
-        }
 
         rw_spinlock_write_lock(&ebpf_bug_pid.index.rw_spinlock);
         PPvoid_t judy_array = &ebpf_bug_pid.index.JudyLArray;
