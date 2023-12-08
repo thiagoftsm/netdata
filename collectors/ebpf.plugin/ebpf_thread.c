@@ -609,8 +609,6 @@ static int ebpf_bugs_load_bpf(ebpf_module_t *em)
         return -1;
     }
 
-    bugs_skel->rodata->monitor_pid = monitor_pid;
-
     if (bugs_memleak_bpf__load(bugs_skel)) {
         collector_error("Fail to load bpf program.\n");
         goto ebpf_bugs_attach_err;
@@ -703,6 +701,11 @@ static void ebpf_read_bugs_apps_table(int maps_per_core)
         }
 
         ebpf_bugs_apps_accumulator(bv, maps_per_core);
+
+        if (key != monitor_pid && bv[0].tgid != monitor_pid) {
+            bpf_map_delete_elem(fd, &key);
+            goto end_bugs_loop;
+        }
 
         rw_spinlock_write_lock(&ebpf_bug_pid.index.rw_spinlock);
         PPvoid_t judy_array = &ebpf_bug_pid.index.JudyLArray;

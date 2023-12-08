@@ -157,6 +157,12 @@ static void debugfs_parse_args(int argc, char **argv)
     if(freq > 0) update_every = freq;
 }
 
+void debugfs_stop_threads(int sig)
+{
+    (void) sig;
+    exit(0);
+}
+
 int main(int argc, char **argv)
 {
     clocks_init();
@@ -212,6 +218,11 @@ int main(int argc, char **argv)
     // }
 
     debugfs_parse_args(argc, argv);
+
+    signal(SIGINT, debugfs_stop_threads);
+    signal(SIGQUIT, debugfs_stop_threads);
+    signal(SIGTERM, debugfs_stop_threads);
+    signal(SIGPIPE, debugfs_stop_threads);
 
     size_t iteration;
     usec_t step = update_every * USEC_PER_SEC;
