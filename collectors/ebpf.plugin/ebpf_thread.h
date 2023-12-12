@@ -5,6 +5,7 @@
 
 #ifdef LIBBPF_MAJOR_VERSION
 #include "includes/bugs_memleak.skel.h"
+#include "includes/bugs_overflow.skel.h"
 #endif
 
 #define NETDATA_BUG_SUBMENU "thread"

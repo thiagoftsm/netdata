@@ -93,7 +93,8 @@ const char *app_name = NULL;
 static uint32_t monitor_pid = 0;
 static bool monitor_dad = false;
 static bool kill_pid = false;
-struct bugs_memleak_bpf *bugs_skel = NULL;
+struct bugs_memleak_bpf *bugs_memleak_skel = NULL;
+struct bugs_overflow_bpf *bugs_overflow_skel = NULL;
 ebpf_mem_stat_t *bugs_vector = NULL;
 
 struct netdata_static_thread ebpf_read_bugs = {
@@ -119,8 +120,8 @@ netdata_ebpf_judy_pid_t ebpf_bug_pid = {.pid_table = NULL, .index = {.JudyLArray
 static void ebpf_thread_exit(void *ptr)
 {
     (void)ptr;
-    if (bugs_skel)
-        bugs_memleak_bpf__destroy(bugs_skel);
+    if (bugs_memleak_skel)
+        bugs_memleak_bpf__destroy(bugs_memleak_skel);
 }
 
 
@@ -600,39 +601,65 @@ static void ebpf_bugs_collector(ebpf_module_t *em)
  *
  * @param em the structure with configuration
  */
-static int ebpf_bugs_load_bpf(ebpf_module_t *em)
+static int ebpf_bugs_load_memleak_bpf(ebpf_module_t *em)
 {
     LIBBPF_OPTS(bpf_object_open_opts, open_opts);
 
-    bugs_skel = bugs_memleak_bpf__open_opts(&open_opts);
-    if (!bugs_skel) {
+    bugs_memleak_skel = bugs_memleak_bpf__open_opts(&open_opts);
+    if (!bugs_memleak_skel) {
         return -1;
     }
 
-    if (bugs_memleak_bpf__load(bugs_skel)) {
+    if (bugs_memleak_bpf__load(bugs_memleak_skel)) {
         collector_error("Fail to load bpf program.\n");
         goto ebpf_bugs_attach_err;
     }
 
-    bpf_program__set_attach_target(bugs_skel->progs.netdata_release_task_fentry, 0, "release_task");
+    bpf_program__set_attach_target(bugs_memleak_skel->progs.netdata_release_task_fentry, 0, "release_task");
 
-    if (ebpf_bugs_attach_leak_uprobes(bugs_skel)) {
+    if (ebpf_bugs_attach_leak_uprobes(bugs_memleak_skel)) {
         collector_error("Cannot attach uprobe to target.\n");
         goto ebpf_bugs_attach_err;
     }
 
-    if (bugs_memleak_bpf__attach(bugs_skel)) {
+    if (bugs_memleak_bpf__attach(bugs_memleak_skel)) {
         fprintf(stderr, "Fail to attach bpf program.\n");
         return -1;
     }
 
-    ebpf_bugs_set_hash_tables(bugs_skel);
+    ebpf_bugs_set_hash_tables(bugs_memleak_skel);
 
     ebpf_update_controller(thread_maps[NETDATA_BUGS_CTRL].map_fd, em);
 
     return 0;
 
 ebpf_bugs_attach_err:
+    return -1;
+}
+
+/*
+ * Load BPF
+ *
+ * Load BPF files.
+ *
+ * @param em the structure with configuration
+ */
+static int ebpf_bugs_load_overflow_bpf(ebpf_module_t *em)
+{
+    bugs_overflow_skel = bugs_overflow_bpf__open();
+    if (!bugs_overflow_skel) {
+        return -1;
+    }
+
+    bugs_overflow_skel->rodata->monitor_pid = monitor_pid;
+
+    if (bugs_overflow_bpf__load(bugs_overflow_skel)) {
+        goto ebpf_bugs_attach_overflow_err;
+    }
+
+    return 0;
+
+ebpf_bugs_attach_overflow_err:
     return -1;
 }
 
@@ -922,7 +949,11 @@ void *ebpf_thread_monitoring(void *ptr)
                                                     sizeof(netdata_ebpf_judy_pid_stats_t));
     rw_spinlock_init(&ebpf_bug_pid.index.rw_spinlock);
 
-    if (ebpf_bugs_load_bpf(em)) {
+    if (ebpf_bugs_load_memleak_bpf(em)) {
+        goto endbugs;
+    }
+
+    if (ebpf_bugs_load_overflow_bpf(em)) {
         goto endbugs;
     }
 
