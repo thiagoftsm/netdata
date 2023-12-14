@@ -7,7 +7,7 @@
 #include "ebpf.h"
 #include "ebpf_thread.h"
 
-ebpf_local_maps_t thread_maps[] = {{.name = "bug_sizes", .internal_input = NETDATA_EBPF_BUGS_COMMON_LIMIT,
+ebpf_local_maps_t thread_memleak_maps[] = {{.name = "bug_sizes", .internal_input = NETDATA_EBPF_BUGS_COMMON_LIMIT,
                                        .user_input = 0, .type = NETDATA_EBPF_MAP_STATIC,
                                        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
 #ifdef LIBBPF_MAJOR_VERSION
@@ -46,7 +46,7 @@ ebpf_local_maps_t thread_maps[] = {{.name = "bug_sizes", .internal_input = NETDA
                                        .map_type = BPF_MAP_TYPE_PERCPU_HASH
 #endif
                                        },
-                                      {.name = "bugs_overflow", .internal_input = NETDATA_EBPF_BUGS_COMMON_LIMIT,
+                                       {.name = "bug_overflow", .internal_input = NETDATA_EBPF_BUGS_COMMON_LIMIT,
                                        .user_input = 0,
                                        .type = NETDATA_EBPF_MAP_STATIC,
                                        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
@@ -58,6 +58,22 @@ ebpf_local_maps_t thread_maps[] = {{.name = "bug_sizes", .internal_input = NETDA
                                         .type = NETDATA_EBPF_MAP_CONTROLLER,
                                         .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
 }};
+
+ebpf_local_maps_t thread_overflow_maps[] = {
+    {.name = "bug_overflow", .internal_input = NETDATA_EBPF_BUGS_COMMON_LIMIT,
+        .user_input = 0,
+        .type = NETDATA_EBPF_MAP_STATIC,
+        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
+#ifdef LIBBPF_MAJOR_VERSION
+        .map_type = BPF_MAP_TYPE_PERCPU_HASH
+#endif
+    },
+    {.name = NULL, .internal_input = 0, .user_input = 0,
+        .type = NETDATA_EBPF_MAP_CONTROLLER,
+        .map_fd = ND_EBPF_MAP_FD_NOT_INITIALIZED,
+}};
+
+static struct bpf_link **links = NULL;
 
 struct config thread_config = { .first_section = NULL,
     .last_section = NULL,
@@ -132,14 +148,13 @@ static void ebpf_thread_exit(void *ptr)
  *
  * @param obj is the main structure for bpf objects.
  */
-static void ebpf_bugs_set_hash_tables(struct bugs_memleak_bpf *obj)
+static void ebpf_bugs_memleak_set_hash_tables(struct bugs_memleak_bpf *obj)
 {
-    thread_maps[NETDATA_BUGS_SIZES].map_fd = bpf_map__fd(obj->maps.bug_sizes);
-    thread_maps[NETDATA_BUGS_CTRL].map_fd = bpf_map__fd(obj->maps.bug_ctrl);
-    thread_maps[NETDATA_BUGS_STAT].map_fd = bpf_map__fd(obj->maps.bug_stats);
-    thread_maps[NETDATA_BUGS_ADDR].map_fd = bpf_map__fd(obj->maps.bug_addr);
-    thread_maps[NETDATA_BUGS_MEMPTRS].map_fd = bpf_map__fd(obj->maps.bugs_memptrs);
-    thread_maps[NETDATA_BUGS_OVERFLOW].map_fd = bpf_map__fd(obj->maps.bugs_overflow);
+    thread_memleak_maps[NETDATA_BUGS_SIZES].map_fd = bpf_map__fd(obj->maps.bug_sizes);
+    thread_memleak_maps[NETDATA_BUGS_CTRL].map_fd = bpf_map__fd(obj->maps.bug_ctrl);
+    thread_memleak_maps[NETDATA_BUGS_STAT].map_fd = bpf_map__fd(obj->maps.bug_stats);
+    thread_memleak_maps[NETDATA_BUGS_ADDR].map_fd = bpf_map__fd(obj->maps.bug_addr);
+    thread_memleak_maps[NETDATA_BUGS_MEMPTRS].map_fd = bpf_map__fd(obj->maps.bugs_memptrs);
 }
 
 int ebpf_bugs_attach_leak_uprobes(struct bugs_memleak_bpf *skel)
@@ -627,15 +642,61 @@ static int ebpf_bugs_load_memleak_bpf(ebpf_module_t *em)
         return -1;
     }
 
-    ebpf_bugs_set_hash_tables(bugs_memleak_skel);
+    ebpf_bugs_memleak_set_hash_tables(bugs_memleak_skel);
 
-    ebpf_update_controller(thread_maps[NETDATA_BUGS_CTRL].map_fd, em);
+    ebpf_update_controller(thread_memleak_maps[NETDATA_BUGS_CTRL].map_fd, em);
 
     return 0;
 
 ebpf_bugs_attach_err:
     return -1;
 }
+
+/**
+ * Set hash tables
+ *
+ * Set the values for maps according the value given by kernel.
+ *
+ * @param obj is the main structure for bpf objects.
+ */
+static void ebpf_bugs_bufferoverflow_set_hash_tables(struct bugs_overflow_bpf *obj)
+{
+    thread_overflow_maps[NETDATA_BUGS_OVERFLOW].map_fd = bpf_map__fd(obj->maps.bug_overflow);
+}
+
+static int ebpf_open_and_attach_perf_event(int freq, struct bpf_program *prog,
+    struct bpf_link *links[])
+{
+    struct perf_event_attr attr = {
+        .type = PERF_TYPE_SOFTWARE,
+        .freq = 1,
+        .watermark = 1,
+        .sample_period = freq,
+        .config = PERF_COUNT_SW_CPU_CLOCK,
+        };
+    int i, fd;
+
+    for (i = 0; i < ebpf_nprocs; i++) {
+        fd = syscall(__NR_perf_event_open, &attr, -1, i, -1, 0);
+        if (fd < 0) {
+            // Ignore CPU that is offline
+            if (errno == ENODEV)
+                continue;
+            fprintf(stderr, "failed to init perf sampling: %s\n",
+                    strerror(errno));
+            return -1;
+        }
+        links[i] = bpf_program__attach_perf_event(prog, fd);
+        if (!links[i]) {
+            fprintf(stderr, "failed to attach perf event on cpu: %d\n", i);
+            close(fd);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 
 /*
  * Load BPF
@@ -646,9 +707,40 @@ ebpf_bugs_attach_err:
  */
 static int ebpf_bugs_load_overflow_bpf(ebpf_module_t *em)
 {
+    /*
     bugs_overflow_skel = bugs_overflow_bpf__open();
     if (!bugs_overflow_skel) {
         return -1;
+    }
+
+    bugs_overflow_skel->rodata->monitor_pid = monitor_pid;
+
+
+    if (bugs_overflow_bpf__load(bugs_overflow_skel)) {
+        goto ebpf_bugs_attach_overflow_err;
+    }
+
+    bugs_overflow_skel->links.netdata_wake_up = bpf_program__attach_kprobe(bugs_overflow_skel->progs.netdata_wake_up,
+                                                                           false, "try_to_wake_up");
+    int ret = (int)libbpf_get_error(bugs_overflow_skel->links.netdata_wake_up);
+    if (ret)
+        goto ebpf_bugs_attach_overflow_err;
+
+    ebpf_bugs_bufferoverflow_set_hash_tables(bugs_overflow_skel);
+
+    return 0;
+
+ebpf_bugs_attach_overflow_err:
+    return -1;
+     */
+
+    links = callocz(ebpf_nprocs, sizeof(struct bpf_link *));
+    if (!links)
+        goto ebpf_bugs_attach_overflow_err;
+
+    bugs_overflow_skel = bugs_overflow_bpf__open();
+    if (!bugs_overflow_skel) {
+        goto ebpf_bugs_attach_overflow_err;
     }
 
     bugs_overflow_skel->rodata->monitor_pid = monitor_pid;
@@ -657,8 +749,11 @@ static int ebpf_bugs_load_overflow_bpf(ebpf_module_t *em)
         goto ebpf_bugs_attach_overflow_err;
     }
 
-    return 0;
+    if (ebpf_open_and_attach_perf_event(em->update_every, bugs_overflow_skel->progs.bpf_prog1, links)) {
+        goto ebpf_bugs_attach_overflow_err;
+    }
 
+    return 0;
 ebpf_bugs_attach_overflow_err:
     return -1;
 }
@@ -712,7 +807,7 @@ static void ebpf_read_bugs_apps_table(int maps_per_core)
     netdata_thread_disable_cancelability();
     ebpf_mem_stat_t *bv = bugs_vector;
     uint32_t key = 0, next_key = 0;
-    int fd = thread_maps[NETDATA_BUGS_STAT].map_fd;
+    int fd = thread_memleak_maps[NETDATA_BUGS_STAT].map_fd;
     size_t length = sizeof(ebpf_mem_stat_t);
     if (maps_per_core)
         length *= ebpf_nprocs;
@@ -939,7 +1034,7 @@ void *ebpf_thread_monitoring(void *ptr)
     netdata_thread_cleanup_push(ebpf_thread_exit, ptr);
 
     ebpf_module_t *em = (ebpf_module_t *)ptr;
-    em->maps = thread_maps;
+    em->maps = thread_memleak_maps;
 
     if (ebpf_parse_thread_opt(&thread_config)) {
         goto endbugs;

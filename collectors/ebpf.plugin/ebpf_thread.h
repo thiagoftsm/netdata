@@ -11,12 +11,15 @@
 #define NETDATA_BUG_SUBMENU "thread"
 #define NETDATA_EBPF_MODULE_NAME_BUG "thread"
 
-enum ebpf_bugs_table {
+enum ebpf_memleaks_bugs_table {
     NETDATA_BUGS_SIZES,
     NETDATA_BUGS_CTRL,
     NETDATA_BUGS_STAT,
     NETDATA_BUGS_ADDR,
     NETDATA_BUGS_MEMPTRS,
+};
+
+enum ebpf_overflow_bugs_table {
     NETDATA_BUGS_OVERFLOW
 };
 
