@@ -999,6 +999,7 @@ bundle_ebpf_co_re() {
       enable_feature PLUGIN_EBPF 0
     fi
   fi
+  cp ../ebpf-co-re/includes/bugs_* collectors/ebpf.plugin/includes/
 
   [ -n "${GITHUB_ACTIONS}" ] && echo "::endgroup::"
 }
