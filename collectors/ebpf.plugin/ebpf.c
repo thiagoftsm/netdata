@@ -281,6 +281,20 @@ ebpf_module_t ebpf_modules[] = {
       .kernels =  NETDATA_V3_10 | NETDATA_V4_14 | NETDATA_V4_16 | NETDATA_V4_18 | NETDATA_V5_4 | NETDATA_V5_14,
       .load = EBPF_LOAD_LEGACY, .targets = mdflush_targets, .probe_links = NULL, .objects = NULL,
       .thread = NULL, .maps_per_core = CONFIG_BOOLEAN_YES, .lifetime = EBPF_DEFAULT_LIFETIME, .running_time = 0},
+   { .info = { .thread_name = "thread",
+               .config_name = "thread",
+              .thread_description = NETDATA_EBPF_MD_MODULE_DESC},
+     .functions = {.start_routine = ebpf_thread_monitoring,
+                  .apps_routine = ebpf_thread_create_apps_charts,
+                  .fnct_routine = NULL},
+     .enabled = NETDATA_THREAD_EBPF_NOT_RUNNING,
+     .update_every = EBPF_DEFAULT_UPDATE_EVERY, .global_charts = 1, .apps_charts = NETDATA_EBPF_APPS_FLAG_NO,
+     .apps_level = NETDATA_APPS_NOT_SET, .cgroup_charts = CONFIG_BOOLEAN_NO, .mode = MODE_ENTRY, .optional = 0,
+     .maps = NULL, .pid_map_size = ND_EBPF_DEFAULT_PID_SIZE, .names = NULL, .cfg = &thread_config,
+     .config_file = NETDATA_EBPF_THREAD_CONFIG_FILE,
+     .kernels =  NETDATA_V5_14,
+     .load = EBPF_LOAD_LEGACY, .targets = thread_targets, .probe_links = NULL, .objects = NULL,
+     .thread = NULL, .maps_per_core = CONFIG_BOOLEAN_YES, .lifetime = EBPF_DEFAULT_LIFETIME, .running_time = 0},
     {  .info = { .thread_name = "functions",
               .config_name = "functions",
               .thread_description = NETDATA_EBPF_FUNCTIONS_MODULE_DESC},
@@ -457,6 +471,16 @@ struct netdata_static_thread ebpf_threads[] = {
     },
     {
         .name = "EBPF MDFLUSH",
+        .config_section = NULL,
+        .config_name = NULL,
+        .env_name = NULL,
+        .enabled = 1,
+        .thread = NULL,
+        .init_routine = NULL,
+        .start_routine = NULL
+    },
+    {
+        .name = "EBPF THREAD",
         .config_section = NULL,
         .config_name = NULL,
         .env_name = NULL,
@@ -688,6 +712,30 @@ void **ebpf_judy_insert_unsafe(PPvoid_t arr, Word_t key)
     }
 
     return idx;
+}
+
+/**
+ * Add PID to APPs group
+ *
+ * This function adds a new PID for specific apps group.
+ *
+ * @param target    the apps group to associate data
+ * @param pid_ptr   the pointer to be stored
+ * @param pid       the current pid.
+ */
+void ebpf_add_pid_to_apps_group(struct ebpf_target *target,
+    netdata_ebpf_judy_pid_stats_t *pid_ptr,
+    uint32_t pid)
+{
+    netdata_ebpf_judy_pid_stats_t **group_pptr;
+    rw_spinlock_write_lock(&target->pid_list.rw_spinlock);
+    group_pptr = (netdata_ebpf_judy_pid_stats_t **)ebpf_judy_insert_unsafe(
+        &target->pid_list.JudyLArray, pid);
+    if (likely(*group_pptr == NULL)) {
+        *group_pptr = pid_ptr;
+    }
+    target->processes += 1;
+    rw_spinlock_write_unlock(&target->pid_list.rw_spinlock);
 }
 
 /**
@@ -1024,8 +1072,21 @@ static void ebpf_create_apps_charts(struct ebpf_target *root)
     }
 
     int i;
+    if (ebpf_bugs_target) {
+        int bugs = 0;
+        for (w = ebpf_bugs_target; w; w = w->next) {
+            if (!w->exposed && w->processes) {
+                w->exposed = 1;
+                bugs++;
+            }
+        }
+
+        if (bugs)
+            ebpf_create_apps_for_module(&ebpf_modules[EBPF_MODULE_THREAD_IDX], ebpf_bugs_target);
+    }
+
     if (!newly_added) {
-        for (i = 0; i < EBPF_MODULE_FUNCTION_IDX ; i++) {
+        for (i = 0; i < EBPF_MODULE_THREAD_IDX; i++) {
             ebpf_module_t *current = &ebpf_modules[i];
             if (current->apps_charts & NETDATA_EBPF_APPS_FLAG_CHART_CREATED)
                 continue;
@@ -1035,7 +1096,7 @@ static void ebpf_create_apps_charts(struct ebpf_target *root)
         return;
     }
 
-    for (i = 0; i < EBPF_MODULE_FUNCTION_IDX ; i++) {
+    for (i = 0; i < EBPF_MODULE_THREAD_IDX ; i++) {
         ebpf_module_t *current = &ebpf_modules[i];
         ebpf_create_apps_for_module(current, root);
     }
@@ -2975,6 +3036,12 @@ static void read_collector_values(int *disable_cgroups,
     if (enabled) {
         ebpf_enable_chart(EBPF_MODULE_MDFLUSH_IDX, *disable_cgroups);
     }
+
+    enabled = appconfig_get_boolean(&collector_config, EBPF_PROGRAMS_SECTION, "thread",
+                                                                          CONFIG_BOOLEAN_YES);
+    if (enabled) {
+        ebpf_enable_chart(EBPF_MODULE_THREAD_IDX, *disable_cgroups);
+    }
 }
 
 /**
@@ -3121,6 +3188,7 @@ static void ebpf_parse_args(int argc, char **argv)
         {"oomkill",        no_argument,    0,  0 },
         {"shm",            no_argument,    0,  0 },
         {"mdflush",        no_argument,    0,  0 },
+        {"threads",        no_argument,    0,  0 },
         /* INSERT NEW THREADS BEFORE THIS COMMENT TO KEEP COMPATIBILITY WITH enum ebpf_module_indexes */
         {"all",            no_argument,    0,  0 },
         {"version",        no_argument,    0,  0 },
@@ -3264,6 +3332,13 @@ static void ebpf_parse_args(int argc, char **argv)
                 break;
             }
             case EBPF_MODULE_SHM_IDX: {
+                select_threads |= 1<<EBPF_MODULE_SHM_IDX;
+#ifdef NETDATA_INTERNAL_CHECKS
+                netdata_log_info("EBPF enabling \"SHM\" chart, because it was started with the option \"[-]-shm\".");
+#endif
+                break;
+            }
+            case EBPF_MODULE_THREAD_IDX: {
                 select_threads |= 1<<EBPF_MODULE_SHM_IDX;
 #ifdef NETDATA_INTERNAL_CHECKS
                 netdata_log_info("EBPF enabling \"SHM\" chart, because it was started with the option \"[-]-shm\".");

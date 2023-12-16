@@ -18,6 +18,10 @@
 #define NETDATA_APPS_NET_GROUP "net"
 #define NETDATA_APPS_IPC_SHM_GROUP "ipc shm"
 
+#ifndef TASK_COMM_LEN
+#define TASK_COMM_LEN 16
+#endif
+
 #include "ebpf_process.h"
 #include "ebpf_dcstat.h"
 #include "ebpf_disk.h"
@@ -35,6 +39,7 @@
 #include "ebpf_sync.h"
 #include "ebpf_swap.h"
 #include "ebpf_vfs.h"
+#include "ebpf_thread.h"
 
 #define EBPF_MAX_COMPARE_NAME 100
 #define EBPF_MAX_NAME 100
@@ -54,6 +59,12 @@ struct ebpf_target {
     char name[EBPF_MAX_NAME + 1];
     char clean_name[EBPF_MAX_NAME + 1]; // sanitized name used in chart id (need to replace at least dots)
 
+    // Index for associated PIDs
+    struct {                            // support for multiple indexing engines
+        Pvoid_t JudyLArray;            // the hash table
+        RW_SPINLOCK rw_spinlock;        // protect the index
+    } pid_list;
+
     // Changes made to simplify integration between apps and eBPF.
     netdata_publish_cachestat_t cachestat;
     netdata_publish_dcstat_t dcstat;
@@ -61,6 +72,7 @@ struct ebpf_target {
     netdata_publish_vfs_t vfs;
     netdata_fd_stat_t fd;
     netdata_publish_shm_t shm;
+    ebpf_mem_publish_stat_t thread;
 
     kernel_uint_t starttime;
     kernel_uint_t collected_starttime;
@@ -260,5 +272,9 @@ extern ebpf_socket_publish_apps_t **socket_bandwidth_curr;
 extern ARAL *ebpf_aral_apps_pid_stat;
 extern ARAL *ebpf_aral_process_stat;
 #define NETDATA_EBPF_PROC_ARAL_NAME "ebpf_proc_stat"
+
+struct ebpf_target *ebpf_get_apps_groups_target(struct ebpf_target **agrt, const char *id, struct ebpf_target *target, const char *name);
+extern struct ebpf_target *ebpf_bugs_target;
+extern uint32_t ebpf_find_pid(const char *name);
 
 #endif /* NETDATA_EBPF_APPS_H */

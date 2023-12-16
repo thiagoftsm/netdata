@@ -209,6 +209,7 @@ static netdata_ebpf_judy_pid_stats_t *ebpf_get_pid_from_judy_bug_unsafe(PPvoid_t
                                                              char *name,
                                                              uint32_t ppid)
 {
+    (void) ppid;
     netdata_ebpf_judy_pid_stats_t **pid_pptr =
         (netdata_ebpf_judy_pid_stats_t **)ebpf_judy_insert_unsafe(judy_array, pid);
     netdata_ebpf_judy_pid_stats_t *pid_ptr = *pid_pptr;
@@ -217,6 +218,10 @@ static netdata_ebpf_judy_pid_stats_t *ebpf_get_pid_from_judy_bug_unsafe(PPvoid_t
         *pid_pptr = aral_mallocz(ebpf_bug_pid.pid_table);
 
         struct ebpf_target *w = NULL;
+        // To remove warning
+        if (!name)
+            return NULL;
+
         struct ebpf_target *target = ebpf_get_apps_groups_target(&ebpf_bugs_target, name, w, name);
 
         pid_ptr = *pid_pptr;
