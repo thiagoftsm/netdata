@@ -213,7 +213,7 @@ size_t zero_all_targets(struct ebpf_target *root);
 
 int am_i_running_as_root();
 
-void cleanup_exited_pids();
+void ebpf_cleanup_exited_pids(int max);
 
 int ebpf_read_hash_table(void *ep, int fd, uint32_t pid);
 
