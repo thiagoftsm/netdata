@@ -9,6 +9,9 @@ static inline void EBPF_PLUGIN_FUNCTIONS(const char *NAME, const char *DESC, int
             NAME, update_every, DESC, RRDFUNCTIONS_PRIORITY_DEFAULT);
 }
 
+// Thread total
+#define EBPF_TOTAL_THREAD_GROUP 8
+
 // configuration file & description
 #define NETDATA_DIRECTORY_FUNCTIONS_CONFIG_FILE "functions.conf"
 #define NETDATA_EBPF_FUNCTIONS_MODULE_DESC "Show information about current function status."

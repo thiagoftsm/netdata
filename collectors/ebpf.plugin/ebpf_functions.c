@@ -681,13 +681,16 @@ void *ebpf_function_thread(void *ptr)
 {
     (void)ptr;
 
-    struct functions_evloop_globals *wg = functions_evloop_init(1,
+    struct functions_evloop_globals *wg = functions_evloop_init(EBPF_TOTAL_THREAD_GROUP,
                                                                 "EBPF",
                                                                 &lock,
                                                                 &ebpf_plugin_exit);
 
-    functions_evloop_add_function(
-        wg, EBPF_FUNCTION_SOCKET, ebpf_function_socket_manipulation, PLUGINS_FUNCTIONS_TIMEOUT_DEFAULT, NULL);
+    functions_evloop_add_function(wg,
+                                  EBPF_FUNCTION_SOCKET,
+                                  ebpf_function_socket_manipulation,
+                                  PLUGINS_FUNCTIONS_TIMEOUT_DEFAULT,
+                                  NULL);
 
     pthread_mutex_lock(&lock);
     int i;
