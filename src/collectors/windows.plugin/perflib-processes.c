@@ -4,7 +4,11 @@
 #include "windows-internals.h"
 
 #define _COMMON_PLUGIN_NAME "windows.plugin"
+<<<<<<< HEAD
 #define _COMMON_PLUGIN_MODULE_NAME "PerflibProcesses"
+=======
+#define _COMMON_PLUGIN_MODULE_NAME "PerflibMemory"
+>>>>>>> 405ae231c (win_processes: Adjust code to run on Microsoft)
 #include "../common-contexts/common-contexts.h"
 
 static void initialize(void) {
@@ -16,6 +20,7 @@ static bool do_processes(PERF_DATA_BLOCK *pDataBlock, int update_every) {
     if (!pObjectType)
         return false;
 
+<<<<<<< HEAD
     static COUNTER_DATA processesRunning = { .key = "Processes" };
     static COUNTER_DATA contextSwitchPerSec = { .key = "Context Switches/sec" };
     static COUNTER_DATA threads = { .key = "Threads" };
@@ -34,6 +39,17 @@ static bool do_processes(PERF_DATA_BLOCK *pDataBlock, int update_every) {
         ULONGLONG totalThreads = threads.current.Data;
         common_system_threads(totalThreads,  update_every);
     }
+=======
+    static COUNTER_DATA processorsRunning = { .key = "Processes" };
+
+    if(perflibGetObjectCounter(pDataBlock, pObjectType, processorsRunning)) {
+        ULONGLONG total = pageFaultsPerSec.current.Data;
+        ULONGLONG major = pagesPerSec.current.Data;
+        ULONGLONG minor = (total > major) ? total - major : 0;
+        common_mem_pgfaults(minor, major, update_every);
+    }
+
+>>>>>>> 405ae231c (win_processes: Adjust code to run on Microsoft)
     return true;
 }
 
