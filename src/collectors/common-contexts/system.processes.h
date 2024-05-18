@@ -111,5 +111,4 @@ static inline void common_system_context_switch(uint64_t value, int update_every
     rrdset_done(st_ctxt);
 }
 
-
 #endif //NETDATA_SYSTEM_PROCESSES_H
