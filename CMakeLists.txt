@@ -1002,6 +1002,7 @@ endif()
 set(INTERNAL_COLLECTORS_FILES
         src/collectors/common-contexts/common-contexts.h
         src/collectors/common-contexts/disk.io.h
+        src/collectors/common-contexts/ipc.h
         src/collectors/common-contexts/system.io.h
         src/collectors/common-contexts/system.processes.h
         src/collectors/common-contexts/system.ram.h
