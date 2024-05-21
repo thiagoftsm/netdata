@@ -20,7 +20,7 @@ static bool do_ipc(PERF_DATA_BLOCK *pDataBlock, int update_every) {
 
     if(perflibGetObjectCounter(pDataBlock, pObjectType, &semathores)) {
         ULONGLONG sem = semathores.current.Data;
-        common_ipc(sem, WINDOWS_MAX_KERNEL_OBJECT, update_every) {
+        common_ipc(sem, WINDOWS_MAX_KERNEL_OBJECT, update_every);
     }
 
     return true;
