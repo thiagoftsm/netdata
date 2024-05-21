@@ -35,7 +35,7 @@ void initialize_processor_keys(struct processor *p) {
     p->percentDPCTime.key = "% DPC Time";
     p->percentInterruptTime.key = "% Interrupt Time";
     p->percentIdleTime.key = "% Idle Time";
-    p->interruptsPerSec = "Interrupts/sec";
+    p->interruptsPerSec.key = "Interrupts/sec";
 }
 
 void dict_processor_insert_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused) {
