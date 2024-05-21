@@ -9,7 +9,7 @@
 
 // https://learn.microsoft.com/es-es/windows/win32/sysinfo/kernel-objects?redirectedfrom=MSDN
 // 2^24
-#deine WINDOWS_MAX_KERNEL_OBJECT 16777216
+#define WINDOWS_MAX_KERNEL_OBJECT 16777216
 
 void *win_plugin_main(void *ptr);
 
