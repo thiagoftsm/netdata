@@ -19,7 +19,7 @@ static inline void common_interrupts(uint64_t interrupts, int update_every) {
         , "CPU Interrupts"
         , "interrupts/s"
         , _COMMON_PLUGIN_NAME
-        , "PerflibProcesses"
+        , _COMMON_PLUGIN_MODULE_NAME
         , NETDATA_CHART_PRIO_SYSTEM_INTR
         , update_every
         , RRDSET_TYPE_LINE
