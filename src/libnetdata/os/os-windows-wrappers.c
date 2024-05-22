@@ -59,3 +59,4 @@ bool netdata_registry_get_string(char *out, unsigned int length, void *hKey, cha
 }
 
 #endif
+

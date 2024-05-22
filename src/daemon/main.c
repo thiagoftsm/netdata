@@ -19,6 +19,11 @@
 #warning COMPILING 32BIT NETDATA
 #endif
 
+#if defined(COMPILED_FOR_WINDOWS)
+#include "windows.h"
+#include "winsock.h"
+#endif
+
 bool unittest_running = false;
 int netdata_anonymous_statistics_enabled;
 
