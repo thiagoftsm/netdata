@@ -3,6 +3,10 @@
 #include "windows_plugin.h"
 #include "windows-internals.h"
 
+#define _COMMON_PLUGIN_NAME "windows.plugin"
+#define _COMMON_PLUGIN_MODULE_NAME "PerflibProcessor"
+#include "../common-contexts/common-contexts.h"
+
 struct processor {
     bool collected_metadata;
 
