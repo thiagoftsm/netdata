@@ -80,9 +80,7 @@ long os_get_system_cpus_cached(bool cache, bool for_netdata) {
 
 #elif defined(OS_WINDOWS)
 
-    SYSTEM_INFO sysInfo;
-    GetSystemInfo(&sysInfo);
-    return (long) sysInfo.dwNumberOfProcessors;
+    return get_windows_cpu_total();
 
 #else
 

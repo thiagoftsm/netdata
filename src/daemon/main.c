@@ -2238,6 +2238,9 @@ int main(int argc, char **argv) {
     netdata_anonymous_statistics_enabled=-1;
     struct rrdhost_system_info *system_info = callocz(1, sizeof(struct rrdhost_system_info));
     __atomic_sub_fetch(&netdata_buffers_statistics.rrdhost_allocations_size, sizeof(struct rrdhost_system_info), __ATOMIC_RELAXED);
+#if defined(COMPILED_FOR_WINDOWS)
+    start_netdata_windows_libraries();
+#endif
     get_system_info(system_info);
 
     const char *guid = registry_get_this_machine_guid();

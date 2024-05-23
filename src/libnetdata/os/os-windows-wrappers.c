@@ -60,3 +60,28 @@ bool netdata_registry_get_string(char *out, unsigned int length, void *hKey, cha
 
 #endif
 
+long get_windows_cpu_total()
+{
+    static long always_use = 0;
+    if (always_use)
+        return always_use;
+
+    if (!useSysInfo) {
+        fill_microsoft_system_info_unsafe();
+    }
+
+    always_use =  (long) netdataWindowsSysInfo.dwNumberOfProcessors;
+    release_local_mutex();
+
+    return always_use;
+}
+
+void start_netdata_windows_libraries()
+{
+    fill_microsoft_system_info_unsafe();
+
+    localMutex = CreateMutex(NULL, FALSE, NULL);
+    if (!localMutex)
+        fatal("Cannot initialize Windows mutex: error '%d'.", GetLastError());
+}
+#endif
