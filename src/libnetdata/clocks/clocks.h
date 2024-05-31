@@ -146,10 +146,12 @@ void sleep_usec_with_now(usec_t usec, usec_t started_ut);
 
 void clocks_init(void);
 
+#if !defined(OS_WINDOWS)
 // lower level functions - avoid using directly
 time_t now_sec(clockid_t clk_id);
 usec_t now_usec(clockid_t clk_id);
 int now_timeval(clockid_t clk_id, struct timeval *tv);
+#endif
 
 collected_number uptime_msec(char *filename);
 
