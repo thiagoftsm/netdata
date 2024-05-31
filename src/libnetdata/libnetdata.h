@@ -63,7 +63,7 @@ extern "C" {
 
 #else /* !defined(ENABLE_JEMALLOC) && !defined(ENABLE_TCMALLOC) */
 
-#if !(defined(__FreeBSD__) || defined(__APPLE__))
+#if !(defined(__FreeBSD__) || defined(__APPLE__) || defined(OS_WINDOWS))
 #include <malloc.h>
 #endif /* __FreeBSD__ || __APPLE__ */
 
@@ -82,11 +82,19 @@ extern "C" {
 #define NETDATA_OS_TYPE "linux"
 #endif /* __FreeBSD__, __APPLE__*/
 
+#if !defined(OS_WINDOWS)
 #include <pthread.h>
-#include <errno.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
+#endif
+#include <errno.h>
+#include <stdbool.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <ctype.h>
@@ -94,15 +102,9 @@ extern "C" {
 #include <strings.h>
 #include <libgen.h>
 #include <dirent.h>
-#include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
 #include <locale.h>
-#include <signal.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
 #include <uv.h>
 #include <assert.h>
 
