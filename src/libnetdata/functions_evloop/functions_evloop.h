@@ -76,7 +76,9 @@ typedef void (*functions_evloop_worker_execute_t)(const char *transaction, char 
                                                   const char *source, void *data);
 
 struct functions_evloop_worker_job;
+#if !defined(OS_WINDOWS)
 struct functions_evloop_globals *functions_evloop_init(size_t worker_threads, const char *tag, netdata_mutex_t *stdout_mutex, bool *plugin_should_exit);
+#endif
 void functions_evloop_add_function(struct functions_evloop_globals *wg, const char *function, functions_evloop_worker_execute_t cb, time_t default_timeout, void *data);
 void functions_evloop_cancel_threads(struct functions_evloop_globals *wg);
 
@@ -138,12 +140,14 @@ static inline void pluginsd_function_progress_to_stdout(const char *transaction,
     fflush(stdout);
 }
 
+#if !defined(OS_WINDOWS)
 static inline void send_newline_and_flush(pthread_mutex_t *mutex) {
     netdata_mutex_lock(mutex);
     fprintf(stdout, "\n");
     fflush(stdout);
     netdata_mutex_unlock(mutex);
 }
+#endif
 
 void functions_evloop_dyncfg_add(struct functions_evloop_globals *wg, const char *id, const char *path,
                                  DYNCFG_STATUS status, DYNCFG_TYPE type, DYNCFG_SOURCE_TYPE source_type, const char *source, DYNCFG_CMDS cmds,
