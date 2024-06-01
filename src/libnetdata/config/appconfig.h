@@ -144,14 +144,18 @@ struct section {
     struct config_option *values;
     avl_tree_lock values_index;
 
+#if !defined(OS_WINDOWS)
     netdata_mutex_t mutex;  // this locks only the writers, to ensure atomic updates
                             // readers are protected using the rwlock in avl_tree_lock
+#endif
 };
 
 struct config {
     struct section *first_section;
     struct section *last_section; // optimize inserting at the end
+#if !defined(OS_WINDOWS)
     netdata_mutex_t mutex;
+#endif
     avl_tree_lock index;
 };
 
