@@ -6,7 +6,9 @@
 #include "../libnetdata.h"
 #include "../clocks/clocks.h"
 
+#if !defined(OS_WINDOWS)
 typedef pthread_mutex_t netdata_mutex_t;
+#endif
 #define NETDATA_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 
 typedef struct netdata_spinlock {
@@ -86,9 +88,11 @@ typedef struct netdata_rwlock_t {
 
 #else // NETDATA_TRACE_RWLOCKS
 
+#if !defined(OS_WINDOWS)
 typedef struct netdata_rwlock_t {
     pthread_rwlock_t rwlock_t;
 } netdata_rwlock_t;
+#endif
 
 #define NETDATA_RWLOCK_INITIALIZER { \
         .rwlock_t = PTHREAD_RWLOCK_INITIALIZER \
@@ -96,6 +100,7 @@ typedef struct netdata_rwlock_t {
 
 #endif // NETDATA_TRACE_RWLOCKS
 
+#if !defined(OS_WINDOWS)
 int __netdata_mutex_init(netdata_mutex_t *mutex);
 int __netdata_mutex_destroy(netdata_mutex_t *mutex);
 int __netdata_mutex_lock(netdata_mutex_t *mutex);
@@ -110,8 +115,9 @@ int __netdata_rwlock_rdunlock(netdata_rwlock_t *rwlock);
 int __netdata_rwlock_wrunlock(netdata_rwlock_t *rwlock);
 int __netdata_rwlock_tryrdlock(netdata_rwlock_t *rwlock);
 int __netdata_rwlock_trywrlock(netdata_rwlock_t *rwlock);
+#endif
 
-#ifdef NETDATA_TRACE_RWLOCKS
+#if defined(NETDATA_TRACE_RWLOCKS) && !defined(OS_WINDOWS)
 
 int netdata_mutex_init_debug( const char *file, const char *function, const unsigned long line, netdata_mutex_t *mutex);
 int netdata_mutex_destroy_debug( const char *file, const char *function, const unsigned long line, netdata_mutex_t *mutex);
@@ -143,7 +149,7 @@ int netdata_rwlock_trywrlock_debug( const char *file, const char *function, cons
 #define netdata_rwlock_tryrdlock(rwlock) netdata_rwlock_tryrdlock_debug(__FILE__, __FUNCTION__, __LINE__, rwlock)
 #define netdata_rwlock_trywrlock(rwlock) netdata_rwlock_trywrlock_debug(__FILE__, __FUNCTION__, __LINE__, rwlock)
 
-#else // !NETDATA_TRACE_RWLOCKS
+#elif !defined(OS_WINDOWS)// !NETDATA_TRACE_RWLOCKS
 
 #define netdata_mutex_init(mutex)    __netdata_mutex_init(mutex)
 #define netdata_mutex_destroy(mutex) __netdata_mutex_destroy(mutex)
