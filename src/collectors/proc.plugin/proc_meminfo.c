@@ -369,7 +369,7 @@ int do_proc_meminfo(int update_every, usec_t dt) {
 
             rrdset_flag_set(st_mem_committed, RRDSET_FLAG_DETAIL);
 
-            rd_committed = rrddim_add(st_mem_committed, "Committed_AS", NULL, 1, 1024, RRD_ALGORITHM_ABSOLUTE);
+            rd_committed = rrddim_add(st_mem_committed, "Committed", NULL, 1, 1024, RRD_ALGORITHM_ABSOLUTE);
         }
 
         rrddim_set_by_pointer(st_mem_committed, rd_committed, Committed_AS);

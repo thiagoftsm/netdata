@@ -1405,7 +1405,7 @@ modules:
               unit: "MiB"
               chart_type: area
               dimensions:
-                - name: Commited_AS
+                - name: Committed
             - name: mem.writeback
               description: Writeback Memory
               unit: "MiB"

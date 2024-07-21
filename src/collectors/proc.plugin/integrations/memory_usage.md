@@ -85,7 +85,7 @@ Metrics:
 | mem.swap_cached | cached | MiB |
 | mem.zswap | in-ram, on-disk | MiB |
 | mem.hwcorrupt | HardwareCorrupted | MiB |
-| mem.commited | Commited_AS | MiB |
+| mem.commited | Committed | MiB |
 | mem.writeback | Dirty, Writeback, FuseWriteback, NfsWriteback, Bounce | MiB |
 | mem.kernel | Slab, KernelStack, PageTables, VmallocUsed, Percpu | MiB |
 | mem.slab | reclaimable, unreclaimable | MiB |
