@@ -348,32 +348,7 @@ int do_proc_meminfo(int update_every, usec_t dt) {
     }
 
     if(do_committed) {
-        static RRDSET *st_mem_committed = NULL;
-        static RRDDIM *rd_committed = NULL;
-
-        if(unlikely(!st_mem_committed)) {
-            st_mem_committed = rrdset_create_localhost(
-                    "mem"
-                    , "committed"
-                    , NULL
-                    , "overview"
-                    , NULL
-                    , "Committed (Allocated) Memory"
-                    , "MiB"
-                    , PLUGIN_PROC_NAME
-                    , PLUGIN_PROC_MODULE_MEMINFO_NAME
-                    , NETDATA_CHART_PRIO_MEM_SYSTEM_COMMITTED
-                    , update_every
-                    , RRDSET_TYPE_AREA
-            );
-
-            rrdset_flag_set(st_mem_committed, RRDSET_FLAG_DETAIL);
-
-            rd_committed = rrddim_add(st_mem_committed, "Committed", NULL, 1, 1024, RRD_ALGORITHM_ABSOLUTE);
-        }
-
-        rrddim_set_by_pointer(st_mem_committed, rd_committed, (collected_number)Committed_AS);
-        rrdset_done(st_mem_committed);
+        common_mem_commited(Committed_AS, update_every);
     }
 
     if(do_writeback) {

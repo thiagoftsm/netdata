@@ -26,6 +26,7 @@ typedef void (*instance_labels_cb_t)(RRDSET *st, void *data);
 #include "mem.swap.h"
 #include "mem.pgfaults.h"
 #include "mem.available.h"
+#include "mem.committed.h"
 #include "disk.io.h"
 #include "cpu.cpufreq.h"
 
