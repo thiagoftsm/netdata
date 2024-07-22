@@ -4,7 +4,7 @@
 #define NETDATA_MEM_COMMITED_H
 #include "common-contexts.h"
 
-static inline void common_mem_commited(uint64_t commited, int update_every) {
+static inline void common_mem_committed(uint64_t commited, int update_every) {
     static RRDSET *st_mem_committed = NULL;
     static RRDDIM *rd_committed = NULL;
 

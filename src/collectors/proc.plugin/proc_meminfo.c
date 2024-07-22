@@ -348,7 +348,7 @@ int do_proc_meminfo(int update_every, usec_t dt) {
     }
 
     if(do_committed) {
-        common_mem_commited(Committed_AS, update_every);
+        common_mem_committed(Committed_AS, update_every);
     }
 
     if(do_writeback) {

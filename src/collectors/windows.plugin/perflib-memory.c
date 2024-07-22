@@ -41,6 +41,13 @@ static bool do_memory(PERF_DATA_BLOCK *pDataBlock, int update_every) {
 
     common_mem_available(available_bytes, update_every);
 
+    static COUNTER_DATA committedMBytes = { .key = "Committed Bytes" };
+    ULONGLONG committed_bytes = 0;
+    if(perflibGetObjectCounter(pDataBlock, pObjectType, &committedMBytes))
+        committed_bytes = committedMBytes.current.Data;
+
+    common_mem_committed(committed_bytes, update_every);
+
     return true;
 }
 
