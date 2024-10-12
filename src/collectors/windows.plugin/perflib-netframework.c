@@ -8,6 +8,10 @@ enum netdata_netframework_metrics {
     NETDATA_NETFRAMEWORK_INTEROP,
     NETDATA_NETFRAMEWORK_JIT,
     NETDATA_NETFRAMEWORK_LOADING,
+    NETDATA_NETFRAMEWORK_LOCKS_AND_THREADS,
+    NETDATA_NETFRAMEWORK_MEMORY,
+    NETDATA_NETFRAMEWORK_REMOTING,
+    NETDATA_NETFRAMEWORK_SECURITY,
 
     NETDATA_NETFRAMEWORK_END
 };
@@ -829,6 +833,94 @@ static void netdata_framework_clr_loading(PERF_DATA_BLOCK *pDataBlock,
     }
 }
 
+static void netdata_framework_clr_locks_and_threads(PERF_DATA_BLOCK *pDataBlock,
+                                                    PERF_OBJECT_TYPE *pObjectType,
+                                                    int update_every)
+{
+    char id[RRD_ID_LENGTH_MAX + 1];
+    PERF_INSTANCE_DEFINITION *pi = NULL;
+    for (LONG i = 0; i < pObjectType->NumInstances; i++) {
+        pi = perflibForEachInstance(pDataBlock, pObjectType, pi);
+        if (!pi)
+            break;
+
+        if (!getInstanceName(pDataBlock, pObjectType, pi, windows_shared_buffer, sizeof(windows_shared_buffer)))
+            strncpyz(windows_shared_buffer, "[unknown]", sizeof(windows_shared_buffer) - 1);
+
+        if (strcasecmp(windows_shared_buffer, "_Global_") == 0)
+            continue;
+
+        netdata_fix_chart_name(windows_shared_buffer);
+        struct net_framework_instances *p = dictionary_set(processes, windows_shared_buffer, NULL, sizeof(*p));
+    }
+}
+
+static void netdata_framework_clr_memory(PERF_DATA_BLOCK *pDataBlock,
+                                         PERF_OBJECT_TYPE *pObjectType,
+                                         int update_every)
+{
+    char id[RRD_ID_LENGTH_MAX + 1];
+    PERF_INSTANCE_DEFINITION *pi = NULL;
+    for (LONG i = 0; i < pObjectType->NumInstances; i++) {
+        pi = perflibForEachInstance(pDataBlock, pObjectType, pi);
+        if (!pi)
+            break;
+
+        if (!getInstanceName(pDataBlock, pObjectType, pi, windows_shared_buffer, sizeof(windows_shared_buffer)))
+            strncpyz(windows_shared_buffer, "[unknown]", sizeof(windows_shared_buffer) - 1);
+
+        if (strcasecmp(windows_shared_buffer, "_Global_") == 0)
+            continue;
+
+        netdata_fix_chart_name(windows_shared_buffer);
+        struct net_framework_instances *p = dictionary_set(processes, windows_shared_buffer, NULL, sizeof(*p));
+    }
+}
+
+static void netdata_framework_clr_remoting(PERF_DATA_BLOCK *pDataBlock,
+                                           PERF_OBJECT_TYPE *pObjectType,
+                                           int update_every)
+{
+    char id[RRD_ID_LENGTH_MAX + 1];
+    PERF_INSTANCE_DEFINITION *pi = NULL;
+    for (LONG i = 0; i < pObjectType->NumInstances; i++) {
+        pi = perflibForEachInstance(pDataBlock, pObjectType, pi);
+        if (!pi)
+            break;
+
+        if (!getInstanceName(pDataBlock, pObjectType, pi, windows_shared_buffer, sizeof(windows_shared_buffer)))
+            strncpyz(windows_shared_buffer, "[unknown]", sizeof(windows_shared_buffer) - 1);
+
+        if (strcasecmp(windows_shared_buffer, "_Global_") == 0)
+            continue;
+
+        netdata_fix_chart_name(windows_shared_buffer);
+        struct net_framework_instances *p = dictionary_set(processes, windows_shared_buffer, NULL, sizeof(*p));
+    }
+}
+
+static void netdata_framework_clr_security(PERF_DATA_BLOCK *pDataBlock,
+                                           PERF_OBJECT_TYPE *pObjectType,
+                                           int update_every)
+{
+    char id[RRD_ID_LENGTH_MAX + 1];
+    PERF_INSTANCE_DEFINITION *pi = NULL;
+    for (LONG i = 0; i < pObjectType->NumInstances; i++) {
+        pi = perflibForEachInstance(pDataBlock, pObjectType, pi);
+        if (!pi)
+            break;
+
+        if (!getInstanceName(pDataBlock, pObjectType, pi, windows_shared_buffer, sizeof(windows_shared_buffer)))
+            strncpyz(windows_shared_buffer, "[unknown]", sizeof(windows_shared_buffer) - 1);
+
+        if (strcasecmp(windows_shared_buffer, "_Global_") == 0)
+            continue;
+
+        netdata_fix_chart_name(windows_shared_buffer);
+        struct net_framework_instances *p = dictionary_set(processes, windows_shared_buffer, NULL, sizeof(*p));
+    }
+}
+
 struct netdata_netframework_objects {
     char *object;
     void (*fnct)(PERF_DATA_BLOCK *, PERF_OBJECT_TYPE *, int);
@@ -848,6 +940,22 @@ struct netdata_netframework_objects {
     {
         .fnct = netdata_framework_clr_loading,
         .object = ".NET CLR Loading"
+    },
+    {
+        .fnct = netdata_framework_clr_locks_and_threads,
+        .object = ".NET CLR LocksAndThreads"
+    },
+    {
+        .fnct = netdata_framework_clr_memory,
+        .object = ".NET CLR Memory"
+    },
+    {
+        .fnct = netdata_framework_clr_remoting,
+        .object = ".NET CLR Remoting"
+    },
+    {
+        .fnct = netdata_framework_clr_security,
+        .object = ".NET CLR Security"
     }
 };
 
