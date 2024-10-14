@@ -944,8 +944,8 @@ static void netdata_framework_clr_security(PERF_DATA_BLOCK *pDataBlock,
         struct net_framework_instances *p = dictionary_set(processes, windows_shared_buffer, NULL, sizeof(*p));
 
         if (perflibGetObjectCounter(pDataBlock, pObjectType, &p->NETFrameworkCLRSecurityLinkTimeChecks)) {
-            snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_link_time_checks", windows_shared_buffer);
             if (!p->st_clrsecurity_link_time_checks) {
+                snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_link_time_checks", windows_shared_buffer);
                 p->st_clrsecurity_link_time_checks = rrdset_create_localhost("netframework"
                                                                              , id, NULL
                                                                              , "security"
@@ -981,8 +981,8 @@ static void netdata_framework_clr_security(PERF_DATA_BLOCK *pDataBlock,
 
         if (perflibGetObjectCounter(pDataBlock, pObjectType, &p->NETFrameworkCLRSecurityPercentTimeinRTChecks) &&
             perflibGetObjectCounter(pDataBlock, pObjectType, &p->NETFrameworkCLRSecurityFrequency_PerfTime)) {
-            snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_checks_time", windows_shared_buffer);
             if (!p->st_clrsecurity_link_time_checks) {
+                snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_checks_time", windows_shared_buffer);
                 p->st_clrsecurity_link_time_checks = rrdset_create_localhost("netframework"
                                                                              , id, NULL
                                                                              , "security"
@@ -1020,8 +1020,8 @@ static void netdata_framework_clr_security(PERF_DATA_BLOCK *pDataBlock,
         }
 
         if (perflibGetObjectCounter(pDataBlock, pObjectType, &p->NETFrameworkCLRSecurityStackWalkDepth)) {
-            snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_stack_walk_depth", windows_shared_buffer);
             if (!p->st_clrsecurity_stack_walk_depth) {
+                snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_stack_walk_depth", windows_shared_buffer);
                 p->st_clrsecurity_stack_walk_depth = rrdset_create_localhost("netframework"
                                                                              , id, NULL
                                                                              , "security"
@@ -1056,8 +1056,8 @@ static void netdata_framework_clr_security(PERF_DATA_BLOCK *pDataBlock,
         }
 
         if (perflibGetObjectCounter(pDataBlock, pObjectType, &p->NETFrameworkCLRSecurityRunTimeChecks)) {
-            snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_runtime_checks", windows_shared_buffer);
             if (!p->st_clrsecurity_stack_walk_depth) {
+                snprintfz(id, RRD_ID_LENGTH_MAX, "%s_clrsecurity_runtime_checks", windows_shared_buffer);
                 p->st_clrsecurity_stack_walk_depth = rrdset_create_localhost("netframework"
                                                                              , id, NULL
                                                                              , "security"
