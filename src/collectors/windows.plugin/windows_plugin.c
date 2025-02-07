@@ -63,6 +63,7 @@ static void windows_main_cleanup(void *pptr)
 
     static_thread->enabled = NETDATA_MAIN_THREAD_EXITED;
 
+    netdata_pdh_cleanup();
     worker_unregister();
 }
 
@@ -79,6 +80,7 @@ void *win_plugin_main(void *ptr)
 
     rrd_collector_started();
     PerflibNamesRegistryInitialize();
+    netdata_pdh_init();
 
     CLEANUP_FUNCTION_REGISTER(windows_main_cleanup) cleanup_ptr = ptr;
 
