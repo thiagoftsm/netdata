@@ -20,6 +20,13 @@ extern "C" {
 #include <stdio.h>
 #include <stdint.h>
 
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+#ifdef LIBBPF_DEPRECATED
+#include <bpf/btf.h>
+#include <linux/btf.h>
+#endif
+
 // ----------------------------------------------------------------------------
 // Enumeration used to identify threads with eBPF PIDs
 enum ebpf_pids_index {
@@ -186,6 +193,8 @@ typedef struct netdata_ebpf_shm {
 } netdata_ebpf_shm_t;
 
 typedef struct netdata_ebpf_pid_stats {
+    uint32_t threads;
+
     ebpf_process_stat_t process;
     netdata_socket_t socket;
     netdata_cachestat_pid_t cachestat;
@@ -204,6 +213,9 @@ typedef struct netdata_ebpf_pid_stats {
 
 int netdata_integration_initialize_shm(size_t pids);
 void netdata_integration_cleanup_shm();
+
+extern sem_t *shm_mutex_ebpf_integration;
+extern netdata_ebpf_pid_stats_t *integration_shm;
 
 #ifdef __cplusplus
 }
