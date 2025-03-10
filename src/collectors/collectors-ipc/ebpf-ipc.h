@@ -213,6 +213,8 @@ typedef struct netdata_ebpf_pid_stats {
 
 int netdata_integration_initialize_shm(size_t pids);
 void netdata_integration_cleanup_shm();
+netdata_ebpf_pid_stats_t *netdata_ebpf_get_shm_pointer(uint32_t pid, enum ebpf_pids_index idx);
+void netdata_ebpf_reset_shm_pointer(uint32_t pid, enum ebpf_pids_index idx);
 
 extern sem_t *shm_mutex_ebpf_integration;
 extern netdata_ebpf_pid_stats_t *integration_shm;

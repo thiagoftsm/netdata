@@ -6,6 +6,26 @@ netdata_ebpf_pid_stats_t *integration_shm;
 int shm_fd_ebpf_integration = -1;
 sem_t *shm_mutex_ebpf_integration = SEM_FAILED;
 
+bool using_vector = false;
+
+void netdata_ebpf_reset_shm_pointer(uint32_t pid, enum ebpf_pids_index idx)
+{
+    if (using_vector) {
+        netdata_ebpf_pid_stats_t *ptr = &integration_shm[pid];
+        ptr->threads |= idx << 1;
+    }
+}
+
+netdata_ebpf_pid_stats_t *netdata_ebpf_get_shm_pointer(uint32_t pid, enum ebpf_pids_index idx) {
+    if (using_vector) {
+        netdata_ebpf_pid_stats_t *ptr = &integration_shm[pid];
+        ptr->threads |= idx<<1;
+        return ptr;
+    }
+
+    return NULL;
+}
+
 void netdata_integration_cleanup_shm()
 {
     if (shm_mutex_ebpf_integration != SEM_FAILED) {
@@ -22,8 +42,16 @@ void netdata_integration_cleanup_shm()
     }
 }
 
+static void netdata_ebpf_select_access_mode(size_t pids)
+{
+    size_t local_max = (size_t)os_get_system_pid_max();
+    using_vector = (pids == local_max);
+}
+
 int netdata_integration_initialize_shm(size_t pids)
 {
+    netdata_ebpf_select_access_mode(pids);
+
     shm_fd_ebpf_integration = shm_open(NETDATA_EBPF_INTEGRATION_NAME, O_CREAT | O_RDWR, 0660);
     if (shm_fd_ebpf_integration < 0) {
         nd_log(NDLS_COLLECTORS, NDLP_ERR, "Cannot initialize shared memory. Integration won't happen.");
