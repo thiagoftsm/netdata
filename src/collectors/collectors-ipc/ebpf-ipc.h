@@ -107,6 +107,25 @@ typedef struct netdata_cachestat_pid {
     uint32_t mark_buffer_dirty;
 } netdata_cachestat_pid_t;
 
+typedef struct netdata_cachestat {
+    uint32_t add_to_page_cache_lru;
+    uint32_t mark_page_accessed;
+    uint32_t account_page_dirtied;
+    uint32_t mark_buffer_dirty;
+} netdata_cachestat_t;
+
+typedef struct netdata_publish_cachestat {
+    uint64_t ct;
+
+    long long ratio;
+    long long dirty;
+    long long hit;
+    long long miss;
+
+    netdata_cachestat_t current;
+    netdata_cachestat_t prev;
+} netdata_publish_cachestat_t;
+
 typedef struct netdata_dcstat_pid {
     uint64_t ct;
     uint32_t tgid;
@@ -197,7 +216,7 @@ typedef struct netdata_ebpf_pid_stats {
 
     ebpf_process_stat_t process;
     netdata_socket_t socket;
-    netdata_cachestat_pid_t cachestat;
+    netdata_publish_cachestat_t cachestat;
     netdata_dcstat_pid_t directory_cache;
     netdata_ebpf_swap_t swap;
     netdata_ebpf_vfs_t vfs;

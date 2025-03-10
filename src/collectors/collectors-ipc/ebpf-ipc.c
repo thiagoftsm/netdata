@@ -2,7 +2,7 @@
 
 #include "ebpf-ipc.h"
 
-netdata_ebpf_pid_stats_t *integration_shm;
+netdata_ebpf_pid_stats_t *integration_shm = NULL;
 int shm_fd_ebpf_integration = -1;
 sem_t *shm_mutex_ebpf_integration = SEM_FAILED;
 
@@ -17,7 +17,7 @@ void netdata_ebpf_reset_shm_pointer(uint32_t pid, enum ebpf_pids_index idx)
 }
 
 netdata_ebpf_pid_stats_t *netdata_ebpf_get_shm_pointer(uint32_t pid, enum ebpf_pids_index idx) {
-    if (using_vector) {
+    if (using_vector && integration_shm) {
         netdata_ebpf_pid_stats_t *ptr = &integration_shm[pid];
         ptr->threads |= idx<<1;
         return ptr;

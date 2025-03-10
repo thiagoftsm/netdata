@@ -4199,6 +4199,7 @@ void ebpf_validate_data_sharing_selection() {
 static void ebpf_initialize_data_sharing()
 {
     ebpf_validate_data_sharing_selection();
+    int shm_ret = -1;
 
     // Initialize
     switch (integration_with_collectors) {
@@ -4209,10 +4210,15 @@ static void ebpf_initialize_data_sharing()
         }
         case NETDATA_EBPF_INTEGRATION_SHM:
             // All pid_map_size have the same value
-            netdata_integration_initialize_shm(ebpf_modules[EBPF_MODULE_PROCESS_IDX].pid_map_size);
+            int shm_ret = netdata_integration_initialize_shm(ebpf_modules[EBPF_MODULE_PROCESS_IDX].pid_map_size);
         case NETDATA_EBPF_INTEGRATION_DISABLED:
         default:
             break;
+    }
+
+    if (shm_ret && !socket_ipc) {
+        ebpf_set_apps_mode(NETDATA_EBPF_APPS_FLAG_NO);
+        ebpf_disable_cgroups();
     }
 }
 
