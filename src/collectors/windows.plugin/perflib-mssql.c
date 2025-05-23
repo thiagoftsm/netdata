@@ -40,7 +40,11 @@ struct netdata_mssql_conn {
     SQLHSTMT dbLocksSTMT;
 
     BOOL is_connected;
+
+    struct netdata_mssql_conn *next;
 };
+
+static struct netdata_mssql_conn *mssql_conn_list = NULL;
 
 enum netdata_mssql_metrics {
     NETDATA_MSSQL_GENERAL_STATS,
@@ -803,22 +807,14 @@ void netdata_mount_mssql_connection_string(struct netdata_mssql_conn *dbInput)
     dbInput->connectionString = (SQLCHAR *)strdupz((char *)conn);
 }
 
-static void netdata_read_config_options(struct netdata_mssql_conn *dbconn)
+static struct netdata_mssql_conn *netdata_read_config_options()
 {
-    dbconn->netdataSQLEnv = NULL;
-    dbconn->netdataSQLHDBc = NULL;
-    dbconn->checkPermSTMT = NULL;
-    dbconn->databaseListSTMT = NULL;
-    dbconn->dataFileSizeSTMT = NULL;
-    dbconn->dbTransactionSTMT = NULL;
-    dbconn->dbLocksSTMT = NULL;
-
-    dbconn->is_connected = FALSE;
-
     static uint16_t expected_instances = 1;
     static uint16_t total_instances = 0;
     if (total_instances > expected_instances)
-        return;
+        return NULL;
+
+    struct netdata_mssql_conn *dbconn = callocz(1, sizeof(struct netdata_mssql_conn));
 
 #define NETDATA_MAX_MSSSQL_SECTION_LENGTH (40)
 #define NETDATA_DEFAULT_MSSQL_SECTION "plugin:windows:PerflibMSSQL"
@@ -842,6 +838,19 @@ static void netdata_read_config_options(struct netdata_mssql_conn *dbconn)
         expected_instances = dbconn->instances;
 
     total_instances++;
+
+    return dbconn;
+}
+
+static struct netdata_mssql_conn *netdata_attach_connection(const char *instance) {
+    struct netdata_mssql_conn *list;
+    size_t len = strlen(instance);
+    for (list = mssql_conn_list; list; list = list->next) {
+        if (!strncmp(instance, list->instance, len))
+            return list;
+    }
+
+    return NULL;
 }
 
 void dict_mssql_insert_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused)
@@ -864,8 +873,7 @@ void dict_mssql_insert_cb(const DICTIONARY_ITEM *item __maybe_unused, void *valu
 
     initialize_mssql_objects(mi, instance);
     initialize_mssql_keys(mi);
-    mi->conn = callocz(1, sizeof(struct netdata_mssql_conn));
-    netdata_read_config_options(mi->conn);
+    mi->conn = netdata_attach_connection(instance);
 
     if (mi->conn->connectionString) {
         mi->conn->is_connected = netdata_MSSQL_initialize_conection(mi->conn);
@@ -972,6 +980,24 @@ void *netdata_mssql_queries(void *ptr __maybe_unused)
     return NULL;
 }
 
+static int netdata_parse_mssql_options() {
+    struct netdata_mssql_conn *last = NULL;
+    struct netdata_mssql_conn *curr;
+    int counter = 0;
+
+    while( (curr = netdata_read_config_options())) {
+        if (last) {
+            curr->next = last;
+        } else {
+            mssql_conn_list = curr;
+        }
+
+        last = curr;
+        counter++;
+    }
+    return counter;
+}
+
 static int initialize(int update_every)
 {
     static bool create_thread = false;
@@ -980,7 +1006,8 @@ static int initialize(int update_every)
 
     dictionary_register_insert_callback(mssql_instances, dict_mssql_insert_cb, &create_thread);
 
-    if (mssql_fill_dictionary()) {
+    int total_options = netdata_parse_mssql_options();
+    if (mssql_fill_dictionary() && !total_options) {
         return -1;
     }
 
