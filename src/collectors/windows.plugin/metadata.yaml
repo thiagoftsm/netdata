@@ -3155,3 +3155,9 @@ modules:
               chart_type: line
               dimensions:
                 - name: processed
+            - name: exchange.avail_service_requests
+              description: Requests serviced
+              unit: requests/s
+              chart_type: line
+              dimensions:
+                - name: serviced
