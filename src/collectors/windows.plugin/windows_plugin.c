@@ -35,6 +35,11 @@ static struct proc_module {
      .enabled = CONFIG_BOOLEAN_YES,
      .update_every = 30 * UPDATE_EVERY_MIN,
      .func = do_GetServicesStatus},
+    {.name = "GetSensors",
+     .dim = "GetSensors",
+     .enabled = CONFIG_BOOLEAN_YES,
+     .update_every = UPDATE_EVERY_MIN,
+     .func = do_GetSensors},
 
     // the same is provided by PerflibProcessor, with more detailed analysis
     //{.name = "GetSystemCPU",        .dim = "GetSystemCPU",       .enabled = CONFIG_BOOLEAN_YES,
