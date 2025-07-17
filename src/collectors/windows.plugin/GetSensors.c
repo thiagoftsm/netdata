@@ -16,7 +16,25 @@
 
 ISensorManager *hSensorManager = NULL;
 
-int netdata_sensor_initialize_management()
+struct sensor_data {
+    GUID type;
+
+    char *unit;
+    collected_number value;
+
+    RRDSET *st_sensor;
+    RRDDIM *rd_sensor;
+};
+
+// Dictionary
+static DICTIONARY *sensors = NULL;
+
+void netdata_sensor_insert_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused)
+{
+    return;
+}
+
+static int initialize()
 {
     HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     if (FAILED(hr)) {
@@ -37,6 +55,11 @@ int netdata_sensor_initialize_management()
         CoUninitialize();
         return -1;
     }
+
+    sensors = dictionary_create_advanced(
+            DICT_OPTION_DONT_OVERWRITE_VALUE | DICT_OPTION_FIXED_SIZE, NULL, sizeof(struct sensor_data));
+
+    dictionary_register_insert_callback(sensors, netdata_sensor_insert_cb, NULL);
 
     return 0;
 }
@@ -75,6 +98,8 @@ int GetSensorData(int update_every)
 
             SysFreeString(binary_sensor_name);
 
+            struct sensor_data *sd = dictionary_set(sensors, sensor_name, NULL, sizeof(*p));
+
             ISensorDataReport *hReport = NULL;
             hr = hSensor->lpVtbl->GetData(hSensor, &hReport);
             if (SUCCEEDED(hr)) {
@@ -93,7 +118,7 @@ int do_GetSensors(int update_every, usec_t dt __maybe_unused)
 
     if (unlikely(!initialized)) {
         initialized = true;
-        if (netdata_sensor_initialize_management())
+        if (initialize())
             return -1;
     }
 
