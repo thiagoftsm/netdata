@@ -22,7 +22,7 @@ int netdata_sensor_initialize_management()
     if (FAILED(hr)) {
         nd_log(
                 NDLS_COLLECTORS,
-                NDLP_ERROR,
+                NDLP_ERR,
                 "Cannot initialize COM interface.");
         return -1;
     }
@@ -32,11 +32,57 @@ int netdata_sensor_initialize_management()
     if (hr != S_OK || !hSensorManager) {
         nd_log(
                 NDLS_COLLECTORS,
-                NDLP_ERROR,
+                NDLP_ERR,
                 "Cannot create Sensor Manager.");
         CoUninitialize();
         return -1;
     }
+
+    return 0;
+}
+
+int GetSensorData(int update_every)
+{
+    ISensorCollection *hSensorCollection = NULL;
+    HRESULT hr = hSensorManager->lpVtbl->GetSensorsByCategory(hSensorManager, &SENSOR_CATEGORY_ALL, &hSensorCollection);
+    if (FAILED(hr)) {
+        CoUninitialize();
+        return -1;
+    }
+
+    ULONG count = 0;
+    hSensorCollection->lpVtbl->GetCount(hSensorCollection, &count);
+    if (unlikely(!count)) {
+        nd_log(
+                NDLS_COLLECTORS,
+                NDLP_ERR,
+                "No sensors identified, stopping collection.");
+        return -1;
+    }
+
+// https://learn.microsoft.com/en-us/rest/api/data-manager-for-agri/dataplane/sensor-data-models/get?view=rest-data-manager-for-agri-dataplane-2023-11-01-preview&tabs=HTTP
+#define SENSOR_MAX_LENGTH 56
+    char sensor_name[SENSOR_MAX_LENGTH];
+    for (ULONG i = 0; i < count; i++) {
+        ISensor *hSensor = NULL;
+        hr = hSensorCollection->lpVtbl->GetAt(hSensorCollection, i, &hSensor);
+        if (SUCCEEDED(hr)) {
+            BSTR binary_sensor_name;
+            hSensor->lpVtbl->GetFriendlyName(hSensor, &binary_sensor_name);
+            int len = SysStringLen(binary_sensor_name);
+
+            wcstombs(sensor_name, binary_sensor_name, SENSOR_MAX_LENGTH);
+
+            SysFreeString(binary_sensor_name);
+
+            ISensorDataReport *hReport = NULL;
+            hr = hSensor->lpVtbl->GetData(hSensor, &hReport);
+            if (SUCCEEDED(hr)) {
+                hReport->lpVtbl->Release(hReport);
+            }
+        }
+    }
+    hSensorManager->lpVtbl->Release(hSensorManager);
 
     return 0;
 }
@@ -50,5 +96,9 @@ int do_GetSensors(int update_every, usec_t dt __maybe_unused)
         if (netdata_sensor_initialize_management())
             return -1;
     }
+
+    if (GetSensorData(update_every))
+        return -1;
+
     return 0;
 }
