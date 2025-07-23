@@ -64,6 +64,63 @@ static int initialize()
     return 0;
 }
 
+static inline void netdata_sensor_set_guid(struct sensor_data *sd, ISensor *hSensor)
+{
+    GUID type;
+    hSensor->lpVtbl->GetType(hSensor, &type);
+    sd->type = type;
+}
+
+static inline void netdata_sensor_set_value(struct sensor_data *sd, PROPVARIANT *value)
+{
+    switch(value->vt) {
+        case VT_R8:
+            sd->value = (collected_number ) value->dblVal;
+            break;
+        case VT_I4:
+            sd->value = (collected_number ) value->lVal;
+            break;
+        case VT_BOOL:
+            sd->value = (collected_number ) (value->boolVal);
+            break;
+        case VT_LPWSTR:
+        default:
+            // We are ignoring unknown and string value
+            sd->value = 0;
+            break;
+    }
+}
+
+static void netdata_sensor_fill_dictionary(struct sensor_data *sd, ISensor *hSensor)
+{
+    ISensorDataReport *hReport = NULL;
+    HRESULT hr = hSensor->lpVtbl->GetData(hSensor, &hReport);
+    if (SUCCEEDED(hr)) {
+        IPortableDeviceValues *hKeys = NULL;
+        netdata_sensor_set_guid(sd, hSensor);
+        hr = hReport->lpVtbl->GetSensorValues(hReport, NULL, &hKeys);
+        if (SUCCEEDED(hr)) {
+            DWORD keyCount;
+            hKeys->lpVtbl->GetCount(hKeys, &keyCount);
+
+            for (DWORD j = 0; j < keyCount; j++) {
+                PROPERTYKEY key;
+                PROPVARIANT value;
+                PropVariantInit(&value);
+
+                hKeys->lpVtbl->GetAt(hKeys, j, &key, &value);
+
+                netdata_sensor_set_value(sd, &value);
+
+                PropVariantClear(&value);
+            }
+
+            hKeys->lpVtbl->Release(hKeys);
+        }
+        hReport->lpVtbl->Release(hReport);
+    }
+}
+
 int GetSensorData(int update_every)
 {
     ISensorCollection *hSensorCollection = NULL;
@@ -92,19 +149,17 @@ int GetSensorData(int update_every)
         if (SUCCEEDED(hr)) {
             BSTR binary_sensor_name;
             hSensor->lpVtbl->GetFriendlyName(hSensor, &binary_sensor_name);
+
             int len = SysStringLen(binary_sensor_name);
-
             wcstombs(sensor_name, binary_sensor_name, SENSOR_MAX_LENGTH);
-
             SysFreeString(binary_sensor_name);
 
-            struct sensor_data *sd = dictionary_set(sensors, sensor_name, NULL, sizeof(*p));
+            struct sensor_data *sd = dictionary_set(sensors, sensor_name, NULL, sizeof(*sd));
+            if (unlikely(!sd))
+                continue;
 
-            ISensorDataReport *hReport = NULL;
-            hr = hSensor->lpVtbl->GetData(hSensor, &hReport);
-            if (SUCCEEDED(hr)) {
-                hReport->lpVtbl->Release(hReport);
-            }
+            netdata_sensor_fill_dictionary(sd, hSensor);
+
         }
     }
     hSensorManager->lpVtbl->Release(hSensorManager);
