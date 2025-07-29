@@ -91,6 +91,7 @@ static inline void netdata_sensor_set_value(struct sensor_data *sd, PROPVARIANT 
     }
 }
 
+/*
 static void netdata_sensor_fill_dictionary(struct sensor_data *sd, ISensor *hSensor)
 {
     ISensorDataReport *hReport = NULL;
@@ -120,6 +121,7 @@ static void netdata_sensor_fill_dictionary(struct sensor_data *sd, ISensor *hSen
         hReport->lpVtbl->Release(hReport);
     }
 }
+ */
 
 int GetSensorData(int update_every)
 {
@@ -127,45 +129,60 @@ int GetSensorData(int update_every)
     HRESULT hr = hSensorManager->lpVtbl->GetSensorsByCategory(hSensorManager, &SENSOR_CATEGORY_ALL, &hSensorCollection);
     if (FAILED(hr)) {
         CoUninitialize();
-        return -1;
-    }
-
-    ULONG count = 0;
-    hSensorCollection->lpVtbl->GetCount(hSensorCollection, &count);
-    if (unlikely(!count)) {
         nd_log(
                 NDLS_COLLECTORS,
                 NDLP_ERR,
-                "No sensors identified, stopping collection.");
+                "Cannot start sensor collection");
         return -1;
     }
 
+    return 0;
+}
+/*
+int GetSensorData(int update_every)
+{
+
+ULONG count = 0;
+hSensorCollection->lpVtbl->GetCount(hSensorCollection, &count);
+if (unlikely(!count)) {
+    nd_log(
+            NDLS_COLLECTORS,
+            NDLP_ERR,
+            "No sensors identified, stopping collection.");
+    return -1;
+}
+
+nd_log(
+        NDLS_COLLECTORS,
+        NDLP_ERR,
+        "KILLME_SENSORS: %d", count);
 // https://learn.microsoft.com/en-us/rest/api/data-manager-for-agri/dataplane/sensor-data-models/get?view=rest-data-manager-for-agri-dataplane-2023-11-01-preview&tabs=HTTP
 #define SENSOR_MAX_LENGTH 56
-    char sensor_name[SENSOR_MAX_LENGTH];
-    for (ULONG i = 0; i < count; i++) {
-        ISensor *hSensor = NULL;
-        hr = hSensorCollection->lpVtbl->GetAt(hSensorCollection, i, &hSensor);
-        if (SUCCEEDED(hr)) {
-            BSTR binary_sensor_name;
-            hSensor->lpVtbl->GetFriendlyName(hSensor, &binary_sensor_name);
+char sensor_name[SENSOR_MAX_LENGTH];
+for (ULONG i = 0; i < count; i++) {
+    ISensor *hSensor = NULL;
+    hr = hSensorCollection->lpVtbl->GetAt(hSensorCollection, i, &hSensor);
+    if (SUCCEEDED(hr)) {
+        BSTR binary_sensor_name;
+        hSensor->lpVtbl->GetFriendlyName(hSensor, &binary_sensor_name);
 
-            int len = SysStringLen(binary_sensor_name);
-            wcstombs(sensor_name, binary_sensor_name, SENSOR_MAX_LENGTH);
-            SysFreeString(binary_sensor_name);
+        int len = SysStringLen(binary_sensor_name);
+        wcstombs(sensor_name, binary_sensor_name, SENSOR_MAX_LENGTH);
+        SysFreeString(binary_sensor_name);
 
-            struct sensor_data *sd = dictionary_set(sensors, sensor_name, NULL, sizeof(*sd));
-            if (unlikely(!sd))
-                continue;
+        struct sensor_data *sd = dictionary_set(sensors, sensor_name, NULL, sizeof(*sd));
+        if (unlikely(!sd))
+            continue;
 
-            netdata_sensor_fill_dictionary(sd, hSensor);
+        netdata_sensor_fill_dictionary(sd, hSensor);
 
-        }
     }
-    hSensorManager->lpVtbl->Release(hSensorManager);
+}
+hSensorManager->lpVtbl->Release(hSensorManager);
 
     return 0;
 }
+ */
 
 int do_GetSensors(int update_every, usec_t dt __maybe_unused)
 {
@@ -180,5 +197,9 @@ int do_GetSensors(int update_every, usec_t dt __maybe_unused)
     if (GetSensorData(update_every))
         return -1;
 
+    nd_log(
+            NDLS_COLLECTORS,
+            NDLP_ERR,
+            "KILLME_SUCCESS");
     return 0;
 }
