@@ -1947,6 +1947,7 @@ set(WINDOWS_PLUGIN_FILES
         src/collectors/windows.plugin/GetSystemCPU.c
         src/collectors/windows.plugin/GetPowerSupply.c
         src/collectors/windows.plugin/GetServicesStatus.c
+        src/collectors/windows.plugin/GetCPUFreq.c
         src/collectors/windows.plugin/perflib-adcs.c
         src/collectors/windows.plugin/perflib-adfs.c
         src/collectors/windows.plugin/perflib-rrd.c
