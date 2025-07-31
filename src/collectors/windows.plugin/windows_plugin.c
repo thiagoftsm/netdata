@@ -48,11 +48,11 @@ static struct proc_module {
     {.name = "GetCPUFreq",
      .dim = "GetCPUFreq",
      .enabled = CONFIG_BOOLEAN_YES,
-     .update_every = UPDATE_EVERY_MIN,
+     .update_every = 10 * UPDATE_EVERY_MIN,
      .func = do_GetCPUFreq,
      .rd = NULL,
      .thread = NULL,
-     .cleanup = NULL},
+     .cleanup = do_CPUFreq_cleanup},
 
     // the same is provided by PerflibProcessor, with more detailed analysis
     //{.name = "GetSystemCPU",        .dim = "GetSystemCPU",       .enabled = CONFIG_BOOLEAN_YES,
