@@ -9,7 +9,7 @@
 
 collected_number *frequencies;
 static ND_THREAD *cpu_freq_thread_collection = NULL;
-static size_t local_cpus;
+static size_t local_cpus = 0;
 
 /**
  * The QueryPerformanceFrequency does not give us expected results
@@ -20,6 +20,38 @@ static size_t local_cpus;
  * We opt to use the same approach used by LibreHardwareMonitor, that is compaitble with average value shown in windows tools
  * https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LibreHardwareMonitorLib/Hardware/Cpu/GenericCpu.cs#L145
  */
+
+static collected_number estimate_cpu_frequency_mhz(int cpu)
+{
+    LARGE_INTEGER freq, start, end;
+    volatile unsigned long long i;
+    double elapsed_seconds;
+    unsigned long long iterations;
+
+    HANDLE thread = GetCurrentThread();
+    DWORD_PTR previous_affinity = SetThreadAffinityMask(thread, 1ULL << cpu);
+    if (previous_affinity == 0) {
+        return 0;
+    }
+
+    if (!QueryPerformanceFrequency(&freq))
+        return 0;
+
+    QueryPerformanceCounter(&start);
+
+    do {
+        for (i = 0, iterations = 0; i < 100000; ++i) {
+            iterations++;
+        }
+        QueryPerformanceCounter(&end);
+        elapsed_seconds = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
+    } while (elapsed_seconds < 0.1);
+
+    SetThreadAffinityMask(thread, previous_affinity);
+
+    iterations /= (elapsed_seconds * NSEC_PER_MSEC);
+    return (collected_number ) (iterations*100) ;
+}
 
 static void netdata_freq_collection(void *ptr __maybe_unused)
 {
@@ -33,6 +65,10 @@ static void netdata_freq_collection(void *ptr __maybe_unused)
 
         if (unlikely(!service_running(SERVICE_COLLECTORS)))
             break;
+
+        for (size_t i =0; i < local_cpus; i++) {
+            frequencies[i] = estimate_cpu_frequency_mhz(i);
+        }
     }
 }
 
