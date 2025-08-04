@@ -3,6 +3,10 @@
 #include "windows_plugin.h"
 #include "windows-internals.h"
 
+#include <intrin.h>
+#pragma intrinsic(__rdtsc)
+#define rdtsc() __rdtsc()
+
 #define _COMMON_PLUGIN_NAME "windows.plugin"
 #define _COMMON_PLUGIN_MODULE_NAME "GetCPUFreq"
 #include "../common-contexts/common-contexts.h"
@@ -29,12 +33,45 @@ static size_t local_cpus = 0;
  * https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LibreHardwareMonitorLib/Hardware/Cpu/GenericCpu.cs#L145
  */
 
+
+void EstimateTimeStampCounterFrequency(double timeWindow, double *frequency, double* error) {
+    LARGE_INTEGER freq;
+    QueryPerformanceFrequency(&freq);
+    long long ticks = (long long)(timeWindow * freq.QuadPart);
+
+    LARGE_INTEGER timeBegin, timeEnd;
+    QueryPerformanceCounter(&timeBegin);
+    timeBegin.QuadPart += (long long)ceil(0.001 * ticks);
+    timeEnd.QuadPart = timeBegin.QuadPart + ticks;
+
+    LARGE_INTEGER current;
+    do {
+        QueryPerformanceCounter(&current);
+    } while (current.QuadPart < timeBegin.QuadPart);
+
+    uint64_t countBegin = rdtsc();
+    LARGE_INTEGER afterBegin;
+    QueryPerformanceCounter(&afterBegin);
+
+    do {
+        QueryPerformanceCounter(&current);
+    } while (current.QuadPart < timeEnd.QuadPart);
+
+    uint64_t countEnd = rdtsc();
+    LARGE_INTEGER afterEnd;
+    QueryPerformanceCounter(&afterEnd);
+
+    double delta = (double)(timeEnd.QuadPart - timeBegin.QuadPart);
+    *frequency = 1e-6 * ((double)(countEnd - countBegin) * freq.QuadPart) / delta;
+
+    double beginError = (double)(afterBegin.QuadPart - timeBegin.QuadPart) / delta;
+    double endError = (double)(afterEnd.QuadPart - timeEnd.QuadPart) / delta;
+    *error = beginError + endError;
+}
+
 static collected_number estimate_cpu_frequency_mhz(int cpu)
 {
     LARGE_INTEGER freq, start, end;
-    volatile unsigned long long i;
-    double elapsed_seconds;
-    unsigned long long iterations;
 
     HANDLE thread = GetCurrentThread();
     DWORD_PTR previous_affinity = SetThreadAffinityMask(thread, 1ULL << cpu);
@@ -42,23 +79,27 @@ static collected_number estimate_cpu_frequency_mhz(int cpu)
         return 0;
     }
 
-    if (!QueryPerformanceFrequency(&freq))
-        return 0;
+    double f, e;
+    EstimateTimeStampCounterFrequency(0, &f, &e);
+    EstimateTimeStampCounterFrequency(0, &f, &e);
 
-    QueryPerformanceCounter(&start);
-
-    do {
-        for (i = 0, iterations = 0; i < 100000; ++i) {
-            iterations++;
+    // estimate the frequency
+    double error = DBL_MAX;
+    double frequency = 0;
+    for (int i = 0; i < 5; i++) {
+        EstimateTimeStampCounterFrequency(0.025, &f, &e);
+        if (e < error) {
+            error = e;
+            frequency = f;
         }
-        QueryPerformanceCounter(&end);
-        elapsed_seconds = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-    } while (elapsed_seconds < 0.1);
+
+        if (error < 1e-4)
+            break;
+    }
 
     SetThreadAffinityMask(thread, previous_affinity);
 
-    iterations /= (elapsed_seconds * NSEC_PER_MSEC);
-    return (collected_number ) (iterations) ;
+    return (collected_number ) f ;
 }
 
 static inline void netdata_collect_local_frequency()
