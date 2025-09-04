@@ -5,57 +5,16 @@
 
 #ifdef OS_WINDOWS
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-
 //IP
 static void netdata_windows_ip(struct rrdhost_system_info *systemInfo)
 {
-    MIB_IPFORWARDROW route;
-    DWORD dest = 0;
-    if (GetBestRoute(dest, 0, &route) != NO_ERROR) {
-        return;
-    }
+    (void)rrdhost_system_info_set_by_name(systemInfo, "NETDATA_SYSTEM_DEFAULT_INTERFACE_DETECTION", "WINAPI");
 
-    DWORD ifIndex = route.dwForwardIfIndex;
+    char *ptr = netdata_win_local_interface();
+    (void)rrdhost_system_info_set_by_name(systemInfo, "NETDATA_SYSTEM_DEFAULT_INTERFACE_NAME", ptr);
 
-    // Step 2: Enumerate adapters
-    PIP_ADAPTER_ADDRESSES adapters = (PIP_ADAPTER_ADDRESSES)mallocz(bufLen);
-    if (!adapters) {
-        return;
-    }
-
-    DWORD ret = GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, NULL, adapters, &bufLen);
-    if (ret != NO_ERROR) {
-        goto end_ip_detection;
-    }
-
-    PIP_ADAPTER_ADDRESSES aa = adapters;
-    while (aa) {
-        if (aa->IfIndex == ifIndex) {
-            (void)rrdhost_system_info_set_by_name(systemInfo, "NETDATA_SYSTEM_DEFAULT_INTERFACE_NAME", aa->FriendlyName);
-            (void)rrdhost_system_info_set_by_name(systemInfo, "NETDATA_SYSTEM_DEFAULT_INTERFACE_DETECTION", "WINAPI");
-
-            PIP_ADAPTER_UNICAST_ADDRESS ua = aa->FirstUnicastAddress;
-            while (ua) {
-                if (ua->Address.lpSockaddr->sa_family == AF_INET) {
-                    char ipstr[INET_ADDRSTRLEN];
-                    struct sockaddr_in *sa_in = (struct sockaddr_in *)ua->Address.lpSockaddr;
-                    inet_ntop(AF_INET, &(sa_in->sin_addr), ipstr, sizeof(ipstr));
-                    (void)rrdhost_system_info_set_by_name(systemInfo, "NETDATA_SYSTEM_DEFAULT_INTERFACE_IP", ipstr);
-                    goto end_ip_detection;
-                }
-                ua = ua->Next;
-            }
-            break;
-        }
-        aa = aa->Next;
-    }
-
-end_ip_detection:
-    free(adapters);
-    return;
+    ptr = netdata_win_local_ip();
+    (void)rrdhost_system_info_set_by_name(systemInfo, "NETDATA_SYSTEM_DEFAULT_INTERFACE_IP", ptr);
 }
 
 // Hardware
