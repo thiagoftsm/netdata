@@ -3047,7 +3047,7 @@ target_link_libraries(netdata PRIVATE
         "$<$<BOOL:${ENABLE_SENTRY}>:sentry>"
         "$<$<BOOL:${ENABLE_WEBRTC}>:LibDataChannel::LibDataChannelStatic>"
         "$<$<BOOL:${CURL_FOUND}>:PkgConfig::CURL>"
-        "$<$<BOOL:${OS_WINDOWS}>:odbc32;setupapi;ws2_32>"
+        "$<$<BOOL:${OS_WINDOWS}>:odbc32;setupapi;ws2_32;iphlpapi>"
 )
 
 netdata_add_protobuf(netdata)
