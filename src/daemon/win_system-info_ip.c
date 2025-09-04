@@ -16,12 +16,25 @@ static struct windows_ip_labels {
     .initialized = false;
 };
 
+static int netdata_initialize_winsock()
+{
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 static unsigned int netdata_fill_default_ip()
 {
     if (default_ip.initialized)
         return 0;
 
     default_ip.initialized = true;
+
+    if (netdata_initialize_winsock())
+        return -1;
+
     MIB_IPFORWARDROW route;
     DWORD dest = 0;
     if (GetBestRoute(dest, 0, &route) != NO_ERROR) {

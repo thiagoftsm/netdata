@@ -1,7 +1,5 @@
 extern "C" {
 
-#include <winsock2.h>
-
 #include "daemon.h"
 #include "libnetdata/libnetdata.h"
 #include "daemon/daemon-shutdown.h"
@@ -43,8 +41,6 @@ static SERVICE_STATUS svc_status = {};
 static HANDLE svc_stop_event_handle = nullptr;
 
 static ND_THREAD *cleanup_thread = nullptr;
-
-static bool wsa_initialized = false;
 
 static bool ReportSvcStatus(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWORD dwWaitHint, DWORD dwControlsAccepted)
 {
@@ -114,9 +110,6 @@ static void call_netdata_cleanup(void *arg)
             break;
     }
     netdata_exit_gracefully(reason, false);
-
-    if (wsa_initialized)
-        WSACleanup();
 
     // Close event handle
     netdata_service_log("Closing stop event handle...");
@@ -209,16 +202,6 @@ void WINAPI ServiceMain(DWORD argc, LPSTR* argv)
     netdata_service_log("Agent has been started...");
 }
 
-static void initialize_winsock()
-{
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
-        netdata_service_log("Failed to start Winsock");
-        return;
-    }
-    wsa_initialized = true;
-}
-
 static bool update_path() {
     const char *old_path = getenv("PATH");
 
@@ -256,8 +239,6 @@ int main(int argc, char *argv[])
     if (!update_path()) {
         return 1;
     }
-
-    initialize_winsock();
 
     if (tty)
     {
