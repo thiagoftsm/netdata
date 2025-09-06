@@ -3037,6 +3037,7 @@ target_include_directories(netdata PRIVATE
         "$<$<BOOL:${ENABLE_EXPORTER_PROMETHEUS_REMOTE_WRITE}>:${SNAPPY_INCLUDE_DIRS}>"
 )
 
+# Do not append  ws2_32 and iphlpapi because it conflicts with other libraries
 target_link_libraries(netdata PRIVATE
         m
         libnetdata
@@ -3048,7 +3049,7 @@ target_link_libraries(netdata PRIVATE
         "$<$<BOOL:${ENABLE_SENTRY}>:sentry>"
         "$<$<BOOL:${ENABLE_WEBRTC}>:LibDataChannel::LibDataChannelStatic>"
         "$<$<BOOL:${CURL_FOUND}>:PkgConfig::CURL>"
-        "$<$<BOOL:${OS_WINDOWS}>:odbc32;setupapi;ws2_32;iphlpapi>"
+        "$<$<BOOL:${OS_WINDOWS}>:odbc32;setupapi>"
 )
 
 netdata_add_protobuf(netdata)
