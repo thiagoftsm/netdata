@@ -269,6 +269,17 @@ static inline void netdata_set_hd_usage(PERF_DATA_BLOCK *pDataBlock,
     d->percentDiskFree.current.Time = totalNumberOfBytes.QuadPart;
 }
 
+static char *netdata_update_mount_point(char *out, size_t length, char *in) {
+    char *limit = strchr(in, '\\');
+    if (limit) {
+        *limit = '\0';
+        return in;
+    }
+
+    strncpyz(out, in, length);
+    return out;
+}
+
 static bool do_logical_disk(PERF_DATA_BLOCK *pDataBlock, int update_every, usec_t now_ut)
 {
     DICTIONARY *dict = logicalDisks;
@@ -315,7 +326,9 @@ static bool do_logical_disk(PERF_DATA_BLOCK *pDataBlock, int update_every, usec_
                 update_every,
                 RRDSET_TYPE_STACKED);
 
-            rrdlabels_add(d->st_disk_space->rrdlabels, "mount_point", windows_shared_buffer, RRDLABEL_SRC_AUTO);
+            char mpLabel[RRDLABELS_MAX_NAME_LENGTH];
+            char *ptr = netdata_update_mount_point(mpLabel, RRDLABELS_MAX_NAME_LENGTH -1, windows_shared_buffer);
+            rrdlabels_add(d->st_disk_space->rrdlabels, "mount_point", ptr, RRDLABEL_SRC_AUTO);
             rrdlabels_add(
                 d->st_disk_space->rrdlabels, "drive_type", drive_type_to_str(d->DriveType), RRDLABEL_SRC_AUTO);
             rrdlabels_add(
