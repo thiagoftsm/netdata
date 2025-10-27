@@ -179,6 +179,9 @@ struct mssql_db_jobs {
 struct mssql_db_instance {
     struct mssql_instance *parent;
 
+    SQLHSTMT dbReplicationPublisher;
+    bool running_replication;
+
     bool collecting_data;
     bool collect_instance;
 
@@ -1154,8 +1157,19 @@ void dict_mssql_insert_wait_cb(const DICTIONARY_ITEM *item __maybe_unused, void 
 void dict_mssql_insert_databases_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused)
 {
     struct mssql_db_instance *mdi = value;
+    const char *dbname = dictionary_acquired_item_name((DICTIONARY_ITEM *)item);
 
     mdi->collecting_data = true;
+
+    if (!mdi->parent->conn || strncmp(dbname, NETDATA_REPLICATION_DB, sizeof(NETDATA_REPLICATION_DB)- 1)) {
+        mdi->running_replication = false;
+        return;
+    }
+
+    int ret = SQLAllocHandle(SQL_HANDLE_STMT, mdi->parent->conn->netdataSQLHDBc, &mdi->dbReplicationPublisher);
+    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
+        mdi->running_replication = true;
+    }
 }
 
 void dict_mssql_insert_jobs_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused)
