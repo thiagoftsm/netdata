@@ -1327,9 +1327,15 @@ void dict_mssql_insert_replication_cb(const DICTIONARY_ITEM *item __maybe_unused
 void dict_mssql_insert_databases_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused)
 {
     struct mssql_db_instance *mdi = value;
+    struct mssql_instance *mi = data;
     const char *dbname = dictionary_acquired_item_name((DICTIONARY_ITEM *)item);
 
     mdi->collecting_data = true;
+
+    if (!mi)
+        return;
+
+    mdi->parent = mi;
 
     if (!mdi->parent->conn || strncmp(dbname, NETDATA_REPLICATION_DB, sizeof(NETDATA_REPLICATION_DB)- 1)) {
         mdi->running_replication = false;
@@ -3050,13 +3056,9 @@ static void do_mssql_databases(PERF_DATA_BLOCK *pDataBlock, struct mssql_instanc
         if (!strcasecmp(windows_shared_buffer, "_Total"))
             continue;
 
-        struct mssql_db_instance *mdi = dictionary_set(mi->databases, windows_shared_buffer, NULL, sizeof(*mdi));
+        struct mssql_db_instance *mdi = dictionary_set(mi->databases, windows_shared_buffer, mi, sizeof(*mdi));
         if (!mdi)
             continue;
-
-        if (!mdi->parent) {
-            mdi->parent = mi;
-        }
 
         if (!i)
             mdi->collect_instance = true;
