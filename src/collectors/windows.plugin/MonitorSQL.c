@@ -383,6 +383,8 @@ void dict_mssql_fill_locks(struct mssql_db_instance *mdi, const char *dbname)
             dictionary_set(mdi->parent->locks_instances, resource_type, NULL, sizeof(*mli));
         if (unlikely(!mli))
             continue;
+        else if (unlikely(!mli->parent))
+            mli->parent = mdi->parent;
 
         mli->lockWait.current.Data = value;
     } while (true);
