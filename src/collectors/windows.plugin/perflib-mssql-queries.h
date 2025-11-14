@@ -646,6 +646,7 @@
 #define NETDATA_MSSQL_NEXT_TRY (60)
 
 struct netdata_mssql_conn {
+    // Configuration
     const char *instance;
     const char *driver;
     const char *server;
@@ -656,6 +657,14 @@ struct netdata_mssql_conn {
     bool windows_auth;
     bool is_sqlexpress;
 
+    bool collect_locks;
+    bool collect_replication;
+    bool collect_size;
+    bool collect_transactions;
+    bool collect_status;
+    bool collect_waits;
+
+    // Runtime
     SQLCHAR *connectionString;
 
     SQLHENV netdataSQLEnv;

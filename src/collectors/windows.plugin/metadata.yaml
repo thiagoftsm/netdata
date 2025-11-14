@@ -2229,6 +2229,30 @@ modules:
               description: Set to yes when running SQL Express version.
               default_value: no
               required: false
+            - name: locks
+              description: Enable the lock monitoring collection.
+              default_value: yes
+              required: false
+            - name: replication
+              description: Enable the replication monitoring collection.
+              default_value: yes
+              required: false
+            - name: sizes
+              description: Enable the database size monitoring collection.
+              default_value: yes
+              required: false
+            - name: transactions
+              description: Enable the transaction monitoring collection.
+              default_value: yes
+              required: false
+            - name: status
+              description: Enable the database status monitoring collection.
+              default_value: yes
+              required: false
+            - name: waits
+              description: Enable the waits monitoring collection.
+              default_value: yes
+              required: false
         examples:
           folding:
             enabled: true
