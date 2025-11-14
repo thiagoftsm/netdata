@@ -1271,7 +1271,7 @@ static void netdata_read_config_options()
 
         dbconn->collect_locks = inicfg_get_boolean(&netdata_config, section_name, "locks", true);
         dbconn->collect_replication = inicfg_get_boolean(&netdata_config, section_name, "replication", true);
-        dbconn->collect_sizes = inicfg_get_boolean(&netdata_config, section_name, "sizes", true);
+        dbconn->collect_size = inicfg_get_boolean(&netdata_config, section_name, "sizes", true);
         dbconn->collect_transactions = inicfg_get_boolean(&netdata_config, section_name, "transactions", true);
         dbconn->collect_status = inicfg_get_boolean(&netdata_config, section_name, "status", true);
         dbconn->collect_waits = inicfg_get_boolean(&netdata_config, section_name, "waits", true);
@@ -1551,7 +1551,7 @@ int dict_mssql_locks_charts_cb(const DICTIONARY_ITEM *item __maybe_unused, void 
     struct mssql_instance *mi = data;
 
     if (unlikely(mli->parent->conn->collect_locks))
-        return;
+        return 1;
 
     dict_mssql_locks_wait_charts(mi, mli, dimension);
     dict_mssql_dead_locks_charts(mi, mli, dimension);
