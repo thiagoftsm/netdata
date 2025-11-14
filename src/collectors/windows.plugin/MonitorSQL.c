@@ -325,6 +325,9 @@ endtransactions:
 
 void dict_mssql_fill_locks(struct mssql_db_instance *mdi, const char *dbname)
 {
+    if (unlikely(mdi->parent->conn->collect_locks))
+        return;
+
 #define NETDATA_MSSQL_MAX_RESOURCE_TYPE (60)
     char resource_type[NETDATA_MSSQL_MAX_RESOURCE_TYPE + 1] = {};
     long value = 0;
@@ -1546,6 +1549,9 @@ int dict_mssql_locks_charts_cb(const DICTIONARY_ITEM *item __maybe_unused, void 
     const char *dimension = dictionary_acquired_item_name((DICTIONARY_ITEM *)item);
     struct mssql_lock_instance *mli = value;
     struct mssql_instance *mi = data;
+
+    if (unlikely(mli->parent->conn->collect_locks))
+        return;
 
     dict_mssql_locks_wait_charts(mi, mli, dimension);
     dict_mssql_dead_locks_charts(mi, mli, dimension);
