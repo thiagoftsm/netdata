@@ -1123,7 +1123,7 @@ void ebpf_stop_threads(int sig)
     netdata_mutex_unlock(&ebpf_exit_cleanup);
 
     for (i = 0; ebpf_modules[i].info.thread_name != NULL; i++) {
-        if (ebpf_threads[i].thread)
+        if (ebpf_modules[i].enabled < NETDATA_THREAD_EBPF_STOPPED && ebpf_threads[i].thread)
             nd_thread_join(ebpf_threads[i].thread);
     }
 
@@ -2300,6 +2300,7 @@ int main(int argc, char **argv)
             }
             st->thread = nd_thread_create(st->name, NETDATA_THREAD_OPTION_DEFAULT, st->start_routine, em);
         } else {
+            st->enabled = 0;
             em->lifetime = EBPF_DEFAULT_LIFETIME;
         }
     }

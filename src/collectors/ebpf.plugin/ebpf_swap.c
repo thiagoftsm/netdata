@@ -52,6 +52,7 @@ netdata_ebpf_targets_t swap_targets[] = {
 
 #define NETDATA_SWAP_KEY_WRITE_START (2)
 static char *swap_functions[] = {"swap_readpage", "swap_read_folio", "swap_writepage", "__swap_writepage", NULL};
+static bool swap_safe_clean = false;
 
 struct netdata_static_thread ebpf_read_swap = {
     .name = "EBPF_READ_SWAP",
@@ -445,7 +446,13 @@ static void ebpf_swap_exit(void *ptr)
 
     ebpf_update_kernel_memory_with_vector(&plugin_statistics, em->maps, EBPF_ACTION_STAT_REMOVE);
 
-/*
+    if (!swap_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
+
     if (em->objects) {
         if ((uintptr_t)em->objects < 4096) {
             netdata_log_error(
@@ -465,7 +472,6 @@ static void ebpf_swap_exit(void *ptr)
         swap_bpf_obj = NULL;
     }
 #endif
-*/
 
     freez(swap_vector);
     swap_vector = NULL;
@@ -474,7 +480,7 @@ static void ebpf_swap_exit(void *ptr)
 
     netdata_mutex_lock(&ebpf_exit_cleanup);
     em->enabled = NETDATA_THREAD_EBPF_STOPPED;
-    //ebpf_update_stats(&plugin_statistics, em);
+    ebpf_update_stats(&plugin_statistics, em);
     netdata_mutex_unlock(&ebpf_exit_cleanup);
 }
 
@@ -1270,6 +1276,7 @@ void ebpf_swap_thread(void *ptr)
     ebpf_read_swap.thread =
         nd_thread_create(ebpf_read_swap.name, NETDATA_THREAD_OPTION_DEFAULT, ebpf_read_swap_thread, em);
 
+    swap_safe_clean = true;
     swap_collector(em);
 
 endswap:
