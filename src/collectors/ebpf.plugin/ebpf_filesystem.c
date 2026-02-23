@@ -804,6 +804,9 @@ static void ebpf_obsolete_filesystem_global(ebpf_module_t *em)
         if (!efp->objects)
             continue;
 
+        if (!(efp->flags & NETDATA_FILESYSTEM_FLAG_CHART_CREATED))
+            continue;
+
         ebpf_write_chart_obsolete(
             NETDATA_FILESYSTEM_FAMILY,
             efp->hread.name,
