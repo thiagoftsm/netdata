@@ -1589,6 +1589,8 @@ void ebpf_fd_thread(void *ptr)
 {
     ebpf_module_t *em = (ebpf_module_t *)ptr;
 
+    fd_safe_clean = false;
+
     CLEANUP_FUNCTION_REGISTER(ebpf_fd_exit) cleanup_ptr = em;
 
     if (em->enabled == NETDATA_THREAD_EBPF_NOT_RUNNING) {

@@ -877,6 +877,8 @@ void ebpf_disk_thread(void *ptr)
 {
     ebpf_module_t *em = (ebpf_module_t *)ptr;
 
+    disk_safe_clean = false;
+
     CLEANUP_FUNCTION_REGISTER(ebpf_disk_exit) cleanup_ptr = em;
 
     if (em->enabled == NETDATA_THREAD_EBPF_NOT_RUNNING) {
@@ -898,6 +900,8 @@ void ebpf_disk_thread(void *ptr)
     if (ebpf_disk_enable_tracepoints()) {
         goto enddisk;
     }
+
+    disk_safe_clean = true;
 
     avl_init_lock(&disk_tree, ebpf_compare_disks);
     if (read_local_disks()) {
@@ -928,7 +932,6 @@ void ebpf_disk_thread(void *ptr)
     ebpf_update_kernel_memory_with_vector(&plugin_statistics, disk_maps, EBPF_ACTION_STAT_ADD);
     netdata_mutex_unlock(&lock);
 
-    disk_safe_clean = true;
     disk_collector(em);
 
 enddisk:

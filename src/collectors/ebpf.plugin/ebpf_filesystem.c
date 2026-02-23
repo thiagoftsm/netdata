@@ -765,6 +765,8 @@ static int ebpf_update_partitions(ebpf_module_t *em)
         return -1;
     }
 
+    filesystem_safe_clean = true;
+
     return 0;
 }
 
@@ -1198,7 +1200,6 @@ void ebpf_filesystem_thread(void *ptr)
     ebpf_update_stats(&plugin_statistics, em);
     netdata_mutex_unlock(&lock);
 
-    filesystem_safe_clean = true;
     filesystem_collector(em);
 
 endfilesystem:
