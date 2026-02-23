@@ -59,6 +59,7 @@ static netdata_idx_t fd_hash_values[NETDATA_FD_COUNTER];
 static netdata_idx_t *fd_values = NULL;
 
 netdata_fd_stat_t *fd_vector = NULL;
+static bool fd_safe_clean = false;
 
 static int fd_use_close_fd = -1;
 
@@ -602,6 +603,13 @@ static void ebpf_fd_exit(void *pptr)
     ebpf_module_t *em = CLEANUP_FUNCTION_GET_PTR(pptr);
     if (!em)
         return;
+
+    if (!fd_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
 
     netdata_mutex_lock(&lock);
     collect_pids &= ~(1 << EBPF_MODULE_FD_IDX);
@@ -1612,6 +1620,7 @@ void ebpf_fd_thread(void *ptr)
 
     ebpf_read_fd.thread = nd_thread_create(ebpf_read_fd.name, NETDATA_THREAD_OPTION_DEFAULT, ebpf_read_fd_thread, em);
 
+    fd_safe_clean = true;
     fd_collector(em);
 
 endfd:

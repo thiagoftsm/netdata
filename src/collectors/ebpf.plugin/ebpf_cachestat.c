@@ -12,6 +12,7 @@ netdata_cachestat_pid_t *cachestat_vector = NULL;
 
 static netdata_idx_t cachestat_hash_values[NETDATA_CACHESTAT_END];
 static netdata_idx_t *cachestat_values = NULL;
+static bool cachestat_safe_clean = false;
 
 ebpf_local_maps_t cachestat_maps[] = {
     {.name = "cstat_global",
@@ -570,6 +571,13 @@ static void ebpf_cachestat_exit(void *pptr)
     ebpf_module_t *em = CLEANUP_FUNCTION_GET_PTR(pptr);
     if (!em)
         return;
+
+    if (!cachestat_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
 
     netdata_mutex_lock(&lock);
     collect_pids &= ~(1 << EBPF_MODULE_CACHESTAT_IDX);
@@ -1770,6 +1778,7 @@ void ebpf_cachestat_thread(void *ptr)
     ebpf_read_cachestat.thread =
         nd_thread_create(ebpf_read_cachestat.name, NETDATA_THREAD_OPTION_DEFAULT, ebpf_read_cachestat_thread, em);
 
+    cachestat_safe_clean = true;
     cachestat_collector(em);
 
 endcachestat:

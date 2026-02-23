@@ -43,6 +43,7 @@ static softirq_val_t softirq_vals[] = {
 
 // tmp store for soft IRQ values we get from a per-CPU eBPF map.
 static softirq_ebpf_val_t *softirq_ebpf_vals = NULL;
+static bool softirq_safe_clean = false;
 
 /**
  * Obsolete global
@@ -78,6 +79,13 @@ static void softirq_cleanup(void *pptr)
     ebpf_module_t *em = CLEANUP_FUNCTION_GET_PTR(pptr);
     if (!em)
         return;
+
+    if (!softirq_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
 
     if (em->enabled == NETDATA_THREAD_EBPF_FUNCTION_RUNNING) {
         netdata_mutex_lock(&lock);
@@ -260,6 +268,7 @@ void ebpf_softirq_thread(void *ptr)
         goto endsoftirq;
     }
 
+    softirq_safe_clean = true;
     softirq_collector(em);
 
 endsoftirq:

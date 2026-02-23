@@ -69,6 +69,7 @@ static int was_sched_process_fork_enabled = 0;
 
 static netdata_idx_t *process_hash_values = NULL;
 ebpf_process_stat_t *process_stat_vector = NULL;
+static bool process_safe_clean = false;
 static netdata_syscall_stat_t process_aggregated_data[NETDATA_KEY_PUBLISH_PROCESS_END];
 static netdata_publish_syscall_t process_publish_aggregated[NETDATA_KEY_PUBLISH_PROCESS_END];
 
@@ -957,6 +958,13 @@ static void ebpf_process_exit(void *pptr)
     if (!em)
         return;
 
+    if (!process_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
+
     netdata_mutex_lock(&lock);
     collect_pids &= ~(1 << EBPF_MODULE_PROCESS_IDX);
     netdata_mutex_unlock(&lock);
@@ -1785,6 +1793,7 @@ void ebpf_process_thread(void *ptr)
 
     netdata_mutex_unlock(&lock);
 
+    process_safe_clean = true;
     process_collector(em);
 
     netdata_mutex_lock(&ebpf_exit_cleanup);

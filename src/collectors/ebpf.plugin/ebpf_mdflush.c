@@ -28,6 +28,8 @@ netdata_ebpf_targets_t mdflush_targets[] = {
     {.name = "md_flush_request", .mode = EBPF_LOAD_TRAMPOLINE},
     {.name = NULL, .mode = EBPF_LOAD_TRAMPOLINE}};
 
+static bool mdflush_safe_clean = false;
+
 // store for "published" data from the reader thread, which the collector
 // thread will write to netdata agent.
 static avl_tree_lock mdflush_pub;
@@ -155,6 +157,13 @@ static void mdflush_exit(void *pptr)
     ebpf_module_t *em = CLEANUP_FUNCTION_GET_PTR(pptr);
     if (!em)
         return;
+
+    if (!mdflush_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
 
     if (em->enabled == NETDATA_THREAD_EBPF_FUNCTION_RUNNING) {
         netdata_mutex_lock(&lock);
@@ -403,6 +412,7 @@ void ebpf_mdflush_thread(void *ptr)
         goto endmdflush;
     }
 
+    mdflush_safe_clean = true;
     mdflush_collector(em);
 
 endmdflush:

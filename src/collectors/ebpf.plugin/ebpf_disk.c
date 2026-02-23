@@ -52,6 +52,7 @@ static netdata_syscall_stat_t disk_aggregated_data[NETDATA_EBPF_HIST_MAX_BINS];
 static netdata_publish_syscall_t disk_publish_aggregated[NETDATA_EBPF_HIST_MAX_BINS];
 
 static netdata_idx_t *disk_hash_values = NULL;
+static bool disk_safe_clean = false;
 
 netdata_mutex_t plot_mutex;
 
@@ -478,6 +479,13 @@ static void ebpf_disk_exit(void *pptr)
     ebpf_module_t *em = CLEANUP_FUNCTION_GET_PTR(pptr);
     if (!em)
         return;
+
+    if (!disk_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
 
     if (em->enabled == NETDATA_THREAD_EBPF_FUNCTION_RUNNING) {
         netdata_mutex_lock(&lock);
@@ -920,6 +928,7 @@ void ebpf_disk_thread(void *ptr)
     ebpf_update_kernel_memory_with_vector(&plugin_statistics, disk_maps, EBPF_ACTION_STAT_ADD);
     netdata_mutex_unlock(&lock);
 
+    disk_safe_clean = true;
     disk_collector(em);
 
 enddisk:

@@ -164,6 +164,7 @@ static netdata_publish_syscall_t filesystem_publish_aggregated[NETDATA_EBPF_HIST
 
 char **dimensions = NULL;
 static netdata_idx_t *filesystem_hash_values = NULL;
+static bool filesystem_safe_clean = false;
 
 #ifdef LIBBPF_MAJOR_VERSION
 /**
@@ -870,6 +871,13 @@ static void ebpf_filesystem_exit(void *pptr)
     if (!em)
         return;
 
+    if (!filesystem_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
+
     if (em->enabled == NETDATA_THREAD_EBPF_FUNCTION_RUNNING) {
         netdata_mutex_lock(&lock);
         ebpf_obsolete_filesystem_global(em);
@@ -1190,6 +1198,7 @@ void ebpf_filesystem_thread(void *ptr)
     ebpf_update_stats(&plugin_statistics, em);
     netdata_mutex_unlock(&lock);
 
+    filesystem_safe_clean = true;
     filesystem_collector(em);
 
 endfilesystem:
