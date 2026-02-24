@@ -899,16 +899,18 @@ static void ebpf_filesystem_exit(void *pptr)
 
     freez(filesystem_hash_values);
 
-    int i;
-    for (i = 0; localfs[i].filesystem; i++) {
-        ebpf_filesystem_partitions_t *efp = &localfs[i];
-        if (!efp->probe_links)
-            continue;
+    if (em->load & EBPF_LOAD_LEGACY) {
+        int i;
+        for (i = 0; localfs[i].filesystem; i++) {
+            ebpf_filesystem_partitions_t *efp = &localfs[i];
+            if (!efp->probe_links)
+                continue;
 
-        ebpf_unload_legacy_code(efp->objects, efp->probe_links);
-        efp->objects = NULL;
-        efp->probe_links = NULL;
-        efp->flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION;
+            ebpf_unload_legacy_code(efp->objects, efp->probe_links);
+            efp->objects = NULL;
+            efp->probe_links = NULL;
+            efp->flags = NETDATA_FILESYSTEM_FLAG_NO_PARTITION;
+        }
     }
 
     netdata_mutex_lock(&ebpf_exit_cleanup);

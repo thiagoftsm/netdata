@@ -287,7 +287,8 @@ static void ebpf_sync_exit(void *pptr)
         netdata_mutex_unlock(&lock);
     }
 
-    ebpf_sync_cleanup_objects();
+    if (em->load & EBPF_LOAD_LEGACY)
+        ebpf_sync_cleanup_objects();
 
     netdata_mutex_lock(&ebpf_exit_cleanup);
     em->enabled = NETDATA_THREAD_EBPF_STOPPED;

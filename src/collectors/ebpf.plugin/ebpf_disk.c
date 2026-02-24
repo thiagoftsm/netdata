@@ -498,7 +498,7 @@ static void ebpf_disk_exit(void *pptr)
 
     ebpf_update_kernel_memory_with_vector(&plugin_statistics, disk_maps, EBPF_ACTION_STAT_REMOVE);
 
-    if (em->objects) {
+    if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
         ebpf_unload_legacy_code(em->objects, em->probe_links);
         em->objects = NULL;
         em->probe_links = NULL;

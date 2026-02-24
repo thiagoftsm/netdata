@@ -509,7 +509,7 @@ static void ebpf_dcstat_exit(void *pptr)
     }
 #endif
 
-    if (em->objects) {
+    if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
         ebpf_unload_legacy_code(em->objects, em->probe_links);
         em->objects = NULL;
         em->probe_links = NULL;

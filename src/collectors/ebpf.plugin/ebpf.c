@@ -1034,7 +1034,7 @@ static void ebpf_unload_unique_maps()
     if (em->enabled != NETDATA_THREAD_EBPF_STOPPED)
         return;
 
-    if (em->load == EBPF_LOAD_LEGACY)
+    if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links)
         ebpf_unload_legacy_code(em->objects, em->probe_links);
 
 #ifdef LIBBPF_MAJOR_VERSION
@@ -1051,8 +1051,10 @@ static void ebpf_unload_unique_maps()
 static void ebpf_unload_filesystems()
 {
     if (ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].enabled == NETDATA_THREAD_EBPF_NOT_RUNNING ||
-        ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].enabled < NETDATA_THREAD_EBPF_STOPPING ||
-        ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].load != EBPF_LOAD_LEGACY)
+        ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].enabled < NETDATA_THREAD_EBPF_STOPPING)
+        return;
+
+    if (!(ebpf_modules[EBPF_MODULE_FILESYSTEM_IDX].load & EBPF_LOAD_LEGACY))
         return;
 
     int i;
@@ -1073,6 +1075,9 @@ static void ebpf_unload_sync()
 {
     if (ebpf_modules[EBPF_MODULE_SYNC_IDX].enabled == NETDATA_THREAD_EBPF_NOT_RUNNING ||
         ebpf_modules[EBPF_MODULE_SYNC_IDX].enabled < NETDATA_THREAD_EBPF_STOPPING)
+        return;
+
+    if (!(ebpf_modules[EBPF_MODULE_SYNC_IDX].load & EBPF_LOAD_LEGACY))
         return;
 
     int i;
