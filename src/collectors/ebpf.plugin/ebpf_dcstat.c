@@ -500,8 +500,6 @@ static void ebpf_dcstat_exit(void *pptr)
         netdata_mutex_unlock(&lock);
     }
 
-    ebpf_update_kernel_memory_with_vector(&plugin_statistics, em->maps, EBPF_ACTION_STAT_REMOVE);
-
 #ifdef LIBBPF_MAJOR_VERSION
     if (dc_bpf_obj) {
         dc_bpf__destroy(dc_bpf_obj);

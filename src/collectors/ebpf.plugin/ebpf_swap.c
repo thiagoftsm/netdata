@@ -444,8 +444,6 @@ static void ebpf_swap_exit(void *ptr)
         netdata_mutex_unlock(&lock);
     }
 
-    ebpf_update_kernel_memory_with_vector(&plugin_statistics, em->maps, EBPF_ACTION_STAT_REMOVE);
-
     if (!swap_safe_clean) {
         netdata_mutex_lock(&ebpf_exit_cleanup);
         em->enabled = NETDATA_THREAD_EBPF_STOPPED;

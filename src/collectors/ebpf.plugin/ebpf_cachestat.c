@@ -603,8 +603,6 @@ static void ebpf_cachestat_exit(void *pptr)
         netdata_mutex_unlock(&lock);
     }
 
-    ebpf_update_kernel_memory_with_vector(&plugin_statistics, em->maps, EBPF_ACTION_STAT_REMOVE);
-
 #ifdef LIBBPF_MAJOR_VERSION
     if (cachestat_bpf_obj) {
         cachestat_bpf__destroy(cachestat_bpf_obj);
