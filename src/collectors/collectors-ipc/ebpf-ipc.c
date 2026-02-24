@@ -94,7 +94,7 @@ netdata_ebpf_pid_stats_t *netdata_ebpf_get_shm_pointer_unsafe(uint32_t pid, enum
         ptr->pid = pid;
     }
 
-    ptr->threads |= (idx << 1);
+    ptr->threads |= (1UL << (idx << 1));
 
     return ptr;
 }
