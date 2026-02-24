@@ -498,7 +498,6 @@ static void ebpf_shm_exit(void *pptr)
 
     netdata_mutex_lock(&ebpf_exit_cleanup);
     em->enabled = NETDATA_THREAD_EBPF_STOPPED;
-    ebpf_update_stats(&plugin_statistics, em);
     netdata_mutex_unlock(&ebpf_exit_cleanup);
 }
 
