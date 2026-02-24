@@ -14,6 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/netdata/netdata/go/plugins/plugin/agent"
+	"github.com/netdata/netdata/go/plugins/plugin/agent/discovery/dummy"
+	"github.com/netdata/netdata/go/plugins/plugin/agent/discovery/file"
+	"github.com/netdata/netdata/go/plugins/plugin/agent/jobmgr"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/net/http/httpproxy"
 
@@ -24,14 +28,10 @@ import (
 	"github.com/netdata/netdata/go/plugins/pkg/multipath"
 	"github.com/netdata/netdata/go/plugins/pkg/netdataapi"
 	"github.com/netdata/netdata/go/plugins/pkg/pluginconfig"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/confgroup"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/discovery/dummy"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/discovery/file"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/dyncfg"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/functions"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/jobmgr"
-	"github.com/netdata/netdata/go/plugins/plugin/go.d/agent/module"
+	"github.com/netdata/netdata/go/plugins/plugin/framework/collectorapi"
+	"github.com/netdata/netdata/go/plugins/plugin/framework/confgroup"
+	"github.com/netdata/netdata/go/plugins/plugin/framework/dyncfg"
+	"github.com/netdata/netdata/go/plugins/plugin/framework/functions"
 	_ "github.com/netdata/netdata/go/plugins/plugin/go.d/collector"
 )
 
@@ -117,7 +117,7 @@ func runFunctionCLI(opts *cli.Option) int {
 		return 1
 	}
 
-	creator, ok := module.DefaultRegistry.Lookup(moduleName)
+	creator, ok := collectorapi.DefaultRegistry.Lookup(moduleName)
 	if !ok {
 		writeFunctionError(404, "unknown module '%s'", moduleName)
 		return 1
@@ -169,7 +169,7 @@ func runFunctionCLI(opts *cli.Option) int {
 	jobMgr.PluginName = "nodyncfg"
 	jobMgr.Out = io.Discard
 	jobMgr.VarLibDir = pluginconfig.VarLibDir()
-	jobMgr.Modules = module.Registry{moduleName: creator}
+	jobMgr.Modules = collectorapi.Registry{moduleName: creator}
 	jobMgr.ConfigDefaults = reg
 	jobMgr.FnReg = functions.NewManager()
 	jobMgr.FunctionJSONWriter = func(payload []byte, _ int) {
