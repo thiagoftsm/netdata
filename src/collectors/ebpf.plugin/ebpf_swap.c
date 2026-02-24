@@ -453,7 +453,7 @@ static void ebpf_swap_exit(void *ptr)
         return;
     }
 
-    if (em->objects) {
+    if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
         if ((uintptr_t)em->objects < 4096) {
             netdata_log_error(
                 "Invalid em->objects pointer (0x%lx) detected during swap cleanup, skipping bpf_object__close",
@@ -480,7 +480,6 @@ static void ebpf_swap_exit(void *ptr)
 
     netdata_mutex_lock(&ebpf_exit_cleanup);
     em->enabled = NETDATA_THREAD_EBPF_STOPPED;
-    ebpf_update_stats(&plugin_statistics, em);
     netdata_mutex_unlock(&ebpf_exit_cleanup);
 }
 
