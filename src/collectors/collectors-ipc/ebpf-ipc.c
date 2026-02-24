@@ -90,7 +90,6 @@ netdata_ebpf_pid_stats_t *netdata_ebpf_get_shm_pointer_unsafe(uint32_t pid, enum
 
     netdata_ebpf_pid_stats_t *ptr = &integration_shm[shm_idx];
     if (!ptr->threads) {
-        ebpf_stat_values.current++;
         ptr->pid = pid;
     }
 
