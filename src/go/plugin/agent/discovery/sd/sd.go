@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/netdata/netdata/go/plugins/pkg/terminal"
 	"github.com/netdata/netdata/go/plugins/plugin/agent/discovery/sd/pipeline"
-	"github.com/netdata/netdata/go/plugins/plugin/agent/internal/terminal"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/confgroup"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/dyncfg"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/functions"
@@ -236,6 +236,12 @@ func (d *ServiceDiscovery) addPipeline(ctx context.Context, conf confFile) {
 
 	if scfg.DiscovererType() == "" {
 		d.Errorf("config '%s' has no discoverer configured", conf.source)
+		return
+	}
+	if !d.hasDiscovererType(scfg.DiscovererType()) {
+		if scfg.SourceType() != confgroup.TypeStock {
+			d.Warningf("config '%s' uses unsupported discoverer type '%s', skipping", conf.source, scfg.DiscovererType())
+		}
 		return
 	}
 
