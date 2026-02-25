@@ -3,6 +3,7 @@
 #include "ebpf.h"
 #include "ebpf_vfs.h"
 #include "libbpf_api/ebpf_library.h"
+#include <stddef.h>
 
 static char *vfs_dimension_names[NETDATA_KEY_PUBLISH_VFS_END] = {"delete", "read", "write", "fsync", "open", "create"};
 static char *vfs_id_names[NETDATA_KEY_PUBLISH_VFS_END] =
@@ -517,7 +518,7 @@ static void ebpf_obsolete_vfs_services(ebpf_module_t *em, char *id)
         EBPF_COMMON_UNITS_CALLS_PER_SEC,
         NETDATA_VFS_GROUP,
         NETDATA_EBPF_CHART_TYPE_STACKED,
-        NETDATA_SYSTEMD_VFS_CREATE_ERROR_CONTEXT,
+        NETDATA_SYSTEMD_VFS_CREATE_CONTEXT,
         20076,
         em->update_every);
 
@@ -1063,7 +1064,11 @@ static void ebpf_vfs_read_global_table(netdata_idx_t *stats, int maps_per_core)
  */
 static inline void vfs_aggregate_set_vfs(netdata_publish_vfs_t *vfs, netdata_ebpf_vfs_t *w)
 {
-    memcpy(vfs, w, sizeof(netdata_publish_vfs_t));
+    vfs->ct = w->ct;
+    memcpy(
+        ((char *)vfs) + offsetof(netdata_publish_vfs_t, write_call),
+        ((char *)w) + offsetof(netdata_ebpf_vfs_t, write_call),
+        sizeof(netdata_publish_vfs_t) - offsetof(netdata_publish_vfs_t, write_call));
 }
 
 /**
@@ -1325,47 +1330,42 @@ static void read_update_vfs_cgroup()
 /**
  * Sum PIDs
  *
- * Sum values for all targets.
+ * Sum values for all targets using max merge to maintain monotonicity.
  *
  * @param vfs  structure used to store data
  * @param pids input data
  */
 static void ebpf_vfs_sum_cgroup_pids(netdata_publish_vfs_t *vfs, struct pid_on_target2 *pids)
 {
-    netdata_publish_vfs_t accumulator;
-    memset(&accumulator, 0, sizeof(accumulator));
-
     while (pids) {
         netdata_publish_vfs_t *w = &pids->vfs;
 
-        accumulator.ct += w->ct;
-        accumulator.write_bytes += w->write_bytes;
-        accumulator.writev_bytes += w->writev_bytes;
-        accumulator.readv_bytes += w->readv_bytes;
-        accumulator.read_bytes += w->read_bytes;
+        vfs->ct = (w->ct > vfs->ct) ? w->ct : vfs->ct;
+        vfs->write_bytes = (w->write_bytes > vfs->write_bytes) ? w->write_bytes : vfs->write_bytes;
+        vfs->writev_bytes = (w->writev_bytes > vfs->writev_bytes) ? w->writev_bytes : vfs->writev_bytes;
+        vfs->readv_bytes = (w->readv_bytes > vfs->readv_bytes) ? w->readv_bytes : vfs->readv_bytes;
+        vfs->read_bytes = (w->read_bytes > vfs->read_bytes) ? w->read_bytes : vfs->read_bytes;
 
-        accumulator.write_call += w->write_call;
-        accumulator.writev_call += w->writev_call;
-        accumulator.read_call += w->read_call;
-        accumulator.readv_call += w->readv_call;
-        accumulator.unlink_call += w->unlink_call;
-        accumulator.fsync_call += w->fsync_call;
-        accumulator.open_call += w->open_call;
-        accumulator.create_call += w->create_call;
+        vfs->write_call = (w->write_call > vfs->write_call) ? w->write_call : vfs->write_call;
+        vfs->writev_call = (w->writev_call > vfs->writev_call) ? w->writev_call : vfs->writev_call;
+        vfs->read_call = (w->read_call > vfs->read_call) ? w->read_call : vfs->read_call;
+        vfs->readv_call = (w->readv_call > vfs->readv_call) ? w->readv_call : vfs->readv_call;
+        vfs->unlink_call = (w->unlink_call > vfs->unlink_call) ? w->unlink_call : vfs->unlink_call;
+        vfs->fsync_call = (w->fsync_call > vfs->fsync_call) ? w->fsync_call : vfs->fsync_call;
+        vfs->open_call = (w->open_call > vfs->open_call) ? w->open_call : vfs->open_call;
+        vfs->create_call = (w->create_call > vfs->create_call) ? w->create_call : vfs->create_call;
 
-        accumulator.write_err += w->write_err;
-        accumulator.writev_err += w->writev_err;
-        accumulator.read_err += w->read_err;
-        accumulator.readv_err += w->readv_err;
-        accumulator.unlink_err += w->unlink_err;
-        accumulator.fsync_err += w->fsync_err;
-        accumulator.open_err += w->open_err;
-        accumulator.create_err += w->create_err;
+        vfs->write_err = (w->write_err > vfs->write_err) ? w->write_err : vfs->write_err;
+        vfs->writev_err = (w->writev_err > vfs->writev_err) ? w->writev_err : vfs->writev_err;
+        vfs->read_err = (w->read_err > vfs->read_err) ? w->read_err : vfs->read_err;
+        vfs->readv_err = (w->readv_err > vfs->readv_err) ? w->readv_err : vfs->readv_err;
+        vfs->unlink_err = (w->unlink_err > vfs->unlink_err) ? w->unlink_err : vfs->unlink_err;
+        vfs->fsync_err = (w->fsync_err > vfs->fsync_err) ? w->fsync_err : vfs->fsync_err;
+        vfs->open_err = (w->open_err > vfs->open_err) ? w->open_err : vfs->open_err;
+        vfs->create_err = (w->create_err > vfs->create_err) ? w->create_err : vfs->create_err;
 
         pids = pids->next;
     }
-
-    memcpy(vfs, &accumulator, sizeof(netdata_publish_vfs_t));
 }
 
 /**

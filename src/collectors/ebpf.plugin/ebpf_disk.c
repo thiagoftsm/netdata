@@ -52,7 +52,6 @@ static netdata_syscall_stat_t disk_aggregated_data[NETDATA_EBPF_HIST_MAX_BINS];
 static netdata_publish_syscall_t disk_publish_aggregated[NETDATA_EBPF_HIST_MAX_BINS];
 
 static netdata_idx_t *disk_hash_values = NULL;
-static bool disk_safe_clean = false;
 
 netdata_mutex_t plot_mutex;
 
@@ -430,6 +429,13 @@ static void ebpf_cleanup_disk_list(void)
     while (move) {
         netdata_ebpf_disks_t *next = move->next;
 
+        freez(move->histogram.name);
+        move->histogram.name = NULL;
+        freez(move->histogram.title);
+        move->histogram.title = NULL;
+        freez(move->histogram.ctx);
+        move->histogram.ctx = NULL;
+
         freez(move);
 
         move = next;
@@ -480,7 +486,10 @@ static void ebpf_disk_exit(void *pptr)
     if (!em)
         return;
 
-    if (!disk_safe_clean) {
+    bool has_resources = dimensions || disk_hash_values || disk_list || was_block_issue_enabled ||
+                         was_block_rq_complete_enabled || em->probe_links || em->objects;
+
+    if (!has_resources) {
         netdata_mutex_lock(&ebpf_exit_cleanup);
         em->enabled = NETDATA_THREAD_EBPF_STOPPED;
         netdata_mutex_unlock(&ebpf_exit_cleanup);
@@ -687,10 +696,16 @@ static void ebpf_remove_pointer_from_plot_disk(ebpf_module_t *em)
                 prev->next = move->next;
                 netdata_ebpf_disks_t *clean = move;
                 move = move->next;
+                freez(clean->histogram.name);
+                freez(clean->histogram.title);
+                freez(clean->histogram.ctx);
                 freez(clean);
                 continue;
             } else {
                 disk_list = move->next;
+                freez(move->histogram.name);
+                freez(move->histogram.title);
+                freez(move->histogram.ctx);
                 freez(move);
                 move = disk_list;
                 continue;
@@ -874,8 +889,6 @@ void ebpf_disk_thread(void *ptr)
 {
     ebpf_module_t *em = (ebpf_module_t *)ptr;
 
-    disk_safe_clean = false;
-
     CLEANUP_FUNCTION_REGISTER(ebpf_disk_exit) cleanup_ptr = em;
 
     if (em->enabled == NETDATA_THREAD_EBPF_NOT_RUNNING) {
@@ -897,8 +910,6 @@ void ebpf_disk_thread(void *ptr)
     if (ebpf_disk_enable_tracepoints()) {
         goto enddisk;
     }
-
-    disk_safe_clean = true;
 
     avl_init_lock(&disk_tree, ebpf_compare_disks);
     if (read_local_disks()) {

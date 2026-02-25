@@ -164,7 +164,6 @@ static netdata_publish_syscall_t filesystem_publish_aggregated[NETDATA_EBPF_HIST
 
 char **dimensions = NULL;
 static netdata_idx_t *filesystem_hash_values = NULL;
-static bool filesystem_safe_clean = false;
 
 #ifdef LIBBPF_MAJOR_VERSION
 /**
@@ -765,8 +764,6 @@ static int ebpf_update_partitions(ebpf_module_t *em)
         return -1;
     }
 
-    filesystem_safe_clean = true;
-
     return 0;
 }
 
@@ -876,7 +873,16 @@ static void ebpf_filesystem_exit(void *pptr)
     if (!em)
         return;
 
-    if (!filesystem_safe_clean) {
+    int i;
+    bool has_resources = false;
+    for (i = 0; localfs[i].filesystem; i++) {
+        ebpf_filesystem_partitions_t *efp = &localfs[i];
+        if (efp->probe_links || efp->objects || efp->fs_obj) {
+            has_resources = true;
+            break;
+        }
+    }
+    if (!dimensions && !filesystem_hash_values && !has_resources) {
         netdata_mutex_lock(&ebpf_exit_cleanup);
         em->enabled = NETDATA_THREAD_EBPF_STOPPED;
         netdata_mutex_unlock(&ebpf_exit_cleanup);

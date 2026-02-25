@@ -239,7 +239,11 @@ static int hardirq_val_cmp(void *a, void *b)
     hardirq_val_t *ptr1 = a;
     hardirq_val_t *ptr2 = b;
 
-    return ptr1->irq - ptr2->irq;
+    if (ptr1->irq < ptr2->irq)
+        return -1;
+    if (ptr1->irq > ptr2->irq)
+        return 1;
+    return 0;
 }
 
 /**
