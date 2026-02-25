@@ -70,13 +70,13 @@ func (m *Manager) exposedLookupByName(module, job string) (*dyncfg.Entry[confgro
 func (m *Manager) dyncfgCollectorExec(fn dyncfg.Function) {
 	switch fn.Command() {
 	case dyncfg.CommandUserconfig:
-		m.dyncfgConfigUserconfig(fn)
+		m.dyncfgCmdUserconfig(fn)
 		return
 	case dyncfg.CommandTest:
-		m.dyncfgConfigTest(fn)
+		m.dyncfgCmdTest(fn)
 		return
 	case dyncfg.CommandSchema:
-		m.dyncfgConfigSchema(fn)
+		m.dyncfgCmdSchema(fn)
 		return
 	}
 
@@ -89,18 +89,7 @@ func (m *Manager) dyncfgCollectorExec(fn dyncfg.Function) {
 
 func (m *Manager) dyncfgCollectorSeqExec(fn dyncfg.Function) {
 	cmd := fn.Command()
-
-	// Clear waitCfgOnOff before enable/disable (component concern, not handler's).
-	if cmd == dyncfg.CommandEnable || cmd == dyncfg.CommandDisable {
-		key, _, ok := m.collectorCb.ExtractKey(fn)
-		if ok {
-			if entry, ok := m.exposed.LookupByKey(key); ok {
-				if entry.Cfg.FullName() == m.waitCfgOnOff {
-					m.waitCfgOnOff = ""
-				}
-			}
-		}
-	}
+	m.handler.SyncDecision(fn)
 
 	switch cmd {
 	case dyncfg.CommandAdd:
@@ -116,18 +105,18 @@ func (m *Manager) dyncfgCollectorSeqExec(fn dyncfg.Function) {
 	case dyncfg.CommandRestart:
 		m.handler.CmdRestart(fn)
 	case dyncfg.CommandTest:
-		m.dyncfgConfigTest(fn)
+		m.dyncfgCmdTest(fn)
 	case dyncfg.CommandSchema:
-		m.dyncfgConfigSchema(fn)
+		m.dyncfgCmdSchema(fn)
 	case dyncfg.CommandGet:
-		m.dyncfgConfigGet(fn)
+		m.dyncfgCmdGet(fn)
 	default:
 		m.Warningf("dyncfg: function '%s' command '%s' not implemented", fn.Fn().Name, cmd)
 		m.dyncfgApi.SendCodef(fn, 501, "Function '%s' command '%s' is not implemented.", fn.Fn().Name, cmd)
 	}
 }
 
-func (m *Manager) dyncfgConfigUserconfig(fn dyncfg.Function) {
+func (m *Manager) dyncfgCmdUserconfig(fn dyncfg.Function) {
 	cmd := fn.Command()
 
 	id := fn.ID()
@@ -143,7 +132,7 @@ func (m *Manager) dyncfgConfigUserconfig(fn dyncfg.Function) {
 		return
 	}
 
-	creator, ok := m.Modules.Lookup(mn)
+	creator, ok := m.modules.Lookup(mn)
 	if !ok {
 		m.Warningf("dyncfg: %s: module %s not found", cmd, mn)
 		m.dyncfgApi.SendCodef(fn, 404, "The specified module '%s' is not registered.", mn)
@@ -166,7 +155,7 @@ func (m *Manager) dyncfgConfigUserconfig(fn dyncfg.Function) {
 	m.dyncfgApi.SendYAML(fn, string(bs))
 }
 
-func (m *Manager) dyncfgConfigTest(fn dyncfg.Function) {
+func (m *Manager) dyncfgCmdTest(fn dyncfg.Function) {
 	cmd := fn.Command()
 
 	id := fn.ID()
@@ -190,7 +179,7 @@ func (m *Manager) dyncfgConfigTest(fn dyncfg.Function) {
 		return
 	}
 
-	creator, ok := m.Modules.Lookup(mn)
+	creator, ok := m.modules.Lookup(mn)
 	if !ok {
 		m.Warningf("dyncfg: %s: module %s not found", cmd, mn)
 		m.dyncfgApi.SendCodef(fn, 404, "The specified module '%s' is not registered.", mn)
@@ -204,7 +193,7 @@ func (m *Manager) dyncfgConfigTest(fn dyncfg.Function) {
 	}
 
 	if cfg.Vnode() != "" {
-		if _, ok := m.Vnodes[cfg.Vnode()]; !ok {
+		if _, ok := m.vnodes[cfg.Vnode()]; !ok {
 			m.Warningf("dyncfg: %s: module %s: vnode %s not found", cmd, mn, cfg.Vnode())
 			m.dyncfgApi.SendCodef(fn, 400, "The specified vnode '%s' is not registered.", cfg.Vnode())
 			return
@@ -246,7 +235,7 @@ func (m *Manager) dyncfgConfigTest(fn dyncfg.Function) {
 	m.dyncfgApi.SendCodef(fn, 200, "")
 }
 
-func (m *Manager) dyncfgConfigSchema(fn dyncfg.Function) {
+func (m *Manager) dyncfgCmdSchema(fn dyncfg.Function) {
 	cmd := fn.Command()
 
 	id := fn.ID()
@@ -257,7 +246,7 @@ func (m *Manager) dyncfgConfigSchema(fn dyncfg.Function) {
 		return
 	}
 
-	mod, ok := m.Modules.Lookup(mn)
+	mod, ok := m.modules.Lookup(mn)
 	if !ok {
 		m.Warningf("dyncfg: %s: module %s not found", cmd, mn)
 		m.dyncfgApi.SendCodef(fn, 404, "The specified module '%s' is not registered.", mn)
@@ -275,7 +264,7 @@ func (m *Manager) dyncfgConfigSchema(fn dyncfg.Function) {
 	m.dyncfgApi.SendJSON(fn, mod.JobConfigSchema)
 }
 
-func (m *Manager) dyncfgConfigGet(fn dyncfg.Function) {
+func (m *Manager) dyncfgCmdGet(fn dyncfg.Function) {
 	cmd := fn.Command()
 
 	id := fn.ID()
@@ -286,7 +275,7 @@ func (m *Manager) dyncfgConfigGet(fn dyncfg.Function) {
 		return
 	}
 
-	creator, ok := m.Modules.Lookup(mn)
+	creator, ok := m.modules.Lookup(mn)
 	if !ok {
 		m.Warningf("dyncfg: %s: module %s not found", cmd, mn)
 		m.dyncfgApi.SendCodef(fn, 404, "The specified module '%s' is not registered.", mn)
@@ -338,7 +327,7 @@ func (m *Manager) dyncfgSetConfigMeta(cfg confgroup.Config, module, name string,
 	cfg.SetSourceType("dyncfg")
 	cfg.SetModule(module)
 	cfg.SetName(name)
-	if def, ok := m.ConfigDefaults.Lookup(module); ok {
+	if def, ok := m.configDefaults.Lookup(module); ok {
 		cfg.ApplyDefaults(def)
 	}
 }

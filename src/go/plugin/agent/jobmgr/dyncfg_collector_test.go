@@ -30,8 +30,8 @@ func TestDyncfgConfigUserconfig_InvalidPayload_Returns400Only(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var buf bytes.Buffer
 
-			mgr := New()
-			mgr.Modules = prepareMockRegistry()
+			mgr := New(Config{})
+			mgr.modules = prepareMockRegistry()
 			mgr.SetDyncfgResponder(dyncfg.NewResponder(netdataapi.New(safewriter.New(&buf))))
 
 			fn := dyncfg.NewFunction(functions.Function{
@@ -45,7 +45,7 @@ func TestDyncfgConfigUserconfig_InvalidPayload_Returns400Only(t *testing.T) {
 				},
 			})
 
-			mgr.dyncfgConfigUserconfig(fn)
+			mgr.dyncfgCmdUserconfig(fn)
 
 			out := buf.String()
 			assert.Equal(t, 1, strings.Count(out, "FUNCTION_RESULT_BEGIN bad-userconfig"))

@@ -117,6 +117,9 @@ func newTestHandler(cb *mockCallbacks) *Handler[testConfig] {
 		Seen:      NewSeenCache[testConfig](),
 		Exposed:   NewExposedCache[testConfig](),
 		Callbacks: cb,
+		WaitKey: func(cfg testConfig) string {
+			return cfg.Source()
+		},
 
 		Path:                    "/test/path",
 		EnableFailCode:          200,
@@ -144,6 +147,117 @@ func newTestFn(id, cmd, name string, payload []byte) Function {
 		Args:    args,
 		Payload: payload,
 	})
+}
+
+func TestHandler_WaitForDecision_MatchingEnableClearsWait(t *testing.T) {
+	cb := &mockCallbacks{}
+	h := newTestHandler(cb)
+
+	cfg := testConfig{
+		uid:        "uid-job1",
+		key:        "job1",
+		sourceType: "stock",
+		source:     "mod/job1",
+	}
+	h.exposed.Add(&Entry[testConfig]{Cfg: cfg, Status: StatusAccepted})
+
+	h.WaitForDecision(cfg)
+	assert.True(t, h.WaitingForDecision())
+
+	h.SyncDecision(newTestFn("test:job1", "enable", "", nil))
+	assert.False(t, h.WaitingForDecision())
+}
+
+func TestHandler_WaitForDecision_MismatchedCommandKeepsWait(t *testing.T) {
+	cb := &mockCallbacks{}
+	h := newTestHandler(cb)
+
+	waitCfg := testConfig{
+		uid:        "uid-job1",
+		key:        "job1",
+		sourceType: "stock",
+		source:     "mod/job1",
+	}
+	otherCfg := testConfig{
+		uid:        "uid-job2",
+		key:        "job2",
+		sourceType: "stock",
+		source:     "mod/job2",
+	}
+	h.exposed.Add(&Entry[testConfig]{Cfg: waitCfg, Status: StatusAccepted})
+	h.exposed.Add(&Entry[testConfig]{Cfg: otherCfg, Status: StatusAccepted})
+
+	h.WaitForDecision(waitCfg)
+	assert.True(t, h.WaitingForDecision())
+
+	// Non enable/disable commands must not change wait state.
+	h.SyncDecision(newTestFn("test:job1", "schema", "", nil))
+	assert.True(t, h.WaitingForDecision())
+
+	// Enable/disable for a different key must not clear wait state.
+	h.SyncDecision(newTestFn("test:job2", "disable", "", nil))
+	assert.True(t, h.WaitingForDecision())
+
+	// Matching command clears wait state.
+	h.SyncDecision(newTestFn("test:job1", "disable", "", nil))
+	assert.False(t, h.WaitingForDecision())
+}
+
+func TestHandler_AddDiscoveredConfig_TracksSeenAndExposed(t *testing.T) {
+	cb := &mockCallbacks{}
+	h := newTestHandler(cb)
+
+	cfg := testConfig{
+		uid:        "uid-job1",
+		key:        "job1",
+		sourceType: "stock",
+		source:     "file=/tmp/job1.conf",
+	}
+
+	h.RememberDiscoveredConfig(cfg)
+	_, ok := h.seen.Lookup(cfg)
+	require.True(t, ok, "config should be remembered in seen cache")
+
+	entry := h.AddDiscoveredConfig(cfg, StatusAccepted)
+	require.NotNil(t, entry)
+	assert.Equal(t, StatusAccepted, entry.Status)
+	assert.Equal(t, cfg.UID(), entry.Cfg.UID())
+
+	exposed, ok := h.exposed.LookupByKey(cfg.ExposedKey())
+	require.True(t, ok, "config should be exposed")
+	assert.Equal(t, cfg.UID(), exposed.Cfg.UID())
+	assert.Equal(t, StatusAccepted, exposed.Status)
+}
+
+func TestHandler_RemoveDiscoveredConfig_MismatchedExposedUID(t *testing.T) {
+	cb := &mockCallbacks{}
+	h := newTestHandler(cb)
+
+	cfg := testConfig{
+		uid:        "uid-stock",
+		key:        "job1",
+		sourceType: "stock",
+		source:     "file=/tmp/job1.conf",
+	}
+	other := testConfig{
+		uid:        "uid-dyncfg",
+		key:        "job1",
+		sourceType: "dyncfg",
+		source:     "dyncfg=user",
+	}
+
+	h.seen.Add(cfg)
+	h.exposed.Add(&Entry[testConfig]{Cfg: other, Status: StatusRunning})
+
+	entry, ok := h.RemoveDiscoveredConfig(cfg)
+	require.False(t, ok, "mismatched exposed uid should not return an exposed entry")
+	require.Nil(t, entry)
+
+	_, stillSeen := h.seen.Lookup(cfg)
+	assert.False(t, stillSeen, "seen config should be removed")
+	exposed, stillExposed := h.exposed.LookupByKey(cfg.ExposedKey())
+	require.True(t, stillExposed, "exposed entry with different uid should be preserved")
+	assert.Equal(t, other.UID(), exposed.Cfg.UID())
 }
 
 // --- ExtractKey Failure Tests ---

@@ -117,12 +117,6 @@ func (cb *sdCallbacks) ConfigID(cfg sdConfig) string {
 	return cb.sd.dyncfgJobID(cfg.DiscovererType(), cfg.Name())
 }
 
-// dyncfgConfigHandler wraps dyncfgConfig to convert functions.Function to dyncfg.Function.
-// This is needed because functions.Registry expects func(functions.Function).
-func (d *ServiceDiscovery) dyncfgConfigHandler(fn functions.Function) {
-	d.dyncfgConfig(dyncfg.NewFunction(fn))
-}
-
 // dyncfgConfig is the handler for dyncfg config commands.
 // Read-only commands (schema, get, userconfig) are executed directly.
 // State-changing commands are queued for serial execution.
@@ -160,16 +154,7 @@ func (d *ServiceDiscovery) dyncfgConfig(fn dyncfg.Function) {
 
 // dyncfgSeqExec executes state-changing dyncfg commands serially.
 func (d *ServiceDiscovery) dyncfgSeqExec(fn dyncfg.Function) {
-	// Clear waitCfgOnOff before processing enable/disable
-	if fn.Command() == dyncfg.CommandEnable || fn.Command() == dyncfg.CommandDisable {
-		if key, _, ok := d.sdCb.ExtractKey(fn); ok {
-			if entry, ok := d.exposed.LookupByKey(key); ok {
-				if entry.Cfg.PipelineKey() == d.waitCfgOnOff {
-					d.waitCfgOnOff = ""
-				}
-			}
-		}
-	}
+	d.handler.SyncDecision(fn)
 
 	switch fn.Command() {
 	case dyncfg.CommandAdd:
@@ -340,13 +325,13 @@ func (d *ServiceDiscovery) extractDiscovererAndName(id string) (discovererType, 
 
 // registerDyncfgTemplates registers dyncfg templates for each discoverer type
 func (d *ServiceDiscovery) registerDyncfgTemplates(ctx context.Context) {
-	if d.fnReg == nil || disableDyncfg {
+	if d.fnReg == nil {
 		return
 	}
 
 	// Register prefix handler for config commands
 	// Wrap to convert functions.Function to dyncfg.Function
-	d.fnReg.RegisterPrefix("config", d.dyncfgSDPrefixValue(), d.dyncfgConfigHandler)
+	d.fnReg.RegisterPrefix("config", d.dyncfgSDPrefixValue(), dyncfg.WrapHandler(d.dyncfgConfig))
 
 	// Register templates for each discoverer type
 	for _, dt := range d.discovererRegistry().Types() {
@@ -357,7 +342,7 @@ func (d *ServiceDiscovery) registerDyncfgTemplates(ctx context.Context) {
 
 // unregisterDyncfgTemplates unregisters dyncfg templates
 func (d *ServiceDiscovery) unregisterDyncfgTemplates() {
-	if d.fnReg == nil || disableDyncfg {
+	if d.fnReg == nil {
 		return
 	}
 

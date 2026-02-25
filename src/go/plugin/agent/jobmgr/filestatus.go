@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/netdata/netdata/go/plugins/pkg/executable"
+	"github.com/netdata/netdata/go/plugins/plugin/agent/internal/terminal"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/confgroup"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/filepersister"
 )
@@ -24,11 +25,11 @@ func statusFileName(dir string) string {
 func (m *Manager) loadFileStatus() {
 	m.fileStatus = newFileStatus()
 
-	if isTerminal || m.VarLibDir == "" {
+	if terminal.IsTerminal() || m.varLibDir == "" {
 		return
 	}
 
-	s, err := loadFileStatus(statusFileName(m.VarLibDir))
+	s, err := loadFileStatus(statusFileName(m.varLibDir))
 	if err != nil {
 		m.Warningf("failed to load state file: %v", err)
 		return
@@ -37,11 +38,11 @@ func (m *Manager) loadFileStatus() {
 }
 
 func (m *Manager) runFileStatusPersistence() {
-	if m.VarLibDir == "" {
+	if m.varLibDir == "" {
 		return
 	}
 
-	p := filepersister.New(statusFileName(m.VarLibDir))
+	p := filepersister.New(statusFileName(m.varLibDir))
 
 	p.Run(m.ctx, m.fileStatus)
 }

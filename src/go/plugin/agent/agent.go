@@ -12,20 +12,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattn/go-isatty"
 	"github.com/netdata/netdata/go/plugins/logger"
 	"github.com/netdata/netdata/go/plugins/pkg/multipath"
 	"github.com/netdata/netdata/go/plugins/pkg/netdataapi"
 	"github.com/netdata/netdata/go/plugins/pkg/safewriter"
 	"github.com/netdata/netdata/go/plugins/plugin/agent/discovery"
+	"github.com/netdata/netdata/go/plugins/plugin/agent/internal/terminal"
 	"github.com/netdata/netdata/go/plugins/plugin/agent/jobmgr"
 	"github.com/netdata/netdata/go/plugins/plugin/agent/runtimemgr"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/collectorapi"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/confgroup"
 	"github.com/netdata/netdata/go/plugins/plugin/framework/functions"
 )
-
-var isTerminal = isatty.IsTerminal(os.Stdout.Fd())
 
 // Config is an Agent configuration.
 type Config struct {
@@ -217,7 +215,7 @@ func (a *Agent) run(ctx context.Context) {
 
 	if !cfg.Enabled {
 		a.Info("plugin is disabled in the configuration file, exiting...")
-		if isTerminal {
+		if terminal.IsTerminal() {
 			os.Exit(0)
 		}
 		a.api.DISABLE()
@@ -227,7 +225,7 @@ func (a *Agent) run(ctx context.Context) {
 	enabledModules := a.loadEnabledModules(cfg)
 	if len(enabledModules) == 0 {
 		a.Info("no modules to run")
-		if isTerminal {
+		if terminal.IsTerminal() {
 			os.Exit(0)
 		}
 		a.api.DISABLE()
@@ -241,39 +239,38 @@ func (a *Agent) run(ctx context.Context) {
 	discMgr, err := discovery.NewManager(discCfg)
 	if err != nil {
 		a.Error(err)
-		if isTerminal {
+		if terminal.IsTerminal() {
 			os.Exit(0)
 		}
 		return
 	}
 
-	jobMgr := jobmgr.New()
-	jobMgr.PluginName = a.Name
-	jobMgr.Out = a.Out
-	jobMgr.VarLibDir = a.VarLibDir
-	jobMgr.Modules = enabledModules
-	if a.RunModule != "" && a.RunModule != "all" {
-		jobMgr.RunJob = a.RunJob
-	}
-	jobMgr.ConfigDefaults = discCfg.Registry
-	jobMgr.FnReg = fnMgr
-
 	runtimeSvc := runtimemgr.New(a.Logger.With(slog.String("component", "runtime metrics service")))
 	runtimeSvc.Start(a.Name, a.Out)
 	defer runtimeSvc.Stop()
-	jobMgr.RuntimeService = runtimeSvc
+
+	var runJob []string
+	if a.RunModule != "" && a.RunModule != "all" {
+		runJob = a.RunJob
+	}
+
+	jobMgr := jobmgr.New(jobmgr.Config{
+		PluginName:     a.Name,
+		Out:            a.Out,
+		Modules:        enabledModules,
+		RunJob:         runJob,
+		ConfigDefaults: discCfg.Registry,
+		VarLibDir:      a.VarLibDir,
+		FnReg:          fnMgr,
+		Vnodes:         a.setupVnodeRegistry(),
+		DumpMode:       a.dumpMode > 0,
+		DumpAnalyzer:   a.dumpAnalyzer,
+		DumpDataDir:    a.dumpDataDir,
+		RuntimeService: runtimeSvc,
+	})
 
 	// Store reference for dump mode and enable dump mode if configured
 	a.mgr = jobMgr
-	if a.dumpMode > 0 {
-		jobMgr.DumpMode = true
-		jobMgr.DumpAnalyzer = a.dumpAnalyzer
-	}
-	jobMgr.DumpDataDir = a.dumpDataDir
-
-	if reg := a.setupVnodeRegistry(); len(reg) > 0 {
-		jobMgr.Vnodes = reg
-	}
 
 	in := make(chan []*confgroup.Group)
 	var wg sync.WaitGroup
@@ -292,7 +289,7 @@ func (a *Agent) run(ctx context.Context) {
 }
 
 func (a *Agent) keepAlive() {
-	if isTerminal {
+	if terminal.IsTerminal() {
 		return
 	}
 
