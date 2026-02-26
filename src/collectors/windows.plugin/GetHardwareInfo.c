@@ -292,6 +292,22 @@ static void netdata_detect_cpu()
 
 static int initialize()
 {
+    char expanded_path[MAX_PATH];
+    if (ExpandEnvironmentStringsA(drv_path, expanded_path, sizeof(expanded_path)) == 0) {
+        nd_log(
+            NDLS_COLLECTORS, NDLP_ERR, "Cannot expand driver path environment strings. Error= %lu \n", GetLastError());
+        return -1;
+    }
+
+    if (GetFileAttributesA(expanded_path) == INVALID_FILE_ATTRIBUTES) {
+        nd_log(
+            NDLS_COLLECTORS,
+            NDLP_ERR,
+            "Driver not found at '%s'. Please ensure the driver is properly installed.\n",
+            expanded_path);
+        return -1;
+    }
+
     InitializeCriticalSection(&cpus_lock);
     cpus_lock_initialized = true;
 
