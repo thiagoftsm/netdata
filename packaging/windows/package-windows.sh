@@ -50,8 +50,3 @@ if [ ! -f "/opt/netdata/etc/profile" ]; then
 fi
 ${GITHUB_ACTIONS+echo "::endgroup::"}
 
-${GITHUB_ACTIONS+echo "::group::Nobody user"}
-if [ ! -f "/opt/netdata/etc/passwd" ]; then
-    echo 'nobody:*:65534:65534::/var/empty:/bin/false' >> /opt/netdata/etc/passwd
-fi
-${GITHUB_ACTIONS+echo "::endgroup::"}
