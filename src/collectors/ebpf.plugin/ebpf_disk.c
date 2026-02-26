@@ -46,6 +46,7 @@ const char *tracepoint_block_rq_complete = "block_rq_complete";
 
 static int was_block_issue_enabled = 0;
 static int was_block_rq_complete_enabled = 0;
+static bool disk_safe_clean = false;
 
 static char **dimensions = NULL;
 static netdata_syscall_stat_t disk_aggregated_data[NETDATA_EBPF_HIST_MAX_BINS];
@@ -486,10 +487,7 @@ static void ebpf_disk_exit(void *pptr)
     if (!em)
         return;
 
-    bool has_resources = dimensions || disk_hash_values || disk_list || was_block_issue_enabled ||
-                         was_block_rq_complete_enabled || em->probe_links || em->objects;
-
-    if (!has_resources) {
+    if (!disk_safe_clean) {
         netdata_mutex_lock(&ebpf_exit_cleanup);
         em->enabled = NETDATA_THREAD_EBPF_STOPPED;
         netdata_mutex_unlock(&ebpf_exit_cleanup);
@@ -891,6 +889,8 @@ void ebpf_disk_thread(void *ptr)
 
     CLEANUP_FUNCTION_REGISTER(ebpf_disk_exit) cleanup_ptr = em;
 
+    disk_safe_clean = false;
+
     if (em->enabled == NETDATA_THREAD_EBPF_NOT_RUNNING) {
         goto enddisk;
     }
@@ -910,6 +910,8 @@ void ebpf_disk_thread(void *ptr)
     if (ebpf_disk_enable_tracepoints()) {
         goto enddisk;
     }
+
+    disk_safe_clean = true;
 
     avl_init_lock(&disk_tree, ebpf_compare_disks);
     if (read_local_disks()) {

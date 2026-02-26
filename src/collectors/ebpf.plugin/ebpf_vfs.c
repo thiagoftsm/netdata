@@ -1330,42 +1330,69 @@ static void read_update_vfs_cgroup()
 /**
  * Sum PIDs
  *
- * Sum values for all targets using max merge to maintain monotonicity.
+ * Sum values for all targets and maintain monotonicity.
  *
  * @param vfs  structure used to store data
  * @param pids input data
  */
 static void ebpf_vfs_sum_cgroup_pids(netdata_publish_vfs_t *vfs, struct pid_on_target2 *pids)
 {
+    netdata_publish_vfs_t accumulator;
+    memset(&accumulator, 0, sizeof(accumulator));
+
     while (pids) {
         netdata_publish_vfs_t *w = &pids->vfs;
 
-        vfs->ct = (w->ct > vfs->ct) ? w->ct : vfs->ct;
-        vfs->write_bytes = (w->write_bytes > vfs->write_bytes) ? w->write_bytes : vfs->write_bytes;
-        vfs->writev_bytes = (w->writev_bytes > vfs->writev_bytes) ? w->writev_bytes : vfs->writev_bytes;
-        vfs->readv_bytes = (w->readv_bytes > vfs->readv_bytes) ? w->readv_bytes : vfs->readv_bytes;
-        vfs->read_bytes = (w->read_bytes > vfs->read_bytes) ? w->read_bytes : vfs->read_bytes;
+        accumulator.ct += w->ct;
+        accumulator.write_bytes += w->write_bytes;
+        accumulator.writev_bytes += w->writev_bytes;
+        accumulator.readv_bytes += w->readv_bytes;
+        accumulator.read_bytes += w->read_bytes;
 
-        vfs->write_call = (w->write_call > vfs->write_call) ? w->write_call : vfs->write_call;
-        vfs->writev_call = (w->writev_call > vfs->writev_call) ? w->writev_call : vfs->writev_call;
-        vfs->read_call = (w->read_call > vfs->read_call) ? w->read_call : vfs->read_call;
-        vfs->readv_call = (w->readv_call > vfs->readv_call) ? w->readv_call : vfs->readv_call;
-        vfs->unlink_call = (w->unlink_call > vfs->unlink_call) ? w->unlink_call : vfs->unlink_call;
-        vfs->fsync_call = (w->fsync_call > vfs->fsync_call) ? w->fsync_call : vfs->fsync_call;
-        vfs->open_call = (w->open_call > vfs->open_call) ? w->open_call : vfs->open_call;
-        vfs->create_call = (w->create_call > vfs->create_call) ? w->create_call : vfs->create_call;
+        accumulator.write_call += w->write_call;
+        accumulator.writev_call += w->writev_call;
+        accumulator.read_call += w->read_call;
+        accumulator.readv_call += w->readv_call;
+        accumulator.unlink_call += w->unlink_call;
+        accumulator.fsync_call += w->fsync_call;
+        accumulator.open_call += w->open_call;
+        accumulator.create_call += w->create_call;
 
-        vfs->write_err = (w->write_err > vfs->write_err) ? w->write_err : vfs->write_err;
-        vfs->writev_err = (w->writev_err > vfs->writev_err) ? w->writev_err : vfs->writev_err;
-        vfs->read_err = (w->read_err > vfs->read_err) ? w->read_err : vfs->read_err;
-        vfs->readv_err = (w->readv_err > vfs->readv_err) ? w->readv_err : vfs->readv_err;
-        vfs->unlink_err = (w->unlink_err > vfs->unlink_err) ? w->unlink_err : vfs->unlink_err;
-        vfs->fsync_err = (w->fsync_err > vfs->fsync_err) ? w->fsync_err : vfs->fsync_err;
-        vfs->open_err = (w->open_err > vfs->open_err) ? w->open_err : vfs->open_err;
-        vfs->create_err = (w->create_err > vfs->create_err) ? w->create_err : vfs->create_err;
+        accumulator.write_err += w->write_err;
+        accumulator.writev_err += w->writev_err;
+        accumulator.read_err += w->read_err;
+        accumulator.readv_err += w->readv_err;
+        accumulator.unlink_err += w->unlink_err;
+        accumulator.fsync_err += w->fsync_err;
+        accumulator.open_err += w->open_err;
+        accumulator.create_err += w->create_err;
 
         pids = pids->next;
     }
+
+    vfs->ct = (accumulator.ct >= vfs->ct) ? accumulator.ct : vfs->ct;
+    vfs->write_bytes = (accumulator.write_bytes >= vfs->write_bytes) ? accumulator.write_bytes : vfs->write_bytes;
+    vfs->writev_bytes = (accumulator.writev_bytes >= vfs->writev_bytes) ? accumulator.writev_bytes : vfs->writev_bytes;
+    vfs->readv_bytes = (accumulator.readv_bytes >= vfs->readv_bytes) ? accumulator.readv_bytes : vfs->readv_bytes;
+    vfs->read_bytes = (accumulator.read_bytes >= vfs->read_bytes) ? accumulator.read_bytes : vfs->read_bytes;
+
+    vfs->write_call = (accumulator.write_call >= vfs->write_call) ? accumulator.write_call : vfs->write_call;
+    vfs->writev_call = (accumulator.writev_call >= vfs->writev_call) ? accumulator.writev_call : vfs->writev_call;
+    vfs->read_call = (accumulator.read_call >= vfs->read_call) ? accumulator.read_call : vfs->read_call;
+    vfs->readv_call = (accumulator.readv_call >= vfs->readv_call) ? accumulator.readv_call : vfs->readv_call;
+    vfs->unlink_call = (accumulator.unlink_call >= vfs->unlink_call) ? accumulator.unlink_call : vfs->unlink_call;
+    vfs->fsync_call = (accumulator.fsync_call >= vfs->fsync_call) ? accumulator.fsync_call : vfs->fsync_call;
+    vfs->open_call = (accumulator.open_call >= vfs->open_call) ? accumulator.open_call : vfs->open_call;
+    vfs->create_call = (accumulator.create_call >= vfs->create_call) ? accumulator.create_call : vfs->create_call;
+
+    vfs->write_err = (accumulator.write_err >= vfs->write_err) ? accumulator.write_err : vfs->write_err;
+    vfs->writev_err = (accumulator.writev_err >= vfs->writev_err) ? accumulator.writev_err : vfs->writev_err;
+    vfs->read_err = (accumulator.read_err >= vfs->read_err) ? accumulator.read_err : vfs->read_err;
+    vfs->readv_err = (accumulator.readv_err >= vfs->readv_err) ? accumulator.readv_err : vfs->readv_err;
+    vfs->unlink_err = (accumulator.unlink_err >= vfs->unlink_err) ? accumulator.unlink_err : vfs->unlink_err;
+    vfs->fsync_err = (accumulator.fsync_err >= vfs->fsync_err) ? accumulator.fsync_err : vfs->fsync_err;
+    vfs->open_err = (accumulator.open_err >= vfs->open_err) ? accumulator.open_err : vfs->open_err;
+    vfs->create_err = (accumulator.create_err >= vfs->create_err) ? accumulator.create_err : vfs->create_err;
 }
 
 /**
