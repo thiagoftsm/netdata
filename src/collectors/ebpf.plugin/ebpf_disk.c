@@ -907,11 +907,13 @@ void ebpf_disk_thread(void *ptr)
         goto enddisk;
     }
 
+    disk_safe_clean = true;
+
     if (ebpf_disk_enable_tracepoints()) {
         goto enddisk;
     }
 
-    disk_safe_clean = true;
+    // disk_safe_clean already true - mutexes will be cleaned up on exit
 
     avl_init_lock(&disk_tree, ebpf_compare_disks);
     if (read_local_disks()) {
