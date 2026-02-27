@@ -213,17 +213,11 @@ static void hardirq_cleanup(void *pptr)
     if (!em)
         return;
 
-    if (!hardirq_safe_clean) {
-        netdata_mutex_lock(&ebpf_exit_cleanup);
-        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
-        netdata_mutex_unlock(&ebpf_exit_cleanup);
-        return;
-    }
-
     if (em->enabled == NETDATA_THREAD_EBPF_FUNCTION_RUNNING) {
         netdata_mutex_lock(&lock);
 
-        ebpf_obsolete_hardirq_global(em);
+        if (hardirq_safe_clean)
+            ebpf_obsolete_hardirq_global(em);
 
         netdata_mutex_unlock(&lock);
         fflush(stdout);
