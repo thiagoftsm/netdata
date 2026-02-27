@@ -6,6 +6,11 @@
 
 struct config hardirq_config = APPCONFIG_INITIALIZER;
 
+static char *hardirq_counter_dimension_name[NETDATA_HARDIRQ_DIMENSION] = {"latency"};
+
+static netdata_syscall_stat_t hardirq_counter_aggregated_data[NETDATA_HARDIRQ_DIMENSION];
+static netdata_publish_syscall_t hardirq_counter_publish_aggregated[NETDATA_HARDIRQ_DIMENSION];
+
 static ebpf_local_maps_t hardirq_maps[] = {
     {.name = "tbl_hardirq",
      .internal_input = NETDATA_HARDIRQ_MAX_IRQS,
@@ -25,7 +30,6 @@ static ebpf_local_maps_t hardirq_maps[] = {
      .map_type = BPF_MAP_TYPE_PERCPU_ARRAY
 #endif
     },
-    /* end */
     {.name = NULL,
      .internal_input = 0,
      .user_input = 0,
@@ -63,7 +67,6 @@ static ebpf_tracepoint_t hardirq_tracepoints[] = {
     {.enabled = false, .class = HARDIRQ_TP_CLASS_IRQ_VECTORS, .event = "irq_work_exit"},
     {.enabled = false, .class = HARDIRQ_TP_CLASS_IRQ_VECTORS, .event = "x86_platform_ipi_entry"},
     {.enabled = false, .class = HARDIRQ_TP_CLASS_IRQ_VECTORS, .event = "x86_platform_ipi_exit"},
-    /* end */
     {.enabled = false, .class = NULL, .event = NULL}};
 
 static hardirq_static_val_t hardirq_static_vals[] = {
@@ -80,9 +83,8 @@ static hardirq_static_val_t hardirq_static_vals[] = {
     {.idx = HARDIRQ_EBPF_STATIC_X86_PLATFORM_IPI, .name = "x86_platform_ipi", .latency = 0},
 };
 
-// store for "published" data from the reader thread, which the collector
-// thread will write to netdata agent.
 static avl_tree_lock hardirq_pub;
+static bool hardirq_safe_clean = false;
 
 #ifdef LIBBPF_MAJOR_VERSION
 /**
@@ -102,6 +104,11 @@ static inline void ebpf_hardirq_set_hash_table(struct hardirq_bpf *obj)
  * Load and Attach
  *
  * Load and attach bpf software.
+ *
+ * @param obj is the main structure for bpf objects.
+ * @param em  structure with configuration
+ *
+ * @return It returns 0 on success and -1 otherwise.
  */
 static inline int ebpf_hardirq_load_and_attach(struct hardirq_bpf *obj)
 {
@@ -110,7 +117,16 @@ static inline int ebpf_hardirq_load_and_attach(struct hardirq_bpf *obj)
         return -1;
     }
 
-    return hardirq_bpf__attach(obj);
+    ret = hardirq_bpf__attach(obj);
+    if (ret) {
+        hardirq_bpf__destroy(obj);
+        obj = NULL;
+        return -1;
+    }
+
+    ebpf_hardirq_set_hash_table(obj);
+
+    return 0;
 }
 #endif
 
@@ -120,13 +136,12 @@ static inline int ebpf_hardirq_load_and_attach(struct hardirq_bpf *obj)
  *
  *****************************************************************/
 
-// ARAL vectors used to speed up processing
 ARAL *ebpf_aral_hardirq = NULL;
 
 /**
  * eBPF hardirq Aral init
  *
- * Initiallize array allocator that will be used when integration with apps is enabled.
+ * Initialize array allocator that will be used when integration with apps is enabled.
  */
 static inline void ebpf_hardirq_aral_init(void)
 {
@@ -192,11 +207,18 @@ static void ebpf_obsolete_hardirq_global(ebpf_module_t *em)
  *
  * @param ptr thread data.
  */
-static void hardirq_exit(void *pptr)
+static void hardirq_cleanup(void *pptr)
 {
     ebpf_module_t *em = CLEANUP_FUNCTION_GET_PTR(pptr);
     if (!em)
         return;
+
+    if (!hardirq_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
 
     if (em->enabled == NETDATA_THREAD_EBPF_FUNCTION_RUNNING) {
         netdata_mutex_lock(&lock);
@@ -206,6 +228,13 @@ static void hardirq_exit(void *pptr)
         netdata_mutex_unlock(&lock);
         fflush(stdout);
     }
+
+#ifdef LIBBPF_MAJOR_VERSION
+    if (hardirq_bpf_obj) {
+        hardirq_bpf__destroy(hardirq_bpf_obj);
+        hardirq_bpf_obj = NULL;
+    }
+#endif
 
     if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
         ebpf_unload_legacy_code(em->objects, em->probe_links);
@@ -233,7 +262,7 @@ static void hardirq_exit(void *pptr)
  * @param b `hardirq_val_t *`.
  *
  * @return 0 if a==b, 1 if a>b, -1 if a<b.
-*/
+ */
 static int hardirq_val_cmp(void *a, void *b)
 {
     hardirq_val_t *ptr1 = a;
@@ -249,7 +278,7 @@ static int hardirq_val_cmp(void *a, void *b)
 /**
  * Parse interrupts
  *
- * Parse /proc/interrupts to get names  used in metrics
+ * Parse /proc/interrupts to get names used in metrics
  *
  * @param irq_name vector to store data.
  * @param irq      irq value
@@ -270,7 +299,7 @@ static int hardirq_parse_interrupts(char *irq_name, int irq)
 
     ff = procfile_readall(ff);
     if (unlikely(!ff))
-        return -1; // we return 0, so that we will retry to open it next time
+        return -1;
 
     size_t words = procfile_linewords(ff, 0);
     if (unlikely(cpus == -1)) {
@@ -302,7 +331,6 @@ static int hardirq_parse_interrupts(char *irq_name, int irq)
 
         if (unlikely((uint32_t)(cpus + 2) < words)) {
             const char *name = procfile_lineword(ff, l, words - 1);
-            // On some motherboards IRQ can have the same name, so we append IRQ id to differentiate.
             snprintfz(irq_name, NETDATA_HARDIRQ_NAME_LEN - 1, "%d_%s", irq, name);
         }
     }
@@ -311,7 +339,7 @@ static int hardirq_parse_interrupts(char *irq_name, int irq)
 }
 
 /**
- * Read Latency MAP
+ * Read Latency Map
  *
  * Read data from kernel ring to user ring.
  *
@@ -366,6 +394,13 @@ static int hardirq_read_latency_map(int mapfd)
     return 0;
 }
 
+/**
+ * Read Latency Static Map
+ *
+ * Read data from kernel ring to user ring.
+ *
+ * @param mapfd array map id.
+ */
 static void hardirq_read_latency_static_map(int mapfd)
 {
     static hardirq_ebpf_static_val_t *hardirq_per_cpu_vals = NULL;
@@ -393,7 +428,7 @@ static void hardirq_read_latency_static_map(int mapfd)
 /**
  * Read eBPF maps for hard IRQ.
  *
- * @return When it is not possible to parse /proc, it returns -1, on success it returns 0;
+ * @return When it is not possible to parse /proc, it returns -1, on success it returns 0.
  */
 static int hardirq_reader(void)
 {
@@ -405,7 +440,14 @@ static int hardirq_reader(void)
     return 0;
 }
 
-static void hardirq_create_charts(int update_every)
+/**
+ * Create charts
+ *
+ * Call ebpf_create_chart to create the charts for the collector.
+ *
+ * @param update_every value to overwrite the update frequency set by the server.
+ */
+static void ebpf_create_hardirq_charts(int update_every)
 {
     ebpf_create_chart(
         NETDATA_EBPF_SYSTEM_GROUP,
@@ -416,15 +458,20 @@ static void hardirq_create_charts(int update_every)
         NETDATA_EBPF_SYSTEM_HARDIRQ_LATENCY_CTX,
         NETDATA_EBPF_CHART_TYPE_STACKED,
         NETDATA_CHART_PRIO_HARDIRQ_LATENCY,
-        NULL,
-        NULL,
-        0,
+        ebpf_create_global_dimension,
+        hardirq_counter_publish_aggregated,
+        1,
         update_every,
         NETDATA_EBPF_MODULE_NAME_HARDIRQ);
 
     fflush(stdout);
 }
 
+/**
+ * Create static dimensions
+ *
+ * Create dimensions for static IRQs.
+ */
 static void hardirq_create_static_dims(void)
 {
     uint32_t i;
@@ -434,14 +481,22 @@ static void hardirq_create_static_dims(void)
     }
 }
 
-// callback for avl tree traversal on `hardirq_pub`.
+/**
+ * Write dimensions
+ *
+ * Callback for avl tree traversal on `hardirq_pub`.
+ *
+ * @param entry is the entry inside avl tree.
+ * @param data  is not used.
+ *
+ * @return It returns 1 to continue the iteration.
+ */
 static int hardirq_write_dims(void *entry, void *data)
 {
     UNUSED(data);
 
     hardirq_val_t *v = entry;
 
-    // IRQs get dynamically added in, so add the dimension if we haven't yet.
     if (!v->dim_exists) {
         ebpf_write_global_dimension(v->name, v->name, ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX]);
         v->dim_exists = true;
@@ -452,6 +507,11 @@ static int hardirq_write_dims(void *entry, void *data)
     return 1;
 }
 
+/**
+ * Write static dimensions
+ *
+ * Write dimensions for static IRQs.
+ */
 static inline void hardirq_write_static_dims(void)
 {
     uint32_t i;
@@ -461,31 +521,28 @@ static inline void hardirq_write_static_dims(void)
 }
 
 /**
-* Main loop for this collector.
+ * Main loop for this collector.
  *
  * @param em the main thread structure.
-*/
+ */
 static void hardirq_collector(ebpf_module_t *em)
 {
     avl_init_lock(&hardirq_pub, hardirq_val_cmp);
     ebpf_hardirq_aral_init();
 
-    // create chart and static dims.
     netdata_mutex_lock(&lock);
-    hardirq_create_charts(em->update_every);
+    ebpf_create_hardirq_charts(em->update_every);
     hardirq_create_static_dims();
     ebpf_update_stats(&plugin_statistics, em);
     ebpf_update_kernel_memory_with_vector(&plugin_statistics, em->maps, EBPF_ACTION_STAT_ADD);
     netdata_mutex_unlock(&lock);
 
-    // loop and read from published data until ebpf plugin is closed.
-    int update_every = em->update_every;
-    int counter = update_every - 1;
-    //This will be cancelled by its parent
-    uint32_t running_time = 0;
-    uint32_t lifetime = em->lifetime;
     heartbeat_t hb;
     heartbeat_init(&hb, USEC_PER_SEC);
+    int update_every = em->update_every;
+    int counter = update_every - 1;
+    uint32_t running_time = 0;
+    uint32_t lifetime = em->lifetime;
     while (!ebpf_plugin_stop() && running_time < lifetime) {
         heartbeat_next(&hb);
 
@@ -498,7 +555,6 @@ static void hardirq_collector(ebpf_module_t *em)
 
         netdata_mutex_lock(&lock);
 
-        // write dims now for all hitherto discovered IRQs.
         ebpf_write_begin_chart(NETDATA_EBPF_SYSTEM_GROUP, "hardirq_latency", "");
         avl_traverse_lock(&hardirq_pub, hardirq_write_dims, NULL);
         hardirq_write_static_dims();
@@ -521,7 +577,7 @@ static void hardirq_collector(ebpf_module_t *em)
  *  EBPF HARDIRQ THREAD
  *****************************************************************/
 
-/*
+/**
  * Load BPF
  *
  * Load BPF files.
@@ -533,6 +589,10 @@ static void hardirq_collector(ebpf_module_t *em)
 static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
 {
     int ret = 0;
+#ifdef LIBBPF_MAJOR_VERSION
+    ebpf_define_map_type(em->maps, em->maps_per_core, running_on_kernel);
+#endif
+
     if (em->load & EBPF_LOAD_LEGACY) {
         em->probe_links = ebpf_load_program(ebpf_plugin_dir, em, running_on_kernel, isrh, &em->objects);
         if (!em->probe_links) {
@@ -549,14 +609,27 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
             if (ret) {
                 hardirq_bpf__destroy(hardirq_bpf_obj);
                 hardirq_bpf_obj = NULL;
-            } else {
-                ebpf_hardirq_set_hash_table(hardirq_bpf_obj);
             }
         }
     }
 #endif
 
+    if (ret)
+        netdata_log_error("%s %s", EBPF_DEFAULT_ERROR_MSG, em->info.thread_name);
+
     return ret;
+}
+
+/**
+ * Allocate vectors used with this thread.
+ *
+ * We are not testing the return, because callocz does this and shutdown the software
+ * case it was not possible to allocate.
+ */
+static void ebpf_hardirq_allocate_global_vectors()
+{
+    memset(hardirq_counter_aggregated_data, 0, NETDATA_HARDIRQ_DIMENSION * sizeof(netdata_syscall_stat_t));
+    memset(hardirq_counter_publish_aggregated, 0, NETDATA_HARDIRQ_DIMENSION * sizeof(netdata_publish_syscall_t));
 }
 
 /**
@@ -569,7 +642,7 @@ void ebpf_hardirq_thread(void *ptr)
 {
     ebpf_module_t *em = (ebpf_module_t *)ptr;
 
-    CLEANUP_FUNCTION_REGISTER(hardirq_exit) cleanup_ptr = em;
+    CLEANUP_FUNCTION_REGISTER(hardirq_cleanup) cleanup_ptr = em;
 
     if (em->enabled == NETDATA_THREAD_EBPF_NOT_RUNNING) {
         goto endhardirq;
@@ -582,13 +655,25 @@ void ebpf_hardirq_thread(void *ptr)
     }
 
 #ifdef LIBBPF_MAJOR_VERSION
-    ebpf_define_map_type(em->maps, em->maps_per_core, running_on_kernel);
     ebpf_adjust_thread_load(em, default_btf);
 #endif
     if (ebpf_hardirq_load_bpf(em)) {
         goto endhardirq;
     }
 
+    ebpf_hardirq_allocate_global_vectors();
+
+    int algorithms[NETDATA_HARDIRQ_DIMENSION] = {NETDATA_EBPF_INCREMENTAL_IDX};
+
+    ebpf_global_labels(
+        hardirq_counter_aggregated_data,
+        hardirq_counter_publish_aggregated,
+        hardirq_counter_dimension_name,
+        hardirq_counter_dimension_name,
+        algorithms,
+        NETDATA_HARDIRQ_DIMENSION);
+
+    hardirq_safe_clean = true;
     hardirq_collector(em);
 
 endhardirq:
