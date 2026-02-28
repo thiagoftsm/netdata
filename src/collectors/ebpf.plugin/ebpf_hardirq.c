@@ -119,8 +119,6 @@ static inline int ebpf_hardirq_load_and_attach(struct hardirq_bpf *obj)
 
     ret = hardirq_bpf__attach(obj);
     if (ret) {
-        hardirq_bpf__destroy(obj);
-        obj = NULL;
         return -1;
     }
 
@@ -223,6 +221,14 @@ static void hardirq_cleanup(void *pptr)
         fflush(stdout);
     }
 
+    if (!hardirq_safe_clean) {
+        netdata_mutex_lock(&ebpf_exit_cleanup);
+        em->enabled = NETDATA_THREAD_EBPF_STOPPED;
+        netdata_mutex_unlock(&ebpf_exit_cleanup);
+        return;
+    }
+
+    /*
 #ifdef LIBBPF_MAJOR_VERSION
     if (hardirq_bpf_obj) {
         hardirq_bpf__destroy(hardirq_bpf_obj);
@@ -235,6 +241,7 @@ static void hardirq_cleanup(void *pptr)
         em->objects = NULL;
         em->probe_links = NULL;
     }
+        */
 
     for (int i = 0; hardirq_tracepoints[i].class != NULL; i++) {
         ebpf_disable_tracepoint(&hardirq_tracepoints[i]);
@@ -525,10 +532,12 @@ static void hardirq_collector(ebpf_module_t *em)
     ebpf_hardirq_aral_init();
 
     netdata_mutex_lock(&lock);
+    /*
     ebpf_create_hardirq_charts(em->update_every);
     hardirq_create_static_dims();
     ebpf_update_stats(&plugin_statistics, em);
     ebpf_update_kernel_memory_with_vector(&plugin_statistics, em->maps, EBPF_ACTION_STAT_ADD);
+    */
     netdata_mutex_unlock(&lock);
 
     heartbeat_t hb;
@@ -544,9 +553,12 @@ static void hardirq_collector(ebpf_module_t *em)
             continue;
 
         counter = 0;
+        /*
         if (hardirq_reader())
             break;
+            */
 
+        /*
         netdata_mutex_lock(&lock);
 
         ebpf_write_begin_chart(NETDATA_EBPF_SYSTEM_GROUP, "hardirq_latency", "");
@@ -555,6 +567,7 @@ static void hardirq_collector(ebpf_module_t *em)
         ebpf_write_end_chart();
 
         netdata_mutex_unlock(&lock);
+        */
 
         netdata_mutex_lock(&ebpf_exit_cleanup);
         if (running_time)
@@ -587,6 +600,7 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
     ebpf_define_map_type(em->maps, em->maps_per_core, running_on_kernel);
 #endif
 
+    /*
     if (em->load & EBPF_LOAD_LEGACY) {
         em->probe_links = ebpf_load_program(ebpf_plugin_dir, em, running_on_kernel, isrh, &em->objects);
         if (!em->probe_links) {
@@ -610,6 +624,7 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
 
     if (ret)
         netdata_log_error("%s %s", EBPF_DEFAULT_ERROR_MSG, em->info.thread_name);
+      */
 
     return ret;
 }
