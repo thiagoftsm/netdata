@@ -229,19 +229,18 @@ static void hardirq_cleanup(void *pptr)
     }
 
     /*
+    if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
+        ebpf_unload_legacy_code(em->objects, em->probe_links);
+        em->objects = NULL;
+        em->probe_links = NULL;
+    }
+    */
 #ifdef LIBBPF_MAJOR_VERSION
     if (hardirq_bpf_obj) {
         hardirq_bpf__destroy(hardirq_bpf_obj);
         hardirq_bpf_obj = NULL;
     }
 #endif
-
-    if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
-        ebpf_unload_legacy_code(em->objects, em->probe_links);
-        em->objects = NULL;
-        em->probe_links = NULL;
-    }
-        */
 
     for (int i = 0; hardirq_tracepoints[i].class != NULL; i++) {
         ebpf_disable_tracepoint(&hardirq_tracepoints[i]);
@@ -608,7 +607,7 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
         }
     }
 #ifdef LIBBPF_MAJOR_VERSION
-    else {
+    else { */
         hardirq_bpf_obj = hardirq_bpf__open();
         if (!hardirq_bpf_obj)
             ret = -1;
@@ -619,12 +618,12 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
                 hardirq_bpf_obj = NULL;
             }
         }
-    }
+/*    }
 #endif
+*/
 
     if (ret)
         netdata_log_error("%s %s", EBPF_DEFAULT_ERROR_MSG, em->info.thread_name);
-      */
 
     return ret;
 }
