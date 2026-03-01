@@ -228,15 +228,13 @@ static void hardirq_cleanup(void *pptr)
         return;
     }
 
-    /*
     if ((em->load & EBPF_LOAD_LEGACY) && em->probe_links) {
         ebpf_unload_legacy_code(em->objects, em->probe_links);
         em->objects = NULL;
         em->probe_links = NULL;
     }
-    */
 #ifdef LIBBPF_MAJOR_VERSION
-    if (hardirq_bpf_obj) {
+    else if (hardirq_bpf_obj) {
         hardirq_bpf__destroy(hardirq_bpf_obj);
         hardirq_bpf_obj = NULL;
     }
@@ -599,7 +597,6 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
     ebpf_define_map_type(em->maps, em->maps_per_core, running_on_kernel);
 #endif
 
-    /*
     if (em->load & EBPF_LOAD_LEGACY) {
         em->probe_links = ebpf_load_program(ebpf_plugin_dir, em, running_on_kernel, isrh, &em->objects);
         if (!em->probe_links) {
@@ -607,7 +604,7 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
         }
     }
 #ifdef LIBBPF_MAJOR_VERSION
-    else { */
+    else {
         hardirq_bpf_obj = hardirq_bpf__open();
         if (!hardirq_bpf_obj)
             ret = -1;
@@ -618,9 +615,8 @@ static int ebpf_hardirq_load_bpf(ebpf_module_t *em)
                 hardirq_bpf_obj = NULL;
             }
         }
-/*    }
+    }
 #endif
-*/
 
     if (ret)
         netdata_log_error("%s %s", EBPF_DEFAULT_ERROR_MSG, em->info.thread_name);
