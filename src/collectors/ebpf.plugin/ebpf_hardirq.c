@@ -83,7 +83,6 @@ static hardirq_static_val_t hardirq_static_vals[] = {
     {.idx = HARDIRQ_EBPF_STATIC_X86_PLATFORM_IPI, .name = "x86_platform_ipi", .latency = 0},
 };
 
-static avl_tree_lock hardirq_pub;
 static bool hardirq_safe_clean = false;
 
 #ifdef LIBBPF_MAJOR_VERSION
@@ -130,21 +129,11 @@ static inline int ebpf_hardirq_load_and_attach(struct hardirq_bpf *obj)
 
 /*****************************************************************
  *
- *  ARAL SECTION
+ *  JudyL SECTION
  *
  *****************************************************************/
 
-ARAL *ebpf_aral_hardirq = NULL;
-
-/**
- * eBPF hardirq Aral init
- *
- * Initialize array allocator that will be used when integration with apps is enabled.
- */
-static inline void ebpf_hardirq_aral_init(void)
-{
-    ebpf_aral_hardirq = ebpf_allocate_pid_aral(NETDATA_EBPF_HARDIRQ_ARAL_NAME, sizeof(hardirq_val_t));
-}
+static Pvoid_t ebpf_hardirq_JudyL = NULL;
 
 /**
  * eBPF hardirq get
@@ -153,21 +142,35 @@ static inline void ebpf_hardirq_aral_init(void)
  *
  * @return it returns the address on success.
  */
-hardirq_val_t *ebpf_hardirq_get(void)
+hardirq_val_t *ebpf_hardirq_get(int irq)
 {
-    hardirq_val_t *target = aral_mallocz(ebpf_aral_hardirq);
-    memset(target, 0, sizeof(hardirq_val_t));
+    Pvoid_t *PValue = JudyLGet(ebpf_hardirq_JudyL, (Word_t)irq, PJE0);
+    if (PValue && *PValue)
+        return *PValue;
+
+    PValue = JudyLIns(&ebpf_hardirq_JudyL, (Word_t)irq, PJE0);
+    if (PValue == PJERR)
+        return NULL;
+
+    hardirq_val_t *target = callocz(1, sizeof(hardirq_val_t));
+    target->irq = irq;
+    *PValue = target;
+
     return target;
 }
 
 /**
  * eBPF hardirq release
  *
- * @param stat Release a target after usage.
+ * @param irq IRQ number to release.
  */
-void ebpf_hardirq_release(hardirq_val_t *stat)
+void ebpf_hardirq_release(int irq)
 {
-    aral_freez(ebpf_aral_hardirq, stat);
+    Pvoid_t *PValue = JudyLGet(ebpf_hardirq_JudyL, (Word_t)irq, PJE0);
+    if (PValue && *PValue) {
+        freez(*PValue);
+        JudyLDel(&ebpf_hardirq_JudyL, (Word_t)irq, PJE0);
+    }
 }
 
 /*****************************************************************
@@ -252,26 +255,6 @@ static void hardirq_cleanup(void *pptr)
 /*****************************************************************
  *  MAIN LOOP
  *****************************************************************/
-
-/**
- * Compare hard IRQ values.
- *
- * @param a `hardirq_val_t *`.
- * @param b `hardirq_val_t *`.
- *
- * @return 0 if a==b, 1 if a>b, -1 if a<b.
- */
-static int hardirq_val_cmp(void *a, void *b)
-{
-    hardirq_val_t *ptr1 = a;
-    hardirq_val_t *ptr2 = b;
-
-    if (ptr1->irq < ptr2->irq)
-        return -1;
-    if (ptr1->irq > ptr2->irq)
-        return 1;
-    return 0;
-}
 
 /**
  * Parse interrupts
@@ -361,22 +344,19 @@ static int hardirq_read_latency_map(int mapfd)
             continue;
         }
 
-        hardirq_val_t search_v = {.irq = key.irq};
-        hardirq_val_t *v = (hardirq_val_t *)avl_search_lock(&hardirq_pub, (avl_t *)&search_v);
-        if (unlikely(v == NULL)) {
-            v = ebpf_hardirq_get();
-            v->irq = key.irq;
-            v->dim_exists = false;
+        hardirq_val_t *v = ebpf_hardirq_get(key.irq);
+        if (unlikely(!v)) {
+            key = next_key;
+            continue;
+        }
 
+        if (!v->dim_exists) {
             if (hardirq_parse_interrupts(v->name, v->irq)) {
-                ebpf_hardirq_release(v);
-                return -1;
+                ebpf_hardirq_release(v->irq);
+                key = next_key;
+                continue;
             }
-
-            avl_t *check = avl_insert_lock(&hardirq_pub, (avl_t *)v);
-            if (check != (avl_t *)v) {
-                netdata_log_error("Internal error, cannot insert the AVL tree.");
-            }
+            v->dim_exists = true;
         }
 
         uint64_t latency = 0;
@@ -482,18 +462,13 @@ static void hardirq_create_static_dims(void)
 /**
  * Write dimensions
  *
- * Callback for avl tree traversal on `hardirq_pub`.
- *
- * @param entry is the entry inside avl tree.
- * @param data  is not used.
+ * Traverse JudyL array to write dimensions.
  *
  * @return It returns 1 to continue the iteration.
  */
-static int hardirq_write_dims(void *entry, void *data)
+static int hardirq_write_dims(Word_t index, hardirq_val_t *v)
 {
-    UNUSED(data);
-
-    hardirq_val_t *v = entry;
+    (void)index;
 
     if (!v->dim_exists) {
         ebpf_write_global_dimension(v->name, v->name, ebpf_algorithms[NETDATA_EBPF_INCREMENTAL_IDX]);
@@ -503,6 +478,23 @@ static int hardirq_write_dims(void *entry, void *data)
     write_chart_dimension(v->name, v->latency);
 
     return 1;
+}
+
+/**
+ * Write all dimensions
+ *
+ * Traverse JudyL array and call hardirq_write_dims for each entry.
+ */
+static inline void hardirq_write_all_dims(void)
+{
+    Word_t index = 0;
+    Pvoid_t *PValue;
+    for (PValue = JudyLFirst(ebpf_hardirq_JudyL, &index, PJE0); PValue != NULL && PValue != PJERR;
+         PValue = JudyLNext(ebpf_hardirq_JudyL, &index, PJE0)) {
+        hardirq_val_t *v = *PValue;
+        if (v)
+            hardirq_write_dims(index, v);
+    }
 }
 
 /**
@@ -525,9 +517,6 @@ static inline void hardirq_write_static_dims(void)
  */
 static void hardirq_collector(ebpf_module_t *em)
 {
-    avl_init_lock(&hardirq_pub, hardirq_val_cmp);
-    ebpf_hardirq_aral_init();
-
     netdata_mutex_lock(&lock);
     /*
     ebpf_create_hardirq_charts(em->update_every);
@@ -550,10 +539,8 @@ static void hardirq_collector(ebpf_module_t *em)
             continue;
 
         counter = 0;
-        /*
         if (hardirq_reader())
             break;
-            */
 
         /*
         netdata_mutex_lock(&lock);
