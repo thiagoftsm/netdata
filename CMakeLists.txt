@@ -107,6 +107,10 @@ set(PLUGINS_DIR "${NETDATA_RUNTIME_PREFIX}/usr/libexec/netdata/plugins.d")
 set(VARLIB_DIR "${NETDATA_RUNTIME_PREFIX}/var/lib/netdata")
 set(NETDATA_BIN_DIR "${NETDATA_RUNTIME_PREFIX}/${BINDIR}")
 
+if(OS_WINDOWS)
+  set(NETDATA_WINDOWS_PATH_PREFIX "C:\\\\Program Files\\\\Netdata\\\\")
+endif()
+
 # A non-default value is only used when building Debian packages (/var/lib/netdata/www)
 if(NOT DEFINED WEB_DIR)
   set(WEB_DIR "usr/share/netdata/web")
