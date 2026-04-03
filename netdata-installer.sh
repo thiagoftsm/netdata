@@ -195,6 +195,7 @@ USAGE: ${PROGRAM} [options]
        where options include:
 
   --install-prefix <path>    Install netdata in <path>. Ex. --install-prefix /opt will put netdata in /opt/netdata.
+  --windows-path-prefix <path> Override NETDATA_WINDOWS_PATH_PREFIX for the CMake build.
   --dont-start-it            Do not (re)start netdata after installation.
   --dont-wait                Run installation in non-interactive mode.
   --stable-channel           Use packages from GitHub release pages instead of nightly updates.
@@ -257,6 +258,7 @@ fi
 DONOTSTART=0
 DONOTWAIT=0
 NETDATA_PREFIX=
+NETDATA_WINDOWS_PATH_PREFIX=
 LIBS_ARE_HERE=0
 NETDATA_ENABLE_ML=""
 ENABLE_DBENGINE=1
@@ -353,6 +355,10 @@ while [ -n "${1}" ]; do
       ;;
     "--install-prefix")
       NETDATA_PREFIX="${2}/netdata"
+      shift 1
+      ;;
+    "--windows-path-prefix")
+      NETDATA_WINDOWS_PATH_PREFIX="${2}"
       shift 1
       ;;
     "--install-no-prefix")
