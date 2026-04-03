@@ -56,4 +56,10 @@ extern const char *os_type;
 extern unsigned int system_hz;
 void os_get_system_HZ(void);
 
+#if defined(OS_WINDOWS)
+char *os_translate_path(char *dst, const char *src, size_t dst_size);
+#else
+#define os_translate_path(dst, src, dst_size) (src)
+#endif
+
 #endif //NETDATA_OS_H

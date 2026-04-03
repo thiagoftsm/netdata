@@ -35,4 +35,21 @@ const char *os_type = "macos";
 
 #if defined(OS_WINDOWS)
 const char *os_type = "windows";
+
+char *os_translate_path(char *dst, const char *src, size_t dst_size) {
+    if (!dst || !dst_size)
+        return dst;
+
+    if (!src) {
+        dst[0] = '\0';
+        return dst;
+    }
+
+    size_t i;
+    for (i = 0; src[i] && i < dst_size - 1; i++)
+        dst[i] = (src[i] == '/') ? '\\' : src[i];
+
+    dst[i] = '\0';
+    return dst;
+}
 #endif
