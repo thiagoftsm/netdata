@@ -52,4 +52,43 @@ char *os_translate_path(char *dst, const char *src, size_t dst_size) {
     dst[i] = '\0';
     return dst;
 }
+
+char *os_translate_windows_to_msys_path(const char *src) {
+    if (!src)
+        return strdupz("");
+
+    // Keep already POSIX-style paths unchanged.
+    if (src[0] == '/')
+        return strdupz(src);
+
+    char converted_path[PATH_MAX];
+    if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, src, converted_path, sizeof(converted_path)) == 0) {
+        return strdupz(converted_path);
+    }
+
+    size_t i = 0;
+    size_t j = 0;
+
+    if (isalpha((unsigned char)src[0]) && src[1] == ':') {
+        converted_path[j++] = '/';
+        if (j < sizeof(converted_path) - 1)
+            converted_path[j++] = (char)tolower((unsigned char)src[0]);
+
+        i = 2;
+        if ((src[i] == '\\' || src[i] == '/') && j < sizeof(converted_path) - 1)
+            converted_path[j++] = '/';
+    }
+    else if ((src[0] == '\\' && src[1] == '\\') || (src[0] == '/' && src[1] == '/')) {
+        converted_path[j++] = '/';
+        if (j < sizeof(converted_path) - 1)
+            converted_path[j++] = '/';
+        i = 2;
+    }
+
+    for (; src[i] && j < sizeof(converted_path) - 1; i++)
+        converted_path[j++] = (src[i] == '\\') ? '/' : src[i];
+
+    converted_path[j] = '\0';
+    return strdupz(converted_path);
+}
 #endif
