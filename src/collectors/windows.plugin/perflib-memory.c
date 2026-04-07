@@ -421,120 +421,142 @@ static void do_memory_page_lists(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *
     rrdset_done(localPageLists.chart);
 }
 
-static void do_memory_system_pool(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+static void do_memory_system_pool_size_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
+{
+    collected_number paged = 0;
+    collected_number nonpaged = 0;
+    bool has_paged = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedBytes);
+    bool has_nonpaged = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedBytes);
+
+    if (!has_paged && !has_nonpaged)
+        return;
+
+    if (has_paged)
+        paged = (collected_number)localPool.pagedBytes.current.Data;
+
+    if (has_nonpaged)
+        nonpaged = (collected_number)localPool.nonPagedBytes.current.Data;
+
+    if (!localPool.pool) {
+        localPool.pool = rrdset_create_localhost(
+            "mem",
+            "system_pool",
+            NULL,
+            "mem",
+            "mem.system_pool_size",
+            "System Memory Pool",
+            "bytes",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_POOL,
+            update_every,
+            RRDSET_TYPE_STACKED);
+
+        localPool.rd_paged = rrddim_add(localPool.pool, "paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPool.rd_nonpaged = rrddim_add(localPool.pool, "non-paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrddim_set_by_pointer(localPool.pool, localPool.rd_paged, paged);
+    rrddim_set_by_pointer(localPool.pool, localPool.rd_nonpaged, nonpaged);
+    rrdset_done(localPool.pool);
+}
+
+static void do_memory_system_pool_paged_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
 {
     collected_number paged = 0;
     collected_number paged_resident = 0;
-    collected_number paged_allocs = 0;
-    collected_number nonpaged = 0;
-    collected_number nonpaged_allocs = 0;
-    bool has_pool_bytes = false;
-    bool has_paged = false;
-    bool has_allocs = false;
+    bool has_paged = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedBytes);
+    bool has_paged_resident = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedResidentBytes);
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedBytes)) {
+    if (!has_paged && !has_paged_resident)
+        return;
+
+    if (has_paged)
         paged = (collected_number)localPool.pagedBytes.current.Data;
-        has_pool_bytes = true;
-        has_paged = true;
-    }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedBytes)) {
-        nonpaged = (collected_number)localPool.nonPagedBytes.current.Data;
-        has_pool_bytes = true;
-    }
-
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedResidentBytes)) {
+    if (has_paged_resident)
         paged_resident = (collected_number)localPool.pagedResidentBytes.current.Data;
-        has_paged = true;
+
+    if (!localPool.paged) {
+        localPool.paged = rrdset_create_localhost(
+            "mem",
+            "system_pool_paged",
+            NULL,
+            "mem",
+            "mem.system_pool_paged",
+            "Paged System Memory Pool",
+            "bytes",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_POOL_PAGED,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localPool.rd_paged_total = rrddim_add(localPool.paged, "total", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPool.rd_paged_resident =
+            rrddim_add(localPool.paged, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
     }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedAllocs)) {
+    rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_total, paged);
+    rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_resident, paged_resident);
+    rrdset_done(localPool.paged);
+}
+
+static void do_memory_system_pool_allocs_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
+{
+    collected_number paged_allocs = 0;
+    collected_number nonpaged_allocs = 0;
+    bool has_paged_allocs = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedAllocs);
+    bool has_nonpaged_allocs = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedAllocs);
+
+    if (!has_paged_allocs && !has_nonpaged_allocs)
+        return;
+
+    if (has_paged_allocs)
         paged_allocs = (collected_number)localPool.pagedAllocs.current.Data;
-        has_allocs = true;
-    }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedAllocs)) {
+    if (has_nonpaged_allocs)
         nonpaged_allocs = (collected_number)localPool.nonPagedAllocs.current.Data;
-        has_allocs = true;
+
+    if (!localPool.allocs) {
+        localPool.allocs = rrdset_create_localhost(
+            "mem",
+            "system_pool_allocs",
+            NULL,
+            "mem",
+            "mem.system_pool_allocs",
+            "System Pool Allocations",
+            "allocations/s",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_POOL_ALLOCS,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localPool.rd_allocs_paged = rrddim_add(localPool.allocs, "paged", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        localPool.rd_allocs_nonpaged =
+            rrddim_add(localPool.allocs, "non-paged", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
     }
 
-    if (has_pool_bytes) {
-        if (!localPool.pool) {
-            localPool.pool = rrdset_create_localhost(
-                "mem",
-                "system_pool",
-                NULL,
-                "mem",
-                "mem.system_pool_size",
-                "System Memory Pool",
-                "bytes",
-                PLUGIN_WINDOWS_NAME,
-                "PerflibMemory",
-                NETDATA_CHART_PRIO_MEM_SYSTEM_POOL,
-                update_every,
-                RRDSET_TYPE_STACKED);
+    rrddim_set_by_pointer(localPool.allocs, localPool.rd_allocs_paged, paged_allocs);
+    rrddim_set_by_pointer(localPool.allocs, localPool.rd_allocs_nonpaged, nonpaged_allocs);
+    rrdset_done(localPool.allocs);
+}
 
-            localPool.rd_paged = rrddim_add(localPool.pool, "paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-            localPool.rd_nonpaged = rrddim_add(localPool.pool, "non-paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        }
-
-        rrddim_set_by_pointer(localPool.pool, localPool.rd_paged, paged);
-        rrddim_set_by_pointer(localPool.pool, localPool.rd_nonpaged, nonpaged);
-        rrdset_done(localPool.pool);
-    }
-
-    if (has_paged) {
-        if (!localPool.paged) {
-            localPool.paged = rrdset_create_localhost(
-                "mem",
-                "system_pool_paged",
-                NULL,
-                "mem",
-                "mem.system_pool_paged",
-                "Paged System Memory Pool",
-                "bytes",
-                PLUGIN_WINDOWS_NAME,
-                "PerflibMemory",
-                NETDATA_CHART_PRIO_MEM_SYSTEM_POOL_PAGED,
-                update_every,
-                RRDSET_TYPE_LINE);
-
-            localPool.rd_paged_total = rrddim_add(localPool.paged, "total", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-            localPool.rd_paged_resident =
-                rrddim_add(localPool.paged, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        }
-
-        rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_total, paged);
-        rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_resident, paged_resident);
-        rrdset_done(localPool.paged);
-    }
-
-    if (has_allocs) {
-        if (!localPool.allocs) {
-            localPool.allocs = rrdset_create_localhost(
-                "mem",
-                "system_pool_allocs",
-                NULL,
-                "mem",
-                "mem.system_pool_allocs",
-                "System Pool Allocations",
-                "allocations/s",
-                PLUGIN_WINDOWS_NAME,
-                "PerflibMemory",
-                NETDATA_CHART_PRIO_MEM_SYSTEM_POOL_ALLOCS,
-                update_every,
-                RRDSET_TYPE_LINE);
-
-            localPool.rd_allocs_paged =
-                rrddim_add(localPool.allocs, "paged", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-            localPool.rd_allocs_nonpaged =
-                rrddim_add(localPool.allocs, "non-paged", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        }
-
-        rrddim_set_by_pointer(localPool.allocs, localPool.rd_allocs_paged, paged_allocs);
-        rrddim_set_by_pointer(localPool.allocs, localPool.rd_allocs_nonpaged, nonpaged_allocs);
-        rrdset_done(localPool.allocs);
-    }
+static void do_memory_system_pool(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    do_memory_system_pool_size_chart(pDataBlock, pObjectType, update_every);
+    do_memory_system_pool_paged_chart(pDataBlock, pObjectType, update_every);
+    do_memory_system_pool_allocs_chart(pDataBlock, pObjectType, update_every);
 }
 
 static void do_memory_page_table_entries(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
