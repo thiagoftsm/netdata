@@ -22,44 +22,180 @@ struct swap {
     COUNTER_DATA pageOutputTotal;
 };
 
+struct commit {
+    RRDSET *chart;
+    RRDDIM *rd_committed;
+    RRDDIM *rd_limit;
+
+    COUNTER_DATA committedBytes;
+    COUNTER_DATA commitLimit;
+};
+
+struct system_cache {
+    RRDSET *chart;
+    RRDDIM *rd_cache;
+    RRDDIM *rd_peak;
+    RRDDIM *rd_resident;
+
+    COUNTER_DATA cacheBytes;
+    COUNTER_DATA cacheBytesPeak;
+    COUNTER_DATA residentBytes;
+};
+
+struct page_lists {
+    RRDSET *chart;
+    RRDDIM *rd_free;
+    RRDDIM *rd_modified;
+    RRDDIM *rd_standby_core;
+    RRDDIM *rd_standby_normal;
+    RRDDIM *rd_standby_reserve;
+
+    COUNTER_DATA freeAndZeroPageListBytes;
+    COUNTER_DATA modifiedPageListBytes;
+    COUNTER_DATA standbyCacheCoreBytes;
+    COUNTER_DATA standbyCacheNormalPriorityBytes;
+    COUNTER_DATA standbyCacheReserveBytes;
+};
+
 struct system_pool {
     RRDSET *pool;
     RRDDIM *rd_paged;
     RRDDIM *rd_nonpaged;
 
+    RRDSET *paged;
+    RRDDIM *rd_paged_total;
+    RRDDIM *rd_paged_resident;
+
+    RRDSET *allocs;
+    RRDDIM *rd_allocs_paged;
+    RRDDIM *rd_allocs_nonpaged;
+
     RRDSET *freeSystemPageTableEntries;
     RRDDIM *rd_free_system_page_table_entries;
 
-    COUNTER_DATA pagedData;
-    COUNTER_DATA nonPagedData;
+    COUNTER_DATA pagedBytes;
+    COUNTER_DATA pagedResidentBytes;
+    COUNTER_DATA pagedAllocs;
+    COUNTER_DATA nonPagedBytes;
+    COUNTER_DATA nonPagedAllocs;
     COUNTER_DATA pageTableEntries;
 };
 
-struct swap localSwap = {0};
-struct system_pool localPool = {0};
+struct system_code {
+    RRDSET *chart;
+    RRDDIM *rd_resident;
+    RRDDIM *rd_total;
 
-void initialize_swap_keys(struct swap *p)
+    COUNTER_DATA residentBytes;
+    COUNTER_DATA totalBytes;
+};
+
+struct system_drivers {
+    RRDSET *chart;
+    RRDDIM *rd_resident;
+    RRDDIM *rd_total;
+
+    COUNTER_DATA residentBytes;
+    COUNTER_DATA totalBytes;
+};
+
+struct page_faults {
+    RRDSET *breakdown;
+    RRDDIM *rd_cache;
+    RRDDIM *rd_demand_zero;
+    RRDDIM *rd_transition;
+    RRDDIM *rd_write_copies;
+
+    RRDSET *transition_repurposed;
+    RRDDIM *rd_repurposed;
+
+    COUNTER_DATA cacheFaultsPerSec;
+    COUNTER_DATA demandZeroFaultsPerSec;
+    COUNTER_DATA transitionFaultsPerSec;
+    COUNTER_DATA transitionPagesRePurposedPerSec;
+    COUNTER_DATA writeCopiesPerSec;
+};
+
+static struct swap localSwap = {0};
+static struct commit localCommit = {0};
+static struct system_cache localCache = {0};
+static struct page_lists localPageLists = {0};
+static struct system_pool localPool = {0};
+static struct system_code localCode = {0};
+static struct system_drivers localDrivers = {0};
+static struct page_faults localFaults = {0};
+
+static void initialize_swap_keys(struct swap *p)
 {
-    // SWAP Operations
     p->pageReadsTotal.key = "Page Reads/sec";
     p->pageWritesTotal.key = "Page Writes/sec";
-
-    // Swap Pages
     p->pageInputTotal.key = "Pages Input/sec";
     p->pageOutputTotal.key = "Pages Output/sec";
 }
 
-void initialize_pool_keys(struct system_pool *p)
+static void initialize_commit_keys(struct commit *p)
 {
-    p->pagedData.key = "Pool Paged Bytes";
-    p->nonPagedData.key = "Pool Nonpaged Bytes";
+    p->committedBytes.key = "Committed Bytes";
+    p->commitLimit.key = "Commit Limit";
+}
+
+static void initialize_cache_keys(struct system_cache *p)
+{
+    p->cacheBytes.key = "Cache Bytes";
+    p->cacheBytesPeak.key = "Cache Bytes Peak";
+    p->residentBytes.key = "System Cache Resident Bytes";
+}
+
+static void initialize_page_list_keys(struct page_lists *p)
+{
+    p->freeAndZeroPageListBytes.key = "Free & Zero Page List Bytes";
+    p->modifiedPageListBytes.key = "Modified Page List Bytes";
+    p->standbyCacheCoreBytes.key = "Standby Cache Core Bytes";
+    p->standbyCacheNormalPriorityBytes.key = "Standby Cache Normal Priority Bytes";
+    p->standbyCacheReserveBytes.key = "Standby Cache Reserve Bytes";
+}
+
+static void initialize_pool_keys(struct system_pool *p)
+{
+    p->pagedBytes.key = "Pool Paged Bytes";
+    p->pagedResidentBytes.key = "Pool Paged Resident Bytes";
+    p->pagedAllocs.key = "Pool Paged Allocs";
+    p->nonPagedBytes.key = "Pool Nonpaged Bytes";
+    p->nonPagedAllocs.key = "Pool Nonpaged Allocs";
     p->pageTableEntries.key = "Free System Page Table Entries";
+}
+
+static void initialize_system_code_keys(struct system_code *p)
+{
+    p->residentBytes.key = "System Code Resident Bytes";
+    p->totalBytes.key = "System Code Total Bytes";
+}
+
+static void initialize_system_driver_keys(struct system_drivers *p)
+{
+    p->residentBytes.key = "System Driver Resident Bytes";
+    p->totalBytes.key = "System Driver Total Bytes";
+}
+
+static void initialize_fault_keys(struct page_faults *p)
+{
+    p->cacheFaultsPerSec.key = "Cache Faults/sec";
+    p->demandZeroFaultsPerSec.key = "Demand Zero Faults/sec";
+    p->transitionFaultsPerSec.key = "Transition Faults/sec";
+    p->transitionPagesRePurposedPerSec.key = "Transition Pages RePurposed/sec";
+    p->writeCopiesPerSec.key = "Write Copies/sec";
 }
 
 static void initialize(void)
 {
     initialize_swap_keys(&localSwap);
+    initialize_commit_keys(&localCommit);
+    initialize_cache_keys(&localCache);
+    initialize_page_list_keys(&localPageLists);
     initialize_pool_keys(&localPool);
+    initialize_system_code_keys(&localCode);
+    initialize_system_driver_keys(&localDrivers);
+    initialize_fault_keys(&localFaults);
 }
 
 static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
@@ -90,7 +226,6 @@ static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjec
 
     rrddim_set_by_pointer(
         localSwap.operations, localSwap.rd_op_read, (collected_number)localSwap.pageReadsTotal.current.Data);
-
     rrddim_set_by_pointer(
         localSwap.operations, localSwap.rd_op_write, (collected_number)localSwap.pageWritesTotal.current.Data);
     rrdset_done(localSwap.operations);
@@ -116,45 +251,296 @@ static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjec
 
     rrddim_set_by_pointer(
         localSwap.pages, localSwap.rd_page_read, (collected_number)localSwap.pageInputTotal.current.Data);
-
     rrddim_set_by_pointer(
         localSwap.pages, localSwap.rd_page_write, (collected_number)localSwap.pageOutputTotal.current.Data);
     rrdset_done(localSwap.pages);
 }
 
-static void do_memory_system_pool(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+static void do_memory_commit(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
 {
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedData);
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedData);
+    collected_number committed = 0;
+    collected_number limit = 0;
+    bool has_data = false;
 
-    if (!localPool.pool) {
-        localPool.pool = rrdset_create_localhost(
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCommit.committedBytes)) {
+        committed = (collected_number)localCommit.committedBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCommit.commitLimit)) {
+        limit = (collected_number)localCommit.commitLimit.current.Data;
+        has_data = true;
+    }
+
+    if (!has_data)
+        return;
+
+    if (!localCommit.chart) {
+        localCommit.chart = rrdset_create_localhost(
             "mem",
-            "system_pool",
+            "committed",
             NULL,
             "mem",
-            "mem.system_pool_size",
-            "System Memory Pool",
+            "mem.committed",
+            "Committed Memory",
             "bytes",
             PLUGIN_WINDOWS_NAME,
             "PerflibMemory",
-            NETDATA_CHART_PRIO_MEM_SYSTEM_POOL,
+            NETDATA_CHART_PRIO_MEM_SYSTEM_COMMITTED,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localCommit.rd_committed = rrddim_add(localCommit.chart, "committed", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localCommit.rd_limit = rrddim_add(localCommit.chart, "limit", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrddim_set_by_pointer(localCommit.chart, localCommit.rd_committed, committed);
+    rrddim_set_by_pointer(localCommit.chart, localCommit.rd_limit, limit);
+    rrdset_done(localCommit.chart);
+}
+
+static void do_memory_cache(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    collected_number cache = 0;
+    collected_number peak = 0;
+    collected_number resident = 0;
+    bool has_data = false;
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCache.cacheBytes)) {
+        cache = (collected_number)localCache.cacheBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCache.cacheBytesPeak)) {
+        peak = (collected_number)localCache.cacheBytesPeak.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCache.residentBytes)) {
+        resident = (collected_number)localCache.residentBytes.current.Data;
+        has_data = true;
+    }
+
+    if (!has_data)
+        return;
+
+    if (!localCache.chart) {
+        localCache.chart = rrdset_create_localhost(
+            "mem",
+            "system_cache",
+            NULL,
+            "mem",
+            "mem.system_cache",
+            "System Cache Memory",
+            "bytes",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_CACHE,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localCache.rd_cache = rrddim_add(localCache.chart, "cache", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localCache.rd_peak = rrddim_add(localCache.chart, "peak", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localCache.rd_resident = rrddim_add(localCache.chart, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrddim_set_by_pointer(localCache.chart, localCache.rd_cache, cache);
+    rrddim_set_by_pointer(localCache.chart, localCache.rd_peak, peak);
+    rrddim_set_by_pointer(localCache.chart, localCache.rd_resident, resident);
+    rrdset_done(localCache.chart);
+}
+
+static void do_memory_page_lists(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    collected_number free = 0;
+    collected_number modified = 0;
+    collected_number standby_core = 0;
+    collected_number standby_normal = 0;
+    collected_number standby_reserve = 0;
+    bool has_data = false;
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPageLists.freeAndZeroPageListBytes)) {
+        free = (collected_number)localPageLists.freeAndZeroPageListBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPageLists.modifiedPageListBytes)) {
+        modified = (collected_number)localPageLists.modifiedPageListBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPageLists.standbyCacheCoreBytes)) {
+        standby_core = (collected_number)localPageLists.standbyCacheCoreBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPageLists.standbyCacheNormalPriorityBytes)) {
+        standby_normal = (collected_number)localPageLists.standbyCacheNormalPriorityBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPageLists.standbyCacheReserveBytes)) {
+        standby_reserve = (collected_number)localPageLists.standbyCacheReserveBytes.current.Data;
+        has_data = true;
+    }
+
+    if (!has_data)
+        return;
+
+    if (!localPageLists.chart) {
+        localPageLists.chart = rrdset_create_localhost(
+            "mem",
+            "page_lists",
+            NULL,
+            "mem",
+            "mem.page_lists",
+            "Memory Page Lists",
+            "bytes",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_PAGE_LISTS,
             update_every,
             RRDSET_TYPE_STACKED);
 
-        localPool.rd_paged = rrddim_add(localPool.pool, "paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        localPool.rd_nonpaged = rrddim_add(localPool.pool, "non-paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPageLists.rd_free = rrddim_add(localPageLists.chart, "free", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPageLists.rd_modified =
+            rrddim_add(localPageLists.chart, "modified", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPageLists.rd_standby_core =
+            rrddim_add(localPageLists.chart, "standby_core", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPageLists.rd_standby_normal =
+            rrddim_add(localPageLists.chart, "standby_normal", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localPageLists.rd_standby_reserve =
+            rrddim_add(localPageLists.chart, "standby_reserve", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
     }
 
-    rrddim_set_by_pointer(localPool.pool, localPool.rd_paged, (collected_number)localPool.pagedData.current.Data);
+    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_free, free);
+    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_modified, modified);
+    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_standby_core, standby_core);
+    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_standby_normal, standby_normal);
+    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_standby_reserve, standby_reserve);
+    rrdset_done(localPageLists.chart);
+}
 
-    rrddim_set_by_pointer(localPool.pool, localPool.rd_nonpaged, (collected_number)localPool.nonPagedData.current.Data);
-    rrdset_done(localPool.pool);
+static void do_memory_system_pool(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    collected_number paged = 0;
+    collected_number paged_resident = 0;
+    collected_number paged_allocs = 0;
+    collected_number nonpaged = 0;
+    collected_number nonpaged_allocs = 0;
+    bool has_pool_bytes = false;
+    bool has_paged = false;
+    bool has_allocs = false;
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedBytes)) {
+        paged = (collected_number)localPool.pagedBytes.current.Data;
+        has_pool_bytes = true;
+        has_paged = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedBytes)) {
+        nonpaged = (collected_number)localPool.nonPagedBytes.current.Data;
+        has_pool_bytes = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedResidentBytes)) {
+        paged_resident = (collected_number)localPool.pagedResidentBytes.current.Data;
+        has_paged = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedAllocs)) {
+        paged_allocs = (collected_number)localPool.pagedAllocs.current.Data;
+        has_allocs = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.nonPagedAllocs)) {
+        nonpaged_allocs = (collected_number)localPool.nonPagedAllocs.current.Data;
+        has_allocs = true;
+    }
+
+    if (has_pool_bytes) {
+        if (!localPool.pool) {
+            localPool.pool = rrdset_create_localhost(
+                "mem",
+                "system_pool",
+                NULL,
+                "mem",
+                "mem.system_pool_size",
+                "System Memory Pool",
+                "bytes",
+                PLUGIN_WINDOWS_NAME,
+                "PerflibMemory",
+                NETDATA_CHART_PRIO_MEM_SYSTEM_POOL,
+                update_every,
+                RRDSET_TYPE_STACKED);
+
+            localPool.rd_paged = rrddim_add(localPool.pool, "paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+            localPool.rd_nonpaged = rrddim_add(localPool.pool, "non-paged", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        }
+
+        rrddim_set_by_pointer(localPool.pool, localPool.rd_paged, paged);
+        rrddim_set_by_pointer(localPool.pool, localPool.rd_nonpaged, nonpaged);
+        rrdset_done(localPool.pool);
+    }
+
+    if (has_paged) {
+        if (!localPool.paged) {
+            localPool.paged = rrdset_create_localhost(
+                "mem",
+                "system_pool_paged",
+                NULL,
+                "mem",
+                "mem.system_pool_paged",
+                "Paged System Memory Pool",
+                "bytes",
+                PLUGIN_WINDOWS_NAME,
+                "PerflibMemory",
+                NETDATA_CHART_PRIO_MEM_SYSTEM_POOL_PAGED,
+                update_every,
+                RRDSET_TYPE_LINE);
+
+            localPool.rd_paged_total = rrddim_add(localPool.paged, "total", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+            localPool.rd_paged_resident =
+                rrddim_add(localPool.paged, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        }
+
+        rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_total, paged);
+        rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_resident, paged_resident);
+        rrdset_done(localPool.paged);
+    }
+
+    if (has_allocs) {
+        if (!localPool.allocs) {
+            localPool.allocs = rrdset_create_localhost(
+                "mem",
+                "system_pool_allocs",
+                NULL,
+                "mem",
+                "mem.system_pool_allocs",
+                "System Pool Allocations",
+                "allocations/s",
+                PLUGIN_WINDOWS_NAME,
+                "PerflibMemory",
+                NETDATA_CHART_PRIO_MEM_SYSTEM_POOL_ALLOCS,
+                update_every,
+                RRDSET_TYPE_LINE);
+
+            localPool.rd_allocs_paged =
+                rrddim_add(localPool.allocs, "paged", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+            localPool.rd_allocs_nonpaged =
+                rrddim_add(localPool.allocs, "non-paged", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        }
+
+        rrddim_set_by_pointer(localPool.allocs, localPool.rd_allocs_paged, paged_allocs);
+        rrddim_set_by_pointer(localPool.allocs, localPool.rd_allocs_nonpaged, nonpaged_allocs);
+        rrdset_done(localPool.allocs);
+    }
 }
 
 static void do_memory_page_table_entries(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
 {
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pageTableEntries);
+    if (!perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pageTableEntries))
+        return;
 
     if (!localPool.freeSystemPageTableEntries) {
         localPool.freeSystemPageTableEntries = rrdset_create_localhost(
@@ -179,8 +565,187 @@ static void do_memory_page_table_entries(PERF_DATA_BLOCK *pDataBlock, PERF_OBJEC
         localPool.freeSystemPageTableEntries,
         localPool.rd_free_system_page_table_entries,
         (collected_number)localPool.pageTableEntries.current.Data);
-
     rrdset_done(localPool.freeSystemPageTableEntries);
+}
+
+static void do_memory_system_code(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    collected_number resident = 0;
+    collected_number total = 0;
+    bool has_data = false;
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCode.residentBytes)) {
+        resident = (collected_number)localCode.residentBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localCode.totalBytes)) {
+        total = (collected_number)localCode.totalBytes.current.Data;
+        has_data = true;
+    }
+
+    if (!has_data)
+        return;
+
+    if (!localCode.chart) {
+        localCode.chart = rrdset_create_localhost(
+            "mem",
+            "system_code",
+            NULL,
+            "mem",
+            "mem.system_code",
+            "System Code Memory",
+            "bytes",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_CODE,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localCode.rd_resident = rrddim_add(localCode.chart, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localCode.rd_total = rrddim_add(localCode.chart, "total", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrddim_set_by_pointer(localCode.chart, localCode.rd_resident, resident);
+    rrddim_set_by_pointer(localCode.chart, localCode.rd_total, total);
+    rrdset_done(localCode.chart);
+}
+
+static void do_memory_system_drivers(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    collected_number resident = 0;
+    collected_number total = 0;
+    bool has_data = false;
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localDrivers.residentBytes)) {
+        resident = (collected_number)localDrivers.residentBytes.current.Data;
+        has_data = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localDrivers.totalBytes)) {
+        total = (collected_number)localDrivers.totalBytes.current.Data;
+        has_data = true;
+    }
+
+    if (!has_data)
+        return;
+
+    if (!localDrivers.chart) {
+        localDrivers.chart = rrdset_create_localhost(
+            "mem",
+            "system_drivers",
+            NULL,
+            "mem",
+            "mem.system_drivers",
+            "System Driver Memory",
+            "bytes",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_DRIVERS,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localDrivers.rd_resident =
+            rrddim_add(localDrivers.chart, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        localDrivers.rd_total = rrddim_add(localDrivers.chart, "total", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrddim_set_by_pointer(localDrivers.chart, localDrivers.rd_resident, resident);
+    rrddim_set_by_pointer(localDrivers.chart, localDrivers.rd_total, total);
+    rrdset_done(localDrivers.chart);
+}
+
+static void do_memory_faults(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    collected_number cache = 0;
+    collected_number demand_zero = 0;
+    collected_number transition = 0;
+    collected_number write_copies = 0;
+    collected_number repurposed = 0;
+    bool has_breakdown = false;
+    bool has_repurposed = false;
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.cacheFaultsPerSec)) {
+        cache = (collected_number)localFaults.cacheFaultsPerSec.current.Data;
+        has_breakdown = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.demandZeroFaultsPerSec)) {
+        demand_zero = (collected_number)localFaults.demandZeroFaultsPerSec.current.Data;
+        has_breakdown = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.transitionFaultsPerSec)) {
+        transition = (collected_number)localFaults.transitionFaultsPerSec.current.Data;
+        has_breakdown = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.writeCopiesPerSec)) {
+        write_copies = (collected_number)localFaults.writeCopiesPerSec.current.Data;
+        has_breakdown = true;
+    }
+
+    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.transitionPagesRePurposedPerSec)) {
+        repurposed = (collected_number)localFaults.transitionPagesRePurposedPerSec.current.Data;
+        has_repurposed = true;
+    }
+
+    if (has_breakdown) {
+        if (!localFaults.breakdown) {
+            localFaults.breakdown = rrdset_create_localhost(
+                "mem",
+                "page_faults_breakdown",
+                NULL,
+                "page faults",
+                "mem.page_faults_breakdown",
+                "Memory Page Fault Breakdown",
+                "faults/s",
+                PLUGIN_WINDOWS_NAME,
+                "PerflibMemory",
+                NETDATA_CHART_PRIO_MEM_SYSTEM_PGFAULTS_DETAIL,
+                update_every,
+                RRDSET_TYPE_LINE);
+
+            localFaults.rd_cache =
+                rrddim_add(localFaults.breakdown, "cache", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+            localFaults.rd_demand_zero =
+                rrddim_add(localFaults.breakdown, "demand_zero", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+            localFaults.rd_transition =
+                rrddim_add(localFaults.breakdown, "transition", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+            localFaults.rd_write_copies =
+                rrddim_add(localFaults.breakdown, "write_copies", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        }
+
+        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_cache, cache);
+        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_demand_zero, demand_zero);
+        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_transition, transition);
+        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_write_copies, write_copies);
+        rrdset_done(localFaults.breakdown);
+    }
+
+    if (has_repurposed) {
+        if (!localFaults.transition_repurposed) {
+            localFaults.transition_repurposed = rrdset_create_localhost(
+                "mem",
+                "transition_repurposed",
+                NULL,
+                "page faults",
+                "mem.transition_repurposed",
+                "Transition Pages Repurposed",
+                "pages/s",
+                PLUGIN_WINDOWS_NAME,
+                "PerflibMemory",
+                NETDATA_CHART_PRIO_MEM_SYSTEM_TRANSITION,
+                update_every,
+                RRDSET_TYPE_LINE);
+
+            localFaults.rd_repurposed = rrddim_add(
+                localFaults.transition_repurposed, "repurposed", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        }
+
+        rrddim_set_by_pointer(localFaults.transition_repurposed, localFaults.rd_repurposed, repurposed);
+        rrdset_done(localFaults.transition_repurposed);
+    }
 }
 
 static bool do_memory(PERF_DATA_BLOCK *pDataBlock, int update_every)
@@ -215,9 +780,14 @@ static bool do_memory(PERF_DATA_BLOCK *pDataBlock, int update_every)
     common_mem_available(available_bytes, update_every);
 
     do_memory_swap(pDataBlock, pObjectType, update_every);
-
+    do_memory_commit(pDataBlock, pObjectType, update_every);
+    do_memory_cache(pDataBlock, pObjectType, update_every);
+    do_memory_page_lists(pDataBlock, pObjectType, update_every);
     do_memory_system_pool(pDataBlock, pObjectType, update_every);
     do_memory_page_table_entries(pDataBlock, pObjectType, update_every);
+    do_memory_system_code(pDataBlock, pObjectType, update_every);
+    do_memory_system_drivers(pDataBlock, pObjectType, update_every);
+    do_memory_faults(pDataBlock, pObjectType, update_every);
 
     return true;
 }
