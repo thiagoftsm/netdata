@@ -187,13 +187,13 @@ modules:
               dimensions:
                 - name: read
                 - name: write
-            - name: mem.swap_pages_io
-              description: Swap Pages
-              unit: "pages/s"
-              chart_type: stacked
+            - name: mem.swapio
+              description: Swap I/O
+              unit: "KiB/s"
+              chart_type: area
               dimensions:
-                - name: read
-                - name: write
+                - name: in
+                - name: out
             - name: mem.system_pool_size
               description: System Memory Pool
               unit: "bytes"

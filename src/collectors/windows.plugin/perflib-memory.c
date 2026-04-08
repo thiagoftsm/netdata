@@ -262,20 +262,21 @@ static void do_memory_swap_pages_chart(
     if (!localSwap.pages) {
         localSwap.pages = rrdset_create_localhost(
             "mem",
-            "swap_pages",
+            "swapio",
             NULL,
             "swap",
-            "mem.swap_pages_io",
-            "Swap Pages",
-            "pages/s",
+            "mem.swapio",
+            "Swap I/O",
+            "KiB/s",
             PLUGIN_WINDOWS_NAME,
             "PerflibMemory",
-            NETDATA_CHART_PRIO_MEM_SWAP_PAGES,
+            NETDATA_CHART_PRIO_MEM_SWAPIO,
             update_every,
-            RRDSET_TYPE_STACKED);
+            RRDSET_TYPE_AREA);
 
-        localSwap.rd_page_read = rrddim_add(localSwap.pages, "read", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        localSwap.rd_page_write = rrddim_add(localSwap.pages, "write", NULL, 1, -1, RRD_ALGORITHM_INCREMENTAL);
+        // Windows page size is 4096 bytes; divide by 1024 to report in KiB/s
+        localSwap.rd_page_read = rrddim_add(localSwap.pages, "in",  NULL,  4096, 1024, RRD_ALGORITHM_INCREMENTAL);
+        localSwap.rd_page_write = rrddim_add(localSwap.pages, "out", NULL, -4096, 1024, RRD_ALGORITHM_INCREMENTAL);
     }
 
     rrddim_set_by_pointer(localSwap.pages, localSwap.rd_page_read, page_input);
