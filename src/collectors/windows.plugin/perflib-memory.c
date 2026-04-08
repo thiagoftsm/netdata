@@ -63,7 +63,6 @@ struct system_pool {
     RRDDIM *rd_nonpaged;
 
     RRDSET *paged;
-    RRDDIM *rd_paged_total;
     RRDDIM *rd_paged_resident;
 
     RRDSET *allocs;
@@ -198,12 +197,24 @@ static void initialize(void)
     initialize_fault_keys(&localFaults);
 }
 
-static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+static void do_memory_swap_operations_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
 {
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageReadsTotal);
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageWritesTotal);
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageInputTotal);
-    perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageOutputTotal);
+    collected_number page_reads = 0;
+    collected_number page_writes = 0;
+    bool has_page_reads = perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageReadsTotal);
+    bool has_page_writes = perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageWritesTotal);
+
+    if (!has_page_reads && !has_page_writes)
+        return;
+
+    if (has_page_reads)
+        page_reads = (collected_number)localSwap.pageReadsTotal.current.Data;
+
+    if (has_page_writes)
+        page_writes = (collected_number)localSwap.pageWritesTotal.current.Data;
 
     if (!localSwap.operations) {
         localSwap.operations = rrdset_create_localhost(
@@ -224,11 +235,29 @@ static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjec
         localSwap.rd_op_write = rrddim_add(localSwap.operations, "write", NULL, 1, -1, RRD_ALGORITHM_INCREMENTAL);
     }
 
-    rrddim_set_by_pointer(
-        localSwap.operations, localSwap.rd_op_read, (collected_number)localSwap.pageReadsTotal.current.Data);
-    rrddim_set_by_pointer(
-        localSwap.operations, localSwap.rd_op_write, (collected_number)localSwap.pageWritesTotal.current.Data);
+    rrddim_set_by_pointer(localSwap.operations, localSwap.rd_op_read, page_reads);
+    rrddim_set_by_pointer(localSwap.operations, localSwap.rd_op_write, page_writes);
     rrdset_done(localSwap.operations);
+}
+
+static void do_memory_swap_pages_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
+{
+    collected_number page_input = 0;
+    collected_number page_output = 0;
+    bool has_page_input = perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageInputTotal);
+    bool has_page_output = perflibGetObjectCounter(pDataBlock, pObjectType, &localSwap.pageOutputTotal);
+
+    if (!has_page_input && !has_page_output)
+        return;
+
+    if (has_page_input)
+        page_input = (collected_number)localSwap.pageInputTotal.current.Data;
+
+    if (has_page_output)
+        page_output = (collected_number)localSwap.pageOutputTotal.current.Data;
 
     if (!localSwap.pages) {
         localSwap.pages = rrdset_create_localhost(
@@ -249,11 +278,15 @@ static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjec
         localSwap.rd_page_write = rrddim_add(localSwap.pages, "write", NULL, 1, -1, RRD_ALGORITHM_INCREMENTAL);
     }
 
-    rrddim_set_by_pointer(
-        localSwap.pages, localSwap.rd_page_read, (collected_number)localSwap.pageInputTotal.current.Data);
-    rrddim_set_by_pointer(
-        localSwap.pages, localSwap.rd_page_write, (collected_number)localSwap.pageOutputTotal.current.Data);
+    rrddim_set_by_pointer(localSwap.pages, localSwap.rd_page_read, page_input);
+    rrddim_set_by_pointer(localSwap.pages, localSwap.rd_page_write, page_output);
     rrdset_done(localSwap.pages);
+}
+
+static void do_memory_swap(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    do_memory_swap_operations_chart(pDataBlock, pObjectType, update_every);
+    do_memory_swap_pages_chart(pDataBlock, pObjectType, update_every);
 }
 
 static void do_memory_commit(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
@@ -352,7 +385,7 @@ static void do_memory_cache(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObje
 
 static void do_memory_page_lists(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
 {
-    collected_number free = 0;
+    collected_number free_bytes = 0;
     collected_number modified = 0;
     collected_number standby_core = 0;
     collected_number standby_normal = 0;
@@ -360,7 +393,7 @@ static void do_memory_page_lists(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *
     bool has_data = false;
 
     if (perflibGetObjectCounter(pDataBlock, pObjectType, &localPageLists.freeAndZeroPageListBytes)) {
-        free = (collected_number)localPageLists.freeAndZeroPageListBytes.current.Data;
+        free_bytes = (collected_number)localPageLists.freeAndZeroPageListBytes.current.Data;
         has_data = true;
     }
 
@@ -413,7 +446,7 @@ static void do_memory_page_lists(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *
             rrddim_add(localPageLists.chart, "standby_reserve", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
     }
 
-    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_free, free);
+    rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_free, free_bytes);
     rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_modified, modified);
     rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_standby_core, standby_core);
     rrddim_set_by_pointer(localPageLists.chart, localPageLists.rd_standby_normal, standby_normal);
@@ -469,19 +502,8 @@ static void do_memory_system_pool_paged_chart(
     PERF_OBJECT_TYPE *pObjectType,
     int update_every)
 {
-    collected_number paged = 0;
-    collected_number paged_resident = 0;
-    bool has_paged = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedBytes);
-    bool has_paged_resident = perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedResidentBytes);
-
-    if (!has_paged && !has_paged_resident)
+    if (!perflibGetObjectCounter(pDataBlock, pObjectType, &localPool.pagedResidentBytes))
         return;
-
-    if (has_paged)
-        paged = (collected_number)localPool.pagedBytes.current.Data;
-
-    if (has_paged_resident)
-        paged_resident = (collected_number)localPool.pagedResidentBytes.current.Data;
 
     if (!localPool.paged) {
         localPool.paged = rrdset_create_localhost(
@@ -498,13 +520,14 @@ static void do_memory_system_pool_paged_chart(
             update_every,
             RRDSET_TYPE_LINE);
 
-        localPool.rd_paged_total = rrddim_add(localPool.paged, "total", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         localPool.rd_paged_resident =
             rrddim_add(localPool.paged, "resident", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
     }
 
-    rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_total, paged);
-    rrddim_set_by_pointer(localPool.paged, localPool.rd_paged_resident, paged_resident);
+    rrddim_set_by_pointer(
+        localPool.paged,
+        localPool.rd_paged_resident,
+        (collected_number)localPool.pagedResidentBytes.current.Data);
     rrdset_done(localPool.paged);
 }
 
@@ -677,97 +700,106 @@ static void do_memory_system_drivers(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TY
     rrdset_done(localDrivers.chart);
 }
 
-static void do_memory_faults(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+static void do_memory_faults_breakdown_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
 {
     collected_number cache = 0;
     collected_number demand_zero = 0;
     collected_number transition = 0;
     collected_number write_copies = 0;
-    collected_number repurposed = 0;
-    bool has_breakdown = false;
-    bool has_repurposed = false;
+    bool has_cache = perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.cacheFaultsPerSec);
+    bool has_demand_zero = perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.demandZeroFaultsPerSec);
+    bool has_transition = perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.transitionFaultsPerSec);
+    bool has_write_copies = perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.writeCopiesPerSec);
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.cacheFaultsPerSec)) {
+    if (!has_cache && !has_demand_zero && !has_transition && !has_write_copies)
+        return;
+
+    if (has_cache)
         cache = (collected_number)localFaults.cacheFaultsPerSec.current.Data;
-        has_breakdown = true;
-    }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.demandZeroFaultsPerSec)) {
+    if (has_demand_zero)
         demand_zero = (collected_number)localFaults.demandZeroFaultsPerSec.current.Data;
-        has_breakdown = true;
-    }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.transitionFaultsPerSec)) {
+    if (has_transition)
         transition = (collected_number)localFaults.transitionFaultsPerSec.current.Data;
-        has_breakdown = true;
-    }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.writeCopiesPerSec)) {
+    if (has_write_copies)
         write_copies = (collected_number)localFaults.writeCopiesPerSec.current.Data;
-        has_breakdown = true;
+
+    if (!localFaults.breakdown) {
+        localFaults.breakdown = rrdset_create_localhost(
+            "mem",
+            "page_faults_breakdown",
+            NULL,
+            "page faults",
+            "mem.page_faults_breakdown",
+            "Memory Page Fault Breakdown",
+            "faults/s",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_PGFAULTS_DETAIL,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localFaults.rd_cache =
+            rrddim_add(localFaults.breakdown, "cache", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        localFaults.rd_demand_zero =
+            rrddim_add(localFaults.breakdown, "demand_zero", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        localFaults.rd_transition =
+            rrddim_add(localFaults.breakdown, "transition", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        localFaults.rd_write_copies =
+            rrddim_add(localFaults.breakdown, "write_copies", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
     }
 
-    if (perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.transitionPagesRePurposedPerSec)) {
-        repurposed = (collected_number)localFaults.transitionPagesRePurposedPerSec.current.Data;
-        has_repurposed = true;
+    rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_cache, cache);
+    rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_demand_zero, demand_zero);
+    rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_transition, transition);
+    rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_write_copies, write_copies);
+    rrdset_done(localFaults.breakdown);
+}
+
+static void do_memory_transition_repurposed_chart(
+    PERF_DATA_BLOCK *pDataBlock,
+    PERF_OBJECT_TYPE *pObjectType,
+    int update_every)
+{
+    collected_number repurposed = 0;
+
+    if (!perflibGetObjectCounter(pDataBlock, pObjectType, &localFaults.transitionPagesRePurposedPerSec))
+        return;
+
+    repurposed = (collected_number)localFaults.transitionPagesRePurposedPerSec.current.Data;
+
+    if (!localFaults.transition_repurposed) {
+        localFaults.transition_repurposed = rrdset_create_localhost(
+            "mem",
+            "transition_repurposed",
+            NULL,
+            "page faults",
+            "mem.transition_repurposed",
+            "Transition Pages Repurposed",
+            "pages/s",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibMemory",
+            NETDATA_CHART_PRIO_MEM_SYSTEM_TRANSITION,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        localFaults.rd_repurposed = rrddim_add(
+            localFaults.transition_repurposed, "repurposed", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
     }
 
-    if (has_breakdown) {
-        if (!localFaults.breakdown) {
-            localFaults.breakdown = rrdset_create_localhost(
-                "mem",
-                "page_faults_breakdown",
-                NULL,
-                "page faults",
-                "mem.page_faults_breakdown",
-                "Memory Page Fault Breakdown",
-                "faults/s",
-                PLUGIN_WINDOWS_NAME,
-                "PerflibMemory",
-                NETDATA_CHART_PRIO_MEM_SYSTEM_PGFAULTS_DETAIL,
-                update_every,
-                RRDSET_TYPE_LINE);
+    rrddim_set_by_pointer(localFaults.transition_repurposed, localFaults.rd_repurposed, repurposed);
+    rrdset_done(localFaults.transition_repurposed);
+}
 
-            localFaults.rd_cache =
-                rrddim_add(localFaults.breakdown, "cache", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-            localFaults.rd_demand_zero =
-                rrddim_add(localFaults.breakdown, "demand_zero", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-            localFaults.rd_transition =
-                rrddim_add(localFaults.breakdown, "transition", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-            localFaults.rd_write_copies =
-                rrddim_add(localFaults.breakdown, "write_copies", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        }
-
-        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_cache, cache);
-        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_demand_zero, demand_zero);
-        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_transition, transition);
-        rrddim_set_by_pointer(localFaults.breakdown, localFaults.rd_write_copies, write_copies);
-        rrdset_done(localFaults.breakdown);
-    }
-
-    if (has_repurposed) {
-        if (!localFaults.transition_repurposed) {
-            localFaults.transition_repurposed = rrdset_create_localhost(
-                "mem",
-                "transition_repurposed",
-                NULL,
-                "page faults",
-                "mem.transition_repurposed",
-                "Transition Pages Repurposed",
-                "pages/s",
-                PLUGIN_WINDOWS_NAME,
-                "PerflibMemory",
-                NETDATA_CHART_PRIO_MEM_SYSTEM_TRANSITION,
-                update_every,
-                RRDSET_TYPE_LINE);
-
-            localFaults.rd_repurposed = rrddim_add(
-                localFaults.transition_repurposed, "repurposed", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        }
-
-        rrddim_set_by_pointer(localFaults.transition_repurposed, localFaults.rd_repurposed, repurposed);
-        rrdset_done(localFaults.transition_repurposed);
-    }
+static void do_memory_faults(PERF_DATA_BLOCK *pDataBlock, PERF_OBJECT_TYPE *pObjectType, int update_every)
+{
+    do_memory_faults_breakdown_chart(pDataBlock, pObjectType, update_every);
+    do_memory_transition_repurposed_chart(pDataBlock, pObjectType, update_every);
 }
 
 static bool do_memory(PERF_DATA_BLOCK *pDataBlock, int update_every)
