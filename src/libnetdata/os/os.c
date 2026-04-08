@@ -75,8 +75,10 @@ char *os_translate_windows_to_msys_path(const char *src) {
             converted_path[j++] = (char)tolower((unsigned char)src[0]);
 
         i = 2;
-        if ((src[i] == '\\' || src[i] == '/') && j < sizeof(converted_path) - 1)
+        if ((src[i] == '\\' || src[i] == '/') && j < sizeof(converted_path) - 1) {
             converted_path[j++] = '/';
+            i++; // consume the separator so the loop below doesn't emit it again
+        }
     }
     else if ((src[0] == '\\' && src[1] == '\\') || (src[0] == '/' && src[1] == '/')) {
         converted_path[j++] = '/';
