@@ -2,6 +2,14 @@
 
 ### Merged Pull Requests:
 
+- Fix(go.d): reduce transient 503 errors on dyncfg enable/disable ([#22183](https://github.com/netdata/netdata/issues/22183))
+- Feat(go.d/snmp): add `ping_only` option ([#22180](https://github.com/netdata/netdata/issues/22180))
+- Fix(go.d/snmp): fix retries serialization and bulk walk disable ([#22179](https://github.com/netdata/netdata/issues/22179))
+
+## [2.10.0] - 2026-04-09
+
+### Merged Pull Requests:
+
 - Increase minimum language standards to C17 and C++17, and update to the latest versions of Protobuf and Abseil. ([#21574](https://github.com/netdata/netdata/issues/21574))
 - Drop Ubuntu 20.04 from CI and package builds. ([#21647](https://github.com/netdata/netdata/issues/21647))
 - Clarify default storage retention limits in docs ([#21780](https://github.com/netdata/netdata/issues/21780))
