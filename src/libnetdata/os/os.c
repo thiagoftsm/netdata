@@ -36,6 +36,62 @@ const char *os_type = "macos";
 #if defined(OS_WINDOWS)
 const char *os_type = "windows";
 
+char *os_translate_msys_to_windows_path(const char *src) {
+    if (!src)
+        return strdupz("");
+
+    if (!*src)
+        return strdupz("");
+
+    if (src[0] == '/') {
+        ssize_t converted_size = cygwin_conv_path(CCP_POSIX_TO_WIN_A, src, NULL, 0);
+        if (converted_size > 0) {
+            char *converted_path = mallocz((size_t)converted_size);
+            if (cygwin_conv_path(CCP_POSIX_TO_WIN_A, src, converted_path, (size_t)converted_size) == 0)
+                return converted_path;
+
+            freez(converted_path);
+        }
+    }
+
+    size_t src_len = strlen(src);
+    char *converted_path = mallocz(src_len + 3);
+    size_t i = 0;
+    size_t j = 0;
+
+    if (isalpha((unsigned char)src[0]) && src[1] == ':') {
+        converted_path[j++] = (char)toupper((unsigned char)src[0]);
+        converted_path[j++] = ':';
+        i = 2;
+
+        if ((src[i] == '\\' || src[i] == '/') && j < src_len + 2) {
+            converted_path[j++] = '\\';
+            i++;
+        }
+    }
+    else if (src[0] == '/' && isalpha((unsigned char)src[1]) && (src[2] == '/' || src[2] == '\0')) {
+        converted_path[j++] = (char)toupper((unsigned char)src[1]);
+        converted_path[j++] = ':';
+        i = 2;
+
+        if (src[i] == '/' && j < src_len + 2) {
+            converted_path[j++] = '\\';
+            i++;
+        }
+    }
+    else if ((src[0] == '\\' && src[1] == '\\') || (src[0] == '/' && src[1] == '/')) {
+        converted_path[j++] = '\\';
+        converted_path[j++] = '\\';
+        i = 2;
+    }
+
+    for (; src[i] && j < src_len + 2; i++)
+        converted_path[j++] = (src[i] == '/') ? '\\' : src[i];
+
+    converted_path[j] = '\0';
+    return converted_path;
+}
+
 char *os_translate_path(char *dst, const char *src, size_t dst_size) {
     if (!dst || !dst_size)
         return dst;
@@ -45,11 +101,8 @@ char *os_translate_path(char *dst, const char *src, size_t dst_size) {
         return dst;
     }
 
-    size_t i;
-    for (i = 0; src[i] && i < dst_size - 1; i++)
-        dst[i] = (src[i] == '/') ? '\\' : src[i];
-
-    dst[i] = '\0';
+    CLEAN_CHAR_P *translated = os_translate_msys_to_windows_path(src);
+    snprintfz(dst, dst_size, "%s", translated);
     return dst;
 }
 

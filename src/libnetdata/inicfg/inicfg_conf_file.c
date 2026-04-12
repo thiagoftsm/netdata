@@ -26,6 +26,25 @@ ENUM_STR_MAP_DEFINE(CONFIG_VALUE_TYPES) = {
 
 ENUM_STR_DEFINE_FUNCTIONS(CONFIG_VALUE_TYPES, CONFIG_VALUE_TYPE_UNKNOWN, "unknown");
 
+#if defined(OS_WINDOWS)
+static const char *inicfg_windows_value_for_display(
+    const struct config_section *sect,
+    const struct config_option *opt,
+    const char *value,
+    char *dst,
+    size_t dst_size)
+{
+    if (!value || !*value)
+        return value ? value : "";
+
+    if ((opt->type != CONFIG_VALUE_TYPE_PATH && opt->type != CONFIG_VALUE_TYPE_FILENAME) &&
+        string_strcmp(sect->name, CONFIG_SECTION_DIRECTORIES) != 0)
+        return value;
+
+    return os_translate_path(dst, value, dst_size);
+}
+#endif
+
 
 // ----------------------------------------------------------------------------
 // config load/save
@@ -296,10 +315,22 @@ void inicfg_generate(struct config *root, BUFFER *wb, int only_changed, bool net
                                            string2str(opt->value_original));
                     }
 
+                    const char *current_value = string2str(opt->value);
+                    const char *default_value = string2str(opt->value_default);
+#if defined(OS_WINDOWS)
+                    char current_value_windows[CONFIG_MAX_VALUE + 1];
+                    char default_value_windows[CONFIG_MAX_VALUE + 1];
+
+                    current_value = inicfg_windows_value_for_display(
+                        sect, opt, current_value, current_value_windows, sizeof(current_value_windows));
+                    default_value = inicfg_windows_value_for_display(
+                        sect, opt, default_value, default_value_windows, sizeof(default_value_windows));
+#endif
+
                     if(show_default)
                         buffer_sprintf(wb, "\t#| datatype: %s, default value: %s\n",
                                        CONFIG_VALUE_TYPES_2str(opt->type),
-                                       string2str(opt->value_default));
+                                       default_value);
 
                     buffer_sprintf(wb, "\t%s%s = %s\n",
                                    (
@@ -308,7 +339,7 @@ void inicfg_generate(struct config *root, BUFFER *wb, int only_changed, bool net
                                        (opt->flags & CONFIG_VALUE_USED)
                                            ) ? "# " : "",
                                    string2str(opt->name),
-                                   string2str(opt->value));
+                                   current_value);
 
                     options_added++;
                 }
