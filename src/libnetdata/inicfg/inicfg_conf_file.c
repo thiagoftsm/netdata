@@ -27,6 +27,49 @@ ENUM_STR_MAP_DEFINE(CONFIG_VALUE_TYPES) = {
 ENUM_STR_DEFINE_FUNCTIONS(CONFIG_VALUE_TYPES, CONFIG_VALUE_TYPE_UNKNOWN, "unknown");
 
 #if defined(OS_WINDOWS)
+static bool inicfg_windows_is_path_list_env_var(const struct config_section *sect, const struct config_option *opt) {
+    return !string_strcmp(sect->name, CONFIG_SECTION_ENV_VARS) &&
+           (!string_strcmp(opt->name, "PATH") || !string_strcmp(opt->name, "PYTHONPATH"));
+}
+
+static const char *inicfg_windows_path_list_for_display(const char *value, char *dst, size_t dst_size) {
+    if (!value || !*value || !dst || dst_size == 0)
+        return value ? value : "";
+
+    if (strchr(value, ';')) {
+        snprintfz(dst, dst_size, "%s", value);
+        return dst;
+    }
+
+    dst[0] = '\0';
+    size_t len = 0;
+
+    const char *segment_start = value;
+    while (true) {
+        const char *separator = strchr(segment_start, ':');
+        size_t segment_len = separator ? (size_t)(separator - segment_start) : strlen(segment_start);
+
+        char segment[CONFIG_MAX_VALUE + 1];
+        if (segment_len > CONFIG_MAX_VALUE)
+            segment_len = CONFIG_MAX_VALUE;
+
+        memcpy(segment, segment_start, segment_len);
+        segment[segment_len] = '\0';
+
+        CLEAN_CHAR_P *translated = os_translate_msys_to_windows_path(segment);
+        if (len)
+            len = strcatz(dst, len, ";", dst_size);
+        len = strcatz(dst, len, translated, dst_size);
+
+        if (!separator)
+            break;
+
+        segment_start = separator + 1;
+    }
+
+    return dst;
+}
+
 static const char *inicfg_windows_value_for_display(
     const struct config_section *sect,
     const struct config_option *opt,
@@ -36,6 +79,9 @@ static const char *inicfg_windows_value_for_display(
 {
     if (!value || !*value)
         return value ? value : "";
+
+    if (inicfg_windows_is_path_list_env_var(sect, opt))
+        return inicfg_windows_path_list_for_display(value, dst, dst_size);
 
     if ((opt->type != CONFIG_VALUE_TYPE_PATH && opt->type != CONFIG_VALUE_TYPE_FILENAME) &&
         string_strcmp(sect->name, CONFIG_SECTION_DIRECTORIES) != 0)
