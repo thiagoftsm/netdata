@@ -9,6 +9,7 @@ CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-RelWithDebInfo}"
 set -eu -o pipefail
 
 windows_path_prefix=
+windows_path_prefix_arg=()
 
 usage() {
     cat <<EOF
@@ -41,6 +42,10 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+if [ -n "${windows_path_prefix}" ]; then
+    windows_path_prefix_arg=("-DNETDATA_WINDOWS_PATH_PREFIX=${windows_path_prefix}")
+fi
 
 if [ -d "${build}" ]; then
 	rm -rf "${build}"
@@ -81,7 +86,7 @@ CFLAGS="${BUILD_CFLAGS}" /usr/bin/cmake \
     -DENABLE_BUNDLED_JSONC=On \
     -DENABLE_BUNDLED_PROTOBUF=Off \
     -DRust_COMPILER=/ucrt64/bin/rustc \
-    ${windows_path_prefix:+-DNETDATA_WINDOWS_PATH_PREFIX="${windows_path_prefix}"} \
+    "${windows_path_prefix_arg[@]}" \
     ${EXTRA_CMAKE_OPTIONS:-}
 ${GITHUB_ACTIONS+echo "::endgroup::"}
 
