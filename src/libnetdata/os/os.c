@@ -114,36 +114,43 @@ char *os_translate_windows_to_msys_path(const char *src) {
     if (src[0] == '/')
         return strdupz(src);
 
-    char converted_path[PATH_MAX];
-    if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, src, converted_path, sizeof(converted_path)) == 0) {
-        return strdupz(converted_path);
+    ssize_t converted_size = cygwin_conv_path(CCP_WIN_A_TO_POSIX, src, NULL, 0);
+    if (converted_size > 0) {
+        char *converted_path = mallocz((size_t)converted_size);
+        if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, src, converted_path, (size_t)converted_size) == 0)
+            return converted_path;
+
+        freez(converted_path);
     }
 
+    size_t src_len = strlen(src);
+    char *converted_path = mallocz(src_len + 3);
+    size_t converted_size_fallback = src_len + 3;
     size_t i = 0;
     size_t j = 0;
 
     if (isalpha((unsigned char)src[0]) && src[1] == ':') {
         converted_path[j++] = '/';
-        if (j < sizeof(converted_path) - 1)
+        if (j < converted_size_fallback - 1)
             converted_path[j++] = (char)tolower((unsigned char)src[0]);
 
         i = 2;
-        if ((src[i] == '\\' || src[i] == '/') && j < sizeof(converted_path) - 1) {
+        if ((src[i] == '\\' || src[i] == '/') && j < converted_size_fallback - 1) {
             converted_path[j++] = '/';
             i++; // consume the separator so the loop below doesn't emit it again
         }
     }
     else if ((src[0] == '\\' && src[1] == '\\') || (src[0] == '/' && src[1] == '/')) {
         converted_path[j++] = '/';
-        if (j < sizeof(converted_path) - 1)
+        if (j < converted_size_fallback - 1)
             converted_path[j++] = '/';
         i = 2;
     }
 
-    for (; src[i] && j < sizeof(converted_path) - 1; i++)
+    for (; src[i] && j < converted_size_fallback - 1; i++)
         converted_path[j++] = (src[i] == '\\') ? '/' : src[i];
 
     converted_path[j] = '\0';
-    return strdupz(converted_path);
+    return converted_path;
 }
 #endif
