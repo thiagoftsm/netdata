@@ -125,7 +125,7 @@ function(netdata_windows_path_to_runtime_path output_var input_path)
 endfunction()
 
 if(OS_WINDOWS)
-  set(NETDATA_WINDOWS_PATH_PREFIX "C:\\\\Program Files\\\\Netdata" CACHE STRING
+  set(NETDATA_WINDOWS_PATH_PREFIX "C:\\Program Files\\Netdata" CACHE STRING
       "Native Windows install prefix used to derive runtime paths")
   string(REGEX REPLACE "[/\\\\]+$" "" NETDATA_WINDOWS_PATH_PREFIX "${NETDATA_WINDOWS_PATH_PREFIX}")
 
