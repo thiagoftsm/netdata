@@ -23,7 +23,9 @@ static STRING *reformat_path(STRING *value) {
         string_freez(value);
         return string_strdupz(converted);
     }
+    // value unchanged: fall through and return as-is
 #else
+    // no-op on non-Windows: paths are always POSIX-style
     (void)value;
 #endif
 
@@ -79,6 +81,7 @@ static STRING *reformat_path_list(STRING *value) {
 
 static STRING *reformat_quoted_path_list(STRING *value) {
     CLEAN_CHAR_P *copy = strdupz(string2str(value));
+    // 256 slots is far more than any realistic plugins list; entries beyond this are silently ignored.
     char *words[256] = { 0 };
     size_t num_words = quoted_strings_splitter_config(copy, words, _countof(words));
     if(!num_words)

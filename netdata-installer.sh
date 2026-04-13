@@ -655,40 +655,14 @@ prepare_cmake_options
 
 print_cmake_configure_command() {
   printf "Would have used the following CMake command line for configuration: "
-
-  case "${NETDATA_CMAKE_INSTALL_PREFIX_OPTION:+I}${NETDATA_WINDOWS_PATH_PREFIX_OPTION:+W}" in
-    IW)
-      escaped_print "${cmake}" ${NETDATA_CMAKE_OPTIONS} "${NETDATA_CMAKE_INSTALL_PREFIX_OPTION}" "${NETDATA_WINDOWS_PATH_PREFIX_OPTION}"
-      ;;
-    I)
-      escaped_print "${cmake}" ${NETDATA_CMAKE_OPTIONS} "${NETDATA_CMAKE_INSTALL_PREFIX_OPTION}"
-      ;;
-    W)
-      escaped_print "${cmake}" ${NETDATA_CMAKE_OPTIONS} "${NETDATA_WINDOWS_PATH_PREFIX_OPTION}"
-      ;;
-    *)
-      escaped_print "${cmake}" ${NETDATA_CMAKE_OPTIONS}
-      ;;
-  esac
-
+  # shellcheck disable=SC2086
+  escaped_print "${cmake}" ${NETDATA_CMAKE_OPTIONS} "${NETDATA_CMAKE_EXTRA_ARGS[@]}"
   printf "\n"
 }
 
 run_cmake_configure() {
-  case "${NETDATA_CMAKE_INSTALL_PREFIX_OPTION:+I}${NETDATA_WINDOWS_PATH_PREFIX_OPTION:+W}" in
-    IW)
-      run ${cmake} ${NETDATA_CMAKE_OPTIONS} "${NETDATA_CMAKE_INSTALL_PREFIX_OPTION}" "${NETDATA_WINDOWS_PATH_PREFIX_OPTION}"
-      ;;
-    I)
-      run ${cmake} ${NETDATA_CMAKE_OPTIONS} "${NETDATA_CMAKE_INSTALL_PREFIX_OPTION}"
-      ;;
-    W)
-      run ${cmake} ${NETDATA_CMAKE_OPTIONS} "${NETDATA_WINDOWS_PATH_PREFIX_OPTION}"
-      ;;
-    *)
-      run ${cmake} ${NETDATA_CMAKE_OPTIONS}
-      ;;
-  esac
+  # shellcheck disable=SC2086
+  run ${cmake} ${NETDATA_CMAKE_OPTIONS} "${NETDATA_CMAKE_EXTRA_ARGS[@]}"
 }
 
 if [ -n "${NETDATA_PREPARE_ONLY}" ]; then

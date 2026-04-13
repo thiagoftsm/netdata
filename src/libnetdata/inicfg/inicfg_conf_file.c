@@ -41,6 +41,8 @@ static const char *inicfg_windows_path_list_for_display(const char *value, char 
     if (!value || !*value || !dst || dst_size == 0)
         return value ? value : "";
 
+    // Internal storage always uses ':' as separator (normalized on read).
+    // A ';' here means the value was never normalized, so treat it as already Windows-format.
     if (strchr(value, ';')) {
         snprintfz(dst, dst_size, "%s", value);
         return dst;
@@ -80,6 +82,7 @@ static const char *inicfg_windows_quoted_path_list_for_display(const char *value
         return value ? value : "";
 
     CLEAN_CHAR_P *copy = strdupz(value);
+    // 256 slots matches the limit in reformat_quoted_path_list; entries beyond this are silently ignored.
     char *words[256] = { 0 };
     size_t num_words = quoted_strings_splitter_config(copy, words, _countof(words));
     if (!num_words) {
@@ -117,6 +120,9 @@ static const char *inicfg_windows_value_for_display(
     if (inicfg_windows_is_quoted_path_list_dir_var(sect, opt))
         return inicfg_windows_quoted_path_list_for_display(value, dst, dst_size);
 
+    // Translate all PATH/FILENAME-typed options, plus all remaining DIRECTORIES keys
+    // (the two list-type DIRECTORIES keys — "plugins" and PATH/PYTHONPATH — are caught above).
+    // If a new list-type key is added to DIRECTORIES, add a dedicated check before this fallback.
     if ((opt->type != CONFIG_VALUE_TYPE_PATH && opt->type != CONFIG_VALUE_TYPE_FILENAME) &&
         string_strcmp(sect->name, CONFIG_SECTION_DIRECTORIES) != 0)
         return value;
