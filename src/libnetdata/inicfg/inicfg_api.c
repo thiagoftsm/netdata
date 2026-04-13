@@ -36,9 +36,13 @@ static bool windows_native_path_p(const char *value) {
            ((value[0] == '\\' && value[1] == '\\') || (value[0] == '/' && value[1] == '/'));
 }
 
+static bool windows_path_list_needs_reformat_p(const char *value) {
+    return strchr(value, ';') || strchr(value, '\\') || windows_native_path_p(value);
+}
+
 static STRING *reformat_path_list(STRING *value) {
     const char *src = string2str(value);
-    if(!strchr(src, ';') && !windows_native_path_p(src))
+    if(!windows_path_list_needs_reformat_p(src))
         return value;
 
     BUFFER *wb = buffer_create(strlen(src) + 1, NULL);
