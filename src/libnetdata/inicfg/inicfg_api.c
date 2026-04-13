@@ -16,6 +16,120 @@ const char *inicfg_set(struct config *root, const char *section, const char *nam
     return string2str(opt->value);
 }
 
+static STRING *reformat_path(STRING *value) {
+#if defined(OS_WINDOWS)
+    CLEAN_CHAR_P *converted = os_translate_windows_to_msys_path(string2str(value));
+    if(string_strcmp(value, converted) != 0) {
+        string_freez(value);
+        return string_strdupz(converted);
+    }
+#else
+    (void)value;
+#endif
+
+    return value;
+}
+
+#if defined(OS_WINDOWS)
+static bool windows_native_path_p(const char *value) {
+    return (isalpha((unsigned char)value[0]) && value[1] == ':') ||
+           ((value[0] == '\\' && value[1] == '\\') || (value[0] == '/' && value[1] == '/'));
+}
+
+static STRING *reformat_path_list(STRING *value) {
+    const char *src = string2str(value);
+    if(!strchr(src, ';') && !windows_native_path_p(src))
+        return value;
+
+    BUFFER *wb = buffer_create(strlen(src) + 1, NULL);
+    bool first = true;
+    const char *segment_start = src;
+
+    while(true) {
+        const char *separator = strchr(segment_start, ';');
+        size_t segment_len = separator ? (size_t)(separator - segment_start) : strlen(segment_start);
+
+        CLEAN_CHAR_P *segment = strndupz(segment_start, segment_len);
+        char *trimmed = trim(segment);
+        CLEAN_CHAR_P *converted = os_translate_windows_to_msys_path(trimmed);
+
+        if(!first)
+            buffer_strcat(wb, ":");
+        buffer_strcat(wb, converted);
+        first = false;
+
+        if(!separator)
+            break;
+
+        segment_start = separator + 1;
+    }
+
+    if(string_strcmp(value, buffer_tostring(wb)) != 0) {
+        string_freez(value);
+        value = string_strdupz(buffer_tostring(wb));
+    }
+
+    buffer_free(wb);
+    return value;
+}
+
+static STRING *reformat_quoted_path_list(STRING *value) {
+    CLEAN_CHAR_P *copy = strdupz(string2str(value));
+    char *words[256] = { 0 };
+    size_t num_words = quoted_strings_splitter_config(copy, words, _countof(words));
+    if(!num_words)
+        return value;
+
+    BUFFER *wb = buffer_create(strlen(string2str(value)) + 1, NULL);
+    for(size_t i = 0; i < num_words; i++) {
+        CLEAN_CHAR_P *converted = os_translate_windows_to_msys_path(words[i]);
+        if(i)
+            buffer_strcat(wb, " ");
+        buffer_sprintf(wb, "\"%s\"", converted);
+    }
+
+    if(string_strcmp(value, buffer_tostring(wb)) != 0) {
+        string_freez(value);
+        value = string_strdupz(buffer_tostring(wb));
+    }
+
+    buffer_free(wb);
+    return value;
+}
+#else
+static STRING *reformat_path_list(STRING *value) {
+    return value;
+}
+
+static STRING *reformat_quoted_path_list(STRING *value) {
+    return value;
+}
+#endif
+
+const char *inicfg_get_path(struct config *root, const char *section, const char *name, const char *default_value) {
+    struct config_option *opt = inicfg_get_raw_value(root, section, name, default_value, CONFIG_VALUE_TYPE_PATH, reformat_path);
+    if(!opt)
+        return NULL;
+
+    return string2str(opt->value);
+}
+
+const char *inicfg_get_path_list(struct config *root, const char *section, const char *name, const char *default_value) {
+    struct config_option *opt = inicfg_get_raw_value(root, section, name, default_value, CONFIG_VALUE_TYPE_TEXT, reformat_path_list);
+    if(!opt)
+        return NULL;
+
+    return string2str(opt->value);
+}
+
+const char *inicfg_get_quoted_path_list(struct config *root, const char *section, const char *name, const char *default_value) {
+    struct config_option *opt = inicfg_get_raw_value(root, section, name, default_value, CONFIG_VALUE_TYPE_TEXT, reformat_quoted_path_list);
+    if(!opt)
+        return NULL;
+
+    return string2str(opt->value);
+}
+
 bool inicfg_test_boolean_value(const char *s) {
     if(!strcasecmp(s, "yes") || !strcasecmp(s, "true") || !strcasecmp(s, "on")
         || !strcasecmp(s, "auto") || !strcasecmp(s, "on demand"))

@@ -136,13 +136,13 @@ void health_load_config_defaults(void) {
 inline const char *health_user_config_dir(void) {
     char buffer[FILENAME_MAX + 1];
     snprintfz(buffer, FILENAME_MAX, "%s/health.d", netdata_configured_user_config_dir);
-    return inicfg_get(&netdata_config, CONFIG_SECTION_DIRECTORIES, "health config", buffer);
+    return inicfg_get_path(&netdata_config, CONFIG_SECTION_DIRECTORIES, "health config", buffer);
 }
 
 inline const char *health_stock_config_dir(void) {
     char buffer[FILENAME_MAX + 1];
     snprintfz(buffer, FILENAME_MAX, "%s/health.d", netdata_configured_stock_config_dir);
-    return inicfg_get(&netdata_config, CONFIG_SECTION_DIRECTORIES, "stock health config", buffer);
+    return inicfg_get_path(&netdata_config, CONFIG_SECTION_DIRECTORIES, "stock health config", buffer);
 }
 
 void health_plugin_init(void) {

@@ -32,6 +32,11 @@ static bool inicfg_windows_is_path_list_env_var(const struct config_section *sec
            (!string_strcmp(opt->name, "PATH") || !string_strcmp(opt->name, "PYTHONPATH"));
 }
 
+static bool inicfg_windows_is_quoted_path_list_dir_var(const struct config_section *sect, const struct config_option *opt) {
+    return !string_strcmp(sect->name, CONFIG_SECTION_DIRECTORIES) &&
+           !string_strcmp(opt->name, "plugins");
+}
+
 static const char *inicfg_windows_path_list_for_display(const char *value, char *dst, size_t dst_size) {
     if (!value || !*value || !dst || dst_size == 0)
         return value ? value : "";
@@ -70,6 +75,32 @@ static const char *inicfg_windows_path_list_for_display(const char *value, char 
     return dst;
 }
 
+static const char *inicfg_windows_quoted_path_list_for_display(const char *value, char *dst, size_t dst_size) {
+    if (!value || !*value || !dst || dst_size == 0)
+        return value ? value : "";
+
+    CLEAN_CHAR_P *copy = strdupz(value);
+    char *words[256] = { 0 };
+    size_t num_words = quoted_strings_splitter_config(copy, words, _countof(words));
+    if (!num_words) {
+        snprintfz(dst, dst_size, "%s", value);
+        return dst;
+    }
+
+    dst[0] = '\0';
+    size_t len = 0;
+    for(size_t i = 0; i < num_words; i++) {
+        CLEAN_CHAR_P *translated = os_translate_msys_to_windows_path(words[i]);
+        if (i)
+            len = strcatz(dst, len, " ", dst_size);
+        len = strcatz(dst, len, "\"", dst_size);
+        len = strcatz(dst, len, translated, dst_size);
+        len = strcatz(dst, len, "\"", dst_size);
+    }
+
+    return dst;
+}
+
 static const char *inicfg_windows_value_for_display(
     const struct config_section *sect,
     const struct config_option *opt,
@@ -82,6 +113,9 @@ static const char *inicfg_windows_value_for_display(
 
     if (inicfg_windows_is_path_list_env_var(sect, opt))
         return inicfg_windows_path_list_for_display(value, dst, dst_size);
+
+    if (inicfg_windows_is_quoted_path_list_dir_var(sect, opt))
+        return inicfg_windows_quoted_path_list_for_display(value, dst, dst_size);
 
     if ((opt->type != CONFIG_VALUE_TYPE_PATH && opt->type != CONFIG_VALUE_TYPE_FILENAME) &&
         string_strcmp(sect->name, CONFIG_SECTION_DIRECTORIES) != 0)
