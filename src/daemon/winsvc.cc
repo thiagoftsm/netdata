@@ -3,28 +3,10 @@ extern "C" {
 #include "daemon.h"
 #include "libnetdata/libnetdata.h"
 #include "daemon/daemon-shutdown.h"
-#include <curl/curl.h>
 
 int netdata_main(int argc, char *argv[]);
 void nd_process_signals(void);
 
-}
-
-// C-callable wrapper so status-file.c (plain C) can benefit from Windows SEH
-// without putting __try/__except inside a .c file.
-// Returns true on clean return (check *rc_out for curl result),
-// false if a hardware exception was caught (e.g. Sophos injecting into curl).
-extern "C" bool netdata_curl_perform_safe(
-        CURL *curl, CURLcode *rc_out, unsigned long *exception_code_out) {
-    *exception_code_out = 0;
-    __try {
-        *rc_out = curl_easy_perform(curl);
-        return true;
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-        *exception_code_out = (unsigned long)GetExceptionCode();
-        return false;
-    }
 }
 
 __attribute__((format(printf, 2, 3)))

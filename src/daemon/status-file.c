@@ -1008,25 +1008,7 @@ static void post_status_file(struct post_status_file_thread_data *d) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
 
-    CURLcode rc;
-#if defined(OS_WINDOWS)
-    // Defined in winsvc.cc — wraps curl_easy_perform() in Windows SEH (__try/__except)
-    // to catch hardware exceptions from security software (e.g. Sophos) without crashing.
-    extern bool netdata_curl_perform_safe(CURL *curl, CURLcode *rc_out, unsigned long *exception_code_out);
-    unsigned long exception_code = 0;
-    if(!netdata_curl_perform_safe(curl, &rc, &exception_code)) {
-        nd_log(NDLS_DAEMON, NDLP_WARNING,
-               "CRASH REPORT: curl_easy_perform() raised exception 0x%08lX while posting "
-               "crash report — skipping cleanup to avoid a secondary crash",
-               exception_code);
-        // Intentionally skip curl_easy_cleanup() and curl_slist_free_all(): curl's
-        // internal state is undefined after an exception and cleanup may crash again.
-        // Memory is reclaimed on process exit.
-        return;
-    }
-#else
-    rc = curl_easy_perform(curl);
-#endif
+    CURLcode rc = curl_easy_perform(curl);
 
     if(rc == CURLE_OK) {
         daemon_status_file_startup_step("startup(crash reports posted)");
