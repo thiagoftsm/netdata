@@ -983,6 +983,12 @@ static void post_status_file(struct post_status_file_thread_data *d) {
     if(!curl)
         return;
 
+    // Save the dedup hash BEFORE the curl attempt so that if security software
+    // (e.g. Sophos) crashes or terminates the process during curl_easy_perform(),
+    // the next startup will find the hash and skip the POST, breaking the crash loop.
+    uint64_t hash = daemon_status_file_hash(d->status, d->msg, d->cause);
+    dedup_keep_hash(&session_status, hash, false);
+
     daemon_status_file_startup_step("startup(crash reports curl)");
 
     curl_easy_setopt(curl, CURLOPT_URL, "https://agent-events.netdata.cloud/agent-events");
@@ -1002,13 +1008,30 @@ static void post_status_file(struct post_status_file_thread_data *d) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
 
-    CURLcode rc = curl_easy_perform(curl);
+    CURLcode rc;
+#if defined(OS_WINDOWS)
+    // Defined in winsvc.cc — wraps curl_easy_perform() in Windows SEH (__try/__except)
+    // to catch hardware exceptions from security software (e.g. Sophos) without crashing.
+    extern bool netdata_curl_perform_safe(CURL *curl, CURLcode *rc_out, unsigned long *exception_code_out);
+    unsigned long exception_code = 0;
+    if(!netdata_curl_perform_safe(curl, &rc, &exception_code)) {
+        nd_log(NDLS_DAEMON, NDLP_WARNING,
+               "CRASH REPORT: curl_easy_perform() raised exception 0x%08lX while posting "
+               "crash report — skipping cleanup to avoid a secondary crash",
+               exception_code);
+        // Intentionally skip curl_easy_cleanup() and curl_slist_free_all(): curl's
+        // internal state is undefined after an exception and cleanup may crash again.
+        // Memory is reclaimed on process exit.
+        return;
+    }
+#else
+    rc = curl_easy_perform(curl);
+#endif
+
     if(rc == CURLE_OK) {
-        daemon_status_file_startup_step("startup(crash reports dedup)");
+        daemon_status_file_startup_step("startup(crash reports posted)");
         session_status.posts++;
         nd_log(NDLS_DAEMON, NDLP_INFO, "Posted last status to agent-events successfully.");
-        uint64_t hash = daemon_status_file_hash(d->status, d->msg, d->cause);
-        dedup_keep_hash(&session_status, hash, false);
         daemon_status_file_save(wb, &session_status, true);
     }
     else

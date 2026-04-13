@@ -3,37 +3,62 @@ extern "C" {
 #include "daemon.h"
 #include "libnetdata/libnetdata.h"
 #include "daemon/daemon-shutdown.h"
+#include <curl/curl.h>
 
 int netdata_main(int argc, char *argv[]);
 void nd_process_signals(void);
 
 }
 
-__attribute__((format(printf, 1, 2)))
-static void netdata_service_log(const char *fmt, ...)
-{
-    char path[FILENAME_MAX + 1];
-    snprintfz(path, FILENAME_MAX, "%s/service.log", LOG_DIR);
-
-    FILE *fp = fopen(path, "a");
-    if (fp == NULL) {
-        return;
+// C-callable wrapper so status-file.c (plain C) can benefit from Windows SEH
+// without putting __try/__except inside a .c file.
+// Returns true on clean return (check *rc_out for curl result),
+// false if a hardware exception was caught (e.g. Sophos injecting into curl).
+extern "C" bool netdata_curl_perform_safe(
+        CURL *curl, CURLcode *rc_out, unsigned long *exception_code_out) {
+    *exception_code_out = 0;
+    __try {
+        *rc_out = curl_easy_perform(curl);
+        return true;
     }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        *exception_code_out = (unsigned long)GetExceptionCode();
+        return false;
+    }
+}
 
-    SYSTEMTIME time;
-    GetSystemTime(&time);
-    fprintf(fp, "%d:%d:%d - ", time.wHour, time.wMinute, time.wSecond);
-
+__attribute__((format(printf, 2, 3)))
+static void netdata_service_log_impl(WORD wType, const char *fmt, ...)
+{
+    char buf[4096];
     va_list args;
     va_start(args, fmt);
-    vfprintf(fp, fmt, args);
+    vsnprintfz(buf, sizeof(buf) - 1, fmt, args);
     va_end(args);
 
-    fprintf(fp, "\n");
+    // Write to log file
+    char path[FILENAME_MAX + 1];
+    snprintfz(path, FILENAME_MAX, "%s/service.log", LOG_DIR);
+    FILE *fp = fopen(path, "a");
+    if (fp != NULL) {
+        SYSTEMTIME st;
+        GetSystemTime(&st);
+        fprintf(fp, "%02d:%02d:%02d - %s\n", st.wHour, st.wMinute, st.wSecond, buf);
+        fflush(fp);
+        fclose(fp);
+    }
 
-    fflush(fp);
-    fclose(fp);
+    // Write to Windows Event Log so events appear in Event Viewer during Sophos debugging
+    HANDLE hEventSource = RegisterEventSourceA(NULL, "NetdataDaemon");
+    if (hEventSource) {
+        LPCSTR strings[1] = { buf };
+        ReportEventA(hEventSource, wType, 0, 0, NULL, 1, 0, strings, NULL);
+        DeregisterEventSource(hEventSource);
+    }
 }
+
+#define netdata_service_log(fmt, ...)       netdata_service_log_impl(EVENTLOG_INFORMATION_TYPE, fmt, ##__VA_ARGS__)
+#define netdata_service_log_error(fmt, ...) netdata_service_log_impl(EVENTLOG_ERROR_TYPE,       fmt, ##__VA_ARGS__)
 
 static SERVICE_STATUS_HANDLE svc_status_handle = nullptr;
 static SERVICE_STATUS svc_status = {};
@@ -60,7 +85,7 @@ static bool ReportSvcStatus(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWORD d
     }
 
     if (!SetServiceStatus(svc_status_handle, &svc_status)) {
-        netdata_service_log("@ReportSvcStatus: SetServiceStatusFailed (%d)", GetLastError());
+        netdata_service_log_error("@ReportSvcStatus: SetServiceStatusFailed (%d)", GetLastError());
         return false;
     }
 
@@ -73,11 +98,11 @@ static HANDLE CreateEventHandle(const char *msg)
 
     if (!h)
     {
-        netdata_service_log("%s", msg);
+        netdata_service_log_error("%s", msg);
 
         if (!ReportSvcStatus(SERVICE_STOPPED, GetLastError(), 1000, 0))
         {
-            netdata_service_log("Failed to set service status to stopped.");
+            netdata_service_log_error("Failed to set service status to stopped.");
         }
 
         return NULL;
@@ -166,7 +191,7 @@ void WINAPI ServiceMain(DWORD argc, LPSTR* argv)
     svc_status_handle = RegisterServiceCtrlHandler("Netdata", ServiceControlHandler);
     if (!svc_status_handle)
     {
-        netdata_service_log("@ServiceMain() - RegisterServiceCtrlHandler() failed...");
+        netdata_service_log_error("@ServiceMain() - RegisterServiceCtrlHandler() failed...");
         return;
     }
 
@@ -177,7 +202,7 @@ void WINAPI ServiceMain(DWORD argc, LPSTR* argv)
     svc_status.dwCheckPoint = 0;
     if (!ReportSvcStatus(SERVICE_START_PENDING, 0, 5000, 0))
     {
-        netdata_service_log("Failed to set service status to start pending.");
+        netdata_service_log_error("Failed to set service status to start pending.");
         return;
     }
 
@@ -191,7 +216,7 @@ void WINAPI ServiceMain(DWORD argc, LPSTR* argv)
     netdata_service_log("Setting service status to running...");
     if (!ReportSvcStatus(SERVICE_RUNNING, 0, 5000, SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN))
     {
-        netdata_service_log("Failed to set service status to running.");
+        netdata_service_log_error("Failed to set service status to running.");
         return;
     }
 
@@ -207,7 +232,7 @@ static bool update_path() {
 
     if (!old_path) {
         if (setenv("PATH", "/usr/bin", 1) != 0) {
-            netdata_service_log("Failed to set PATH to /usr/bin");
+            netdata_service_log_error("Failed to set PATH to /usr/bin");
             return false;
         }
 
@@ -219,7 +244,7 @@ static bool update_path() {
     snprintfz(new_path, new_path_length, "/usr/bin:%s", old_path);
 
     if (setenv("PATH", new_path, 1) != 0) {
-        netdata_service_log("Failed to add /usr/bin to PATH");
+        netdata_service_log_error("Failed to add /usr/bin to PATH");
         freez(new_path);
         return false;
     }
@@ -258,7 +283,7 @@ int main(int argc, char *argv[])
 
         if (!StartServiceCtrlDispatcher(serviceTable))
         {
-            netdata_service_log("@main() - StartServiceCtrlDispatcher() failed...");
+            netdata_service_log_error("@main() - StartServiceCtrlDispatcher() failed...");
             return 1;
         }
 
