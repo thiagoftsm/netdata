@@ -110,6 +110,14 @@ static STRING *reformat_quoted_path_list(STRING *value) {
 }
 #endif
 
+const char *inicfg_get_filename(struct config *root, const char *section, const char *name, const char *default_value) {
+    struct config_option *opt = inicfg_get_raw_value(root, section, name, default_value, CONFIG_VALUE_TYPE_FILENAME, reformat_path);
+    if(!opt)
+        return NULL;
+
+    return string2str(opt->value);
+}
+
 const char *inicfg_get_path(struct config *root, const char *section, const char *name, const char *default_value) {
     struct config_option *opt = inicfg_get_raw_value(root, section, name, default_value, CONFIG_VALUE_TYPE_PATH, reformat_path);
     if(!opt)
