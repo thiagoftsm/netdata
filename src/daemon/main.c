@@ -870,6 +870,7 @@ int netdata_main(int argc, char **argv) {
     netdata_conf_section_logs();
     nd_log_limits_unlimited();
     nd_log_initialize();
+    netdata_log_info("NETDATA STARTUP: logging system initialized");
 
     // ----------------------------------------------------------------------------------------------------------------
     // this MUST be before anything else - to load the old status file before saving a new one
@@ -1154,7 +1155,7 @@ int netdata_main(int argc, char **argv) {
         struct netdata_static_thread *st = &static_threads[i];
 
         if(st->enabled) {
-            netdata_log_debug(D_SYSTEM, "Starting thread %s.", st->name);
+            netdata_log_info("NETDATA STARTUP: starting thread %s", st->name);
             st->thread = nd_thread_create(st->name, NETDATA_THREAD_OPTION_DEFAULT, st->start_routine, st);
         }
         else
