@@ -278,9 +278,10 @@ prepare_cmake_options() {
   NETDATA_CMAKE_EXTRA_ARGS=()
   NETDATA_CMAKE_OPTIONS="-S ./ -B ${NETDATA_BUILD_DIR} ${CMAKE_OPTS} ${NETDATA_USER:+-DNETDATA_USER=${NETDATA_USER}} ${NETDATA_CMAKE_OPTIONS} "
 
-  if [ -n "${NETDATA_PREFIX:-}" ]; then
-    NETDATA_CMAKE_EXTRA_ARGS+=("-DCMAKE_INSTALL_PREFIX=${NETDATA_PREFIX}")
-  fi
+  # Keep forwarding the install prefix even when it is empty.
+  # This installer uses an empty prefix for /usr/... destinations instead of
+  # CMake's /usr/local default.
+  NETDATA_CMAKE_EXTRA_ARGS+=("-DCMAKE_INSTALL_PREFIX=${NETDATA_PREFIX-}")
 
   if [ -n "${NETDATA_WINDOWS_PATH_PREFIX:-}" ]; then
     NETDATA_CMAKE_EXTRA_ARGS+=("-DNETDATA_WINDOWS_PATH_PREFIX=${NETDATA_WINDOWS_PATH_PREFIX}")
