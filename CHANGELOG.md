@@ -2,6 +2,14 @@
 
 ### Merged Pull Requests:
 
+- Fix(go.d/dyncfg): remove wait-decision timeout and make handoff non-droppable ([#22201](https://github.com/netdata/netdata/issues/22201))
+- Fix(go.d/snmp): reduce default MaxOIDs to 20 and remove 32-bit counter fallback ([#22203](https://github.com/netdata/netdata/issues/22203))
+- Fix ZFS bugs (diskspace.plugin) ([#22188](https://github.com/netdata/netdata/issues/22188))
+
+## [2.10.1] - 2026-04-10
+
+### Merged Pull Requests:
+
 - Fix(go.d): reduce transient 503 errors on dyncfg enable/disable ([#22183](https://github.com/netdata/netdata/issues/22183))
 - Feat(go.d/snmp): add `ping_only` option ([#22180](https://github.com/netdata/netdata/issues/22180))
 - Fix(go.d/snmp): fix retries serialization and bulk walk disable ([#22179](https://github.com/netdata/netdata/issues/22179))
