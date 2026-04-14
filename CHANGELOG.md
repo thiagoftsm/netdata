@@ -2,6 +2,31 @@
 
 ### Merged Pull Requests:
 
+- Stabilize runtime metrics shutdown test ([#22169](https://github.com/netdata/netdata/issues/22169))
+- Chore(go): go fix ([#22173](https://github.com/netdata/netdata/issues/22173))
+- Chore(go/ibm.d): remove buildtag comment ([#22174](https://github.com/netdata/netdata/issues/22174))
+- Ci(go-tests): add "go fix" check to workflow ([#22172](https://github.com/netdata/netdata/issues/22172))
+- Feat(go.d/snmp): add SNMPv3 context name support ([#22175](https://github.com/netdata/netdata/issues/22175))
+- Regenerate integrations docs ([#22176](https://github.com/netdata/netdata/issues/22176))
+- Improve journal file handling and logging in DBENGINE ([#22152](https://github.com/netdata/netdata/issues/22152))
+- Go.d/snmp: extend profile engine contract ([#22177](https://github.com/netdata/netdata/issues/22177))
+- Fix(go.d/snmp): fix retries serialization and bulk walk disable ([#22179](https://github.com/netdata/netdata/issues/22179))
+- Feat(go.d/snmp): add `ping_only` option ([#22180](https://github.com/netdata/netdata/issues/22180))
+- Fix(go.d): reduce transient 503 errors on dyncfg enable/disable ([#22183](https://github.com/netdata/netdata/issues/22183))
+- Refactor(queries): split query engine into smaller files ([#22187](https://github.com/netdata/netdata/issues/22187))
+- Go.d/snmp: add reusable profile engine helpers ([#22181](https://github.com/netdata/netdata/issues/22181))
+- Refactor(go.d): share ping probing between ping and snmp ([#22189](https://github.com/netdata/netdata/issues/22189))
+- Regenerate integrations docs ([#22182](https://github.com/netdata/netdata/issues/22182))
+- Fix ZFS bugs (diskspace.plugin) ([#22188](https://github.com/netdata/netdata/issues/22188))
+- Build(deps): bump golang.org/x/net from 0.52.0 to 0.53.0 in /src/go ([#22199](https://github.com/netdata/netdata/issues/22199))
+- Build(deps): bump github.com/mattn/go-isatty from 0.0.20 to 0.0.21 in /src/go ([#22197](https://github.com/netdata/netdata/issues/22197))
+- Feat(go.d/snmp): add structured mapping config and bitmask value mappings ([#22200](https://github.com/netdata/netdata/issues/22200))
+- Fix(go.d/dyncfg): remove wait-decision timeout and make handoff non-droppable ([#22201](https://github.com/netdata/netdata/issues/22201))
+
+## [2.10.0] - 2026-04-09
+
+### Merged Pull Requests:
+
 - Increase minimum language standards to C17 and C++17, and update to the latest versions of Protobuf and Abseil. ([#21574](https://github.com/netdata/netdata/issues/21574))
 - Drop Ubuntu 20.04 from CI and package builds. ([#21647](https://github.com/netdata/netdata/issues/21647))
 - Clarify default storage retention limits in docs ([#21780](https://github.com/netdata/netdata/issues/21780))
@@ -262,6 +287,19 @@
 - Fix: restore _hw_product_name, _hw_sys_vendor, and _hw_product_type labels in netdata_info ([#22134](https://github.com/netdata/netdata/issues/22134))
 - Active Directory Federation Service (windows.plugin) ([#22113](https://github.com/netdata/netdata/issues/22113))
 - Packaging: enable scripts plugin by default ([#22148](https://github.com/netdata/netdata/issues/22148))
+- Feat(scripts.d/nagios): add optional check_name for perfdata identity ([#22154](https://github.com/netdata/netdata/issues/22154))
+- Regenerate integrations docs ([#22150](https://github.com/netdata/netdata/issues/22150))
+- Coverity and ML ([#22120](https://github.com/netdata/netdata/issues/22120))
+- Feat(scripts.d/nagios): validate plugin path security ([#22160](https://github.com/netdata/netdata/issues/22160))
+- Update to the latest version of Sentry Native to fix build issues. ([#22159](https://github.com/netdata/netdata/issues/22159))
+- Feat(scripts.d/nagios): auto-invoke Windows script files (.ps1, .bat, .cmd) through their interpreters ([#22162](https://github.com/netdata/netdata/issues/22162))
+- Regenerate integrations docs ([#22161](https://github.com/netdata/netdata/issues/22161))
+- MCP Streamable HTTP: add stateless Mcp-Session-Id support ([#22000](https://github.com/netdata/netdata/issues/22000))
+- Docs: correct Discord invite URL in 3 files ([#22149](https://github.com/netdata/netdata/issues/22149))
+- Fix(packaging): disable MongoDB exporter for EL10 ([#22163](https://github.com/netdata/netdata/issues/22163))
+- Build(deps): bump go.opentelemetry.io/otel/sdk from 1.40.0 to 1.43.0 in /src/go ([#22171](https://github.com/netdata/netdata/issues/22171))
+- Fix: bearer token creation truncates client_name and returns wrong expiry for existing tokens ([#22167](https://github.com/netdata/netdata/issues/22167))
+- Make scripts plugin optional but installed by default for native packages. ([#22155](https://github.com/netdata/netdata/issues/22155))
 
 ## [2.9.0] - 2026-02-16
 
