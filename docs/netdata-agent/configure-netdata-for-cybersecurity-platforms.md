@@ -20,7 +20,7 @@ Before you configure your external security platform, decide which Netdata acces
 
 If you are not sure which model to use, start with the smallest exposed surface:
 
-1. Use **Cloud-only access** if your operators can work from Netdata Cloud.
+1. Use **Cloud-only access** to give users dashboard access through Netdata Cloud without exposing the Agent directly.
 2. Use **access through a security platform** if you must publish the local dashboard to users.
 3. Use **private management network access** only when you already have a trusted admin network.
 
@@ -60,6 +60,12 @@ Use this pattern when your cybersecurity platform mainly controls outbound traff
    ```powershell
    Restart-Service -Name Netdata
    ```
+
+   Windows UI:
+
+   - Open the Services app by running `services.msc`
+   - Select the `Netdata` service
+   - Choose **Restart** from the service actions
 
 4. Verify that dashboards remain available from Netdata Cloud.
 
@@ -109,6 +115,12 @@ Use this pattern when a platform such as Sophos, an authenticating reverse proxy
    ```powershell
    Restart-Service -Name Netdata
    ```
+
+   Windows UI:
+
+   - Open the Services app by running `services.msc`
+   - Select the `Netdata` service
+   - Choose **Restart** from the service actions
 
 4. Publish the Agent through your security platform using the private Netdata address as the upstream target.
 
@@ -176,6 +188,12 @@ Use this pattern when administrators already use a private LAN, VPN, or bastion 
    Restart-Service -Name Netdata
    ```
 
+   Windows UI:
+
+   - Open the Services app by running `services.msc`
+   - Select the `Netdata` service
+   - Choose **Restart** from the service actions
+
 4. Verify that the dashboard is reachable only from the management network.
 
 ## Network rules your cybersecurity platform should enforce
@@ -211,6 +229,8 @@ This approach keeps Netdata aligned with enterprise security controls without re
 ## Sophos Central example for Windows exclusions
 
 If you run the Netdata Agent on Windows and Sophos Central blocks or interferes with the Netdata executable, add a global exclusion for the Netdata binary.
+
+In our testing with Sophos, scanning the Netdata binary did not identify potential issues. Despite that, Sophos may still block Netdata because the Agent monitors internet traffic and CPU activity on the host, which can trigger behavior-based protections.
 
 :::note
 
