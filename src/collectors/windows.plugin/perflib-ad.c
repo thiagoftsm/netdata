@@ -2639,7 +2639,7 @@ static void netdata_ad_replication_threads_getting_nc_changes(
             "replication",
             "ad.replication_threads_getting_nc_changes",
             "DRA threads getting NC changes",
-            "threads/s",
+            "threads",
             PLUGIN_WINDOWS_NAME,
             "PerflibAD",
             PRIO_AD_REPLICATION_THREADS_GETTING_NC_CHANGES,
@@ -2647,7 +2647,7 @@ static void netdata_ad_replication_threads_getting_nc_changes(
             RRDSET_TYPE_LINE);
 
         rd_replication_threads_getting_nc_changes =
-            rrddim_add(st_replication_threads_getting_nc_changes, "threads", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+            rrddim_add(st_replication_threads_getting_nc_changes, "threads", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
     }
 
     rrddim_set_by_pointer(
@@ -2678,7 +2678,7 @@ static void netdata_ad_replication_threads_getting_nc_changes_holding_semaphore(
             "replication",
             "ad.replication_threads_getting_nc_changes_holding_semaphore",
             "DRA threads getting NC changes holding semaphore",
-            "threads",
+            "threads/s",
             PLUGIN_WINDOWS_NAME,
             "PerflibAD",
             PRIO_AD_REPLICATION_THREADS_GETTING_NC_CHANGES_HOLDING_SEMAPHORE,
@@ -2686,7 +2686,7 @@ static void netdata_ad_replication_threads_getting_nc_changes_holding_semaphore(
             RRDSET_TYPE_LINE);
 
         rd_replication_threads_getting_nc_changes_holding_semaphore = rrddim_add(
-            st_replication_threads_getting_nc_changes_holding_semaphore, "threads", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+            st_replication_threads_getting_nc_changes_holding_semaphore, "threads", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
     }
 
     rrddim_set_by_pointer(
