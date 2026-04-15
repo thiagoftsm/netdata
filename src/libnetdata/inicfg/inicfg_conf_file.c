@@ -120,9 +120,9 @@ static const char *inicfg_windows_value_for_display(
     if (inicfg_windows_is_quoted_path_list_dir_var(sect, opt))
         return inicfg_windows_quoted_path_list_for_display(value, dst, dst_size);
 
-    // Translate all PATH/FILENAME-typed options, plus all remaining DIRECTORIES keys
-    // (the two list-type DIRECTORIES keys — "plugins" and PATH/PYTHONPATH — are caught above).
-    // If a new list-type key is added to DIRECTORIES, add a dedicated check before this fallback.
+    // Translate all PATH/FILENAME-typed options, plus all remaining DIRECTORIES keys.
+    // The list-type keys handled above are ENV_VARS.PATH/PYTHONPATH and DIRECTORIES.plugins.
+    // If a new list-type key is added to either section, add a dedicated check before this fallback.
     if ((opt->type != CONFIG_VALUE_TYPE_PATH && opt->type != CONFIG_VALUE_TYPE_FILENAME) &&
         string_strcmp(sect->name, CONFIG_SECTION_DIRECTORIES) != 0)
         return value;
