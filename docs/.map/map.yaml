@@ -207,6 +207,9 @@ sidebar:
                   label: Bearer Token Protection
                   edit_url: https://github.com/netdata/netdata/edit/master/docs/netdata-agent/configuration/secure-your-netdata-agent-with-bearer-token.md
               - meta:
+                  label: Configure Netdata for cybersecurity platforms
+                  edit_url: https://github.com/netdata/netdata/edit/master/docs/netdata-agent/configure-netdata-for-cybersecurity-platforms.md
+              - meta:
                   label: Running the Agent behind a reverse proxy
                   edit_url: https://github.com/netdata/netdata/edit/master/docs/netdata-agent/configuration/running-the-netdata-agent-behind-a-reverse-proxy/README.md
                 items:
