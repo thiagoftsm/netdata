@@ -18,7 +18,7 @@ const char *inicfg_set(struct config *root, const char *section, const char *nam
 
 static STRING *reformat_path(STRING *value) {
 #if defined(OS_WINDOWS)
-    CLEAN_CHAR_P *converted = os_translate_windows_to_msys_path(string2str(value));
+    CLEAN_CONST_CHAR_P *converted = os_translate_windows_to_msys_path(string2str(value));
     if(string_strcmp(value, converted) != 0) {
         string_freez(value);
         return string_strdupz(converted);
@@ -57,7 +57,7 @@ static STRING *reformat_path_list(STRING *value) {
 
         CLEAN_CHAR_P *segment = strndupz(segment_start, segment_len);
         char *trimmed = trim(segment);
-        CLEAN_CHAR_P *converted = os_translate_windows_to_msys_path(trimmed);
+        CLEAN_CONST_CHAR_P *converted = os_translate_windows_to_msys_path(trimmed);
 
         if(!first)
             buffer_strcat(wb, ":");
@@ -89,7 +89,7 @@ static STRING *reformat_quoted_path_list(STRING *value) {
 
     BUFFER *wb = buffer_create(strlen(string2str(value)) + 1, NULL);
     for(size_t i = 0; i < num_words; i++) {
-        CLEAN_CHAR_P *converted = os_translate_windows_to_msys_path(words[i]);
+        CLEAN_CONST_CHAR_P *converted = os_translate_windows_to_msys_path(words[i]);
         if(i)
             buffer_strcat(wb, " ");
         buffer_sprintf(wb, "\"%s\"", converted);

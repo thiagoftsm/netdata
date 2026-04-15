@@ -106,7 +106,7 @@ char *os_translate_path(char *dst, const char *src, size_t dst_size) {
     return dst;
 }
 
-char *os_translate_windows_to_msys_path(const char *src) {
+const char *os_translate_windows_to_msys_path(const char *src) {
     if (!src)
         return strdupz("");
 

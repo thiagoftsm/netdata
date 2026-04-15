@@ -59,10 +59,13 @@ void os_get_system_HZ(void);
 #if defined(OS_WINDOWS)
 char *os_translate_path(char *dst, const char *src, size_t dst_size);
 char *os_translate_msys_to_windows_path(const char *src);
-char *os_translate_windows_to_msys_path(const char *src);
+// Returns newly allocated POSIX-style storage on all platforms.
+const char *os_translate_windows_to_msys_path(const char *src);
 #else
 #define os_translate_path(dst, src, dst_size) (src)
-#define os_translate_windows_to_msys_path(src) ((char *)(src))
+static inline const char *os_translate_windows_to_msys_path(const char *src) {
+    return strdupz(src ? src : "");
+}
 #endif
 
 #endif //NETDATA_OS_H
