@@ -74,7 +74,7 @@ void health_load_config_defaults(void) {
 
     snprintfz(filename, FILENAME_MAX, "%s/alarm-notify.sh", netdata_configured_primary_plugins_dir);
     health_globals.config.default_exec =
-        string_strdupz(inicfg_get(&netdata_config, CONFIG_SECTION_HEALTH, "script to execute on alarm", filename));
+        string_strdupz(inicfg_get_filename(&netdata_config, CONFIG_SECTION_HEALTH, "script to execute on alarm", filename));
 
     health_globals.config.enabled_alerts =
         simple_pattern_create(inicfg_get(&netdata_config, CONFIG_SECTION_HEALTH, "enabled alarms", "*"),
