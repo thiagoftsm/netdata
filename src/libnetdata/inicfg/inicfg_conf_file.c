@@ -402,15 +402,16 @@ void inicfg_generate(struct config *root, BUFFER *wb, int only_changed, bool net
                     }
 
                     const char *current_value = string2str(opt->value);
-                    const char *default_value = string2str(opt->value_default);
+                    const char *default_value = opt->value_default ? string2str(opt->value_default) : "";
 #if defined(OS_WINDOWS)
                     char current_value_windows[CONFIG_MAX_VALUE + 1];
                     char default_value_windows[CONFIG_MAX_VALUE + 1];
 
                     current_value = inicfg_windows_value_for_display(
                         sect, opt, current_value, current_value_windows, sizeof(current_value_windows));
-                    default_value = inicfg_windows_value_for_display(
-                        sect, opt, default_value, default_value_windows, sizeof(default_value_windows));
+                    if(opt->value_default)
+                        default_value = inicfg_windows_value_for_display(
+                            sect, opt, default_value, default_value_windows, sizeof(default_value_windows));
 #endif
 
                     if(show_default)
