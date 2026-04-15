@@ -1560,9 +1560,10 @@ static const char *build_info_value_for_display(size_t i, char **allocated) {
         *allocated = NULL;
 
     if(BUILD_INFO[i].category == BIC_DIRECTORIES && BUILD_INFO[i].type == BIT_STRING && value) {
-        if(allocated)
-            *allocated = os_translate_msys_to_windows_path(value);
+        if(!allocated)
+            return value;
 
+        *allocated = os_translate_msys_to_windows_path(value);
         return *allocated;
     }
 #else
