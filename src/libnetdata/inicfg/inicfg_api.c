@@ -33,6 +33,9 @@ static STRING *reformat_path(STRING *value) {
 }
 
 #if defined(OS_WINDOWS)
+static const char *inicfg_log_output_etw = "etw";
+static const char *inicfg_log_output_wel = "wel";
+
 static bool log_setting_output_is_special(const char *output) {
     return !output || !*output ||
            strcmp(output, "none") == 0 ||
@@ -44,10 +47,10 @@ static bool log_setting_output_is_special(const char *output) {
            strcmp(output, "stdout") == 0 ||
            strcmp(output, "/dev/null") == 0
 #if defined(HAVE_ETW)
-           || strcmp(output, ETW_NAME) == 0
+           || strcmp(output, inicfg_log_output_etw) == 0
 #endif
 #if defined(HAVE_WEL)
-           || strcmp(output, WEL_NAME) == 0
+           || strcmp(output, inicfg_log_output_wel) == 0
 #endif
         ;
 }
