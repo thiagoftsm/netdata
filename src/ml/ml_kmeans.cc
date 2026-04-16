@@ -12,6 +12,27 @@ using std::isinf;
 using std::isnan;
 #endif
 
+namespace {
+
+// Guard against out-of-range timestamps when time_t is narrower than int64_t
+// (e.g. 32-bit builds). if constexpr ensures the upper-bound check is elided
+// at compile time on 64-bit platforms, avoiding constant-expression warnings.
+static inline bool ml_int64_fits_nonnegative_time_t(int64_t value)
+{
+    if (value < 0)
+        return false;
+    if constexpr (sizeof(time_t) < sizeof(int64_t)) {
+        // coverity[CONSTANT_EXPRESSION_RESULT] - on 64-bit, Coverity still analyzes
+        // this dead branch; the check is genuinely reachable only on 32-bit builds
+        // where time_t is narrower than int64_t.
+        if (value > (int64_t) std::numeric_limits<time_t>::max())
+            return false;
+    }
+    return true;
+}
+
+}
+
 void
 ml_kmeans_init(ml_kmeans_t *kmeans)
 {
@@ -24,8 +45,8 @@ ml_kmeans_init(ml_kmeans_t *kmeans)
 void
 ml_kmeans_train(ml_kmeans_t *kmeans, const std::vector<DSample> &preprocessed_features, unsigned max_iters, time_t after, time_t before)
 {
-    kmeans->after = (uint32_t) after;
-    kmeans->before = (uint32_t) before;
+    kmeans->after = after;
+    kmeans->before = before;
 
     kmeans->min_dist = std::numeric_limits<calculated_number_t>::max();
     kmeans->max_dist  = std::numeric_limits<calculated_number_t>::min();
@@ -186,7 +207,13 @@ bool ml_kmeans_deserialize(ml_kmeans_inlined_t *inlined_km, struct json_object *
         netdata_log_error("Failed to deserialize kmeans: failed to parse int for 'after'");
         return false;
     }
-    inlined_km->after = json_object_get_int(value);
+    int64_t raw_after = json_object_get_int64(value);
+    // Timestamps must be non-negative Unix epoch seconds and fit in time_t.
+    if (!ml_int64_fits_nonnegative_time_t(raw_after)) {
+        netdata_log_error("Failed to deserialize kmeans: out-of-range value for 'after': %" PRId64, raw_after);
+        return false;
+    }
+    inlined_km->after = (time_t) raw_after;
 
     if (!json_object_object_get_ex(root, "before", &value)) {
         netdata_log_error("Failed to deserialize kmeans: missing key 'before'");
@@ -196,7 +223,13 @@ bool ml_kmeans_deserialize(ml_kmeans_inlined_t *inlined_km, struct json_object *
         netdata_log_error("Failed to deserialize kmeans: failed to parse int for 'before'");
         return false;
     }
-    inlined_km->before = json_object_get_int(value);
+    int64_t raw_before = json_object_get_int64(value);
+    // Same contract as 'after': non-negative and fits in time_t.
+    if (!ml_int64_fits_nonnegative_time_t(raw_before)) {
+        netdata_log_error("Failed to deserialize kmeans: out-of-range value for 'before': %" PRId64, raw_before);
+        return false;
+    }
+    inlined_km->before = (time_t) raw_before;
 
     if (!json_object_object_get_ex(root, "min_dist", &value)) {
         netdata_log_error("Failed to deserialize kmeans: missing key 'min_dist'");
