@@ -726,7 +726,7 @@ static void facet_key_set_name(FACET_KEY *k, const char *name, size_t name_lengt
 
     // an actual value, not a filter
 
-    char *name_copy = mallocz(name_length + 1);
+    char *name_copy = callocz(name_length + 1, sizeof(char));
     memcpy(name_copy, name, name_length);
 
     internal_fatal(strchr(name_copy, '='), "found = in key");
