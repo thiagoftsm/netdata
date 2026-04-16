@@ -33,6 +33,57 @@ static STRING *reformat_path(STRING *value) {
 }
 
 #if defined(OS_WINDOWS)
+static bool log_setting_output_is_special(const char *output) {
+    return !output || !*output ||
+           strcmp(output, "none") == 0 ||
+           strcmp(output, "off") == 0 ||
+           strcmp(output, "journal") == 0 ||
+           strcmp(output, "syslog") == 0 ||
+           strcmp(output, "system") == 0 ||
+           strcmp(output, "stderr") == 0 ||
+           strcmp(output, "stdout") == 0 ||
+           strcmp(output, "/dev/null") == 0
+#if defined(HAVE_ETW)
+           || strcmp(output, ETW_NAME) == 0
+#endif
+#if defined(HAVE_WEL)
+           || strcmp(output, WEL_NAME) == 0
+#endif
+        ;
+}
+
+static char *transform_log_path_setting(const char *setting, bool for_display) {
+    if(!setting)
+        return strdupz("");
+
+    CLEAN_CHAR_P *copy = strdupz(setting);
+    char *output = strrchr(copy, '@');
+
+    if(output) {
+        *output = '\0';
+        output++;
+    }
+    else
+        output = copy;
+
+    if(log_setting_output_is_special(output))
+        return strdupz(setting);
+
+    CLEAN_CONST_CHAR_P *translated = for_display
+        ? os_translate_msys_to_windows_path(output)
+        : os_translate_windows_to_msys_path(output);
+
+    if(output == copy)
+        return strdupz(translated);
+
+    BUFFER *wb = buffer_create(strlen(copy) + strlen(translated) + 2, NULL);
+    buffer_sprintf(wb, "%s@%s", copy, translated);
+    char *result = strdupz(buffer_tostring(wb));
+    buffer_free(wb);
+
+    return result;
+}
+
 static bool windows_native_path_p(const char *value) {
     return (isalpha((unsigned char)value[0]) && value[1] == ':') ||
            ((value[0] == '\\' && value[1] == '\\') || (value[0] == '/' && value[1] == '/'));
@@ -103,12 +154,26 @@ static STRING *reformat_quoted_path_list(STRING *value) {
     buffer_free(wb);
     return value;
 }
+
+static STRING *reformat_log_path_setting(STRING *value) {
+    CLEAN_CHAR_P *converted = transform_log_path_setting(string2str(value), false);
+    if(string_strcmp(value, converted) != 0) {
+        string_freez(value);
+        return string_strdupz(converted);
+    }
+
+    return value;
+}
 #else
 static STRING *reformat_path_list(STRING *value) {
     return value;
 }
 
 static STRING *reformat_quoted_path_list(STRING *value) {
+    return value;
+}
+
+static STRING *reformat_log_path_setting(STRING *value) {
     return value;
 }
 #endif
@@ -143,6 +208,29 @@ const char *inicfg_get_quoted_path_list(struct config *root, const char *section
         return NULL;
 
     return string2str(opt->value);
+}
+
+const char *inicfg_get_log_path_setting(struct config *root, const char *section, const char *name, const char *default_value) {
+    struct config_option *opt = inicfg_get_raw_value(root, section, name, default_value, CONFIG_VALUE_TYPE_TEXT, reformat_log_path_setting);
+    if(!opt)
+        return NULL;
+
+    return string2str(opt->value);
+}
+
+const char *inicfg_log_path_setting_for_display(const char *value, char *dst, size_t dst_size) {
+#if defined(OS_WINDOWS)
+    if(!dst || dst_size == 0)
+        return value ? value : "";
+
+    CLEAN_CHAR_P *converted = transform_log_path_setting(value, true);
+    snprintfz(dst, dst_size, "%s", converted);
+    return dst;
+#else
+    (void)dst;
+    (void)dst_size;
+    return value ? value : "";
+#endif
 }
 
 bool inicfg_test_boolean_value(const char *s) {

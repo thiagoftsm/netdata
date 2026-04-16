@@ -189,6 +189,8 @@ const char *inicfg_get_filename(struct config *root, const char *section, const 
 const char *inicfg_get_path(struct config *root, const char *section, const char *name, const char *default_value);
 const char *inicfg_get_path_list(struct config *root, const char *section, const char *name, const char *default_value);
 const char *inicfg_get_quoted_path_list(struct config *root, const char *section, const char *name, const char *default_value);
+const char *inicfg_get_log_path_setting(struct config *root, const char *section, const char *name, const char *default_value);
+const char *inicfg_log_path_setting_for_display(const char *value, char *dst, size_t dst_size);
 
 long long inicfg_get_number(struct config *root, const char *section, const char *name, long long value);
 long long inicfg_get_number_range(struct config *root, const char *section, const char *name, long long value, long long min, long long max);

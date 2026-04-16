@@ -37,6 +37,15 @@ static bool inicfg_windows_is_quoted_path_list_dir_var(const struct config_secti
            !string_strcmp(opt->name, "plugins");
 }
 
+static bool inicfg_windows_is_log_path_setting(const struct config_section *sect, const struct config_option *opt) {
+    return !string_strcmp(sect->name, CONFIG_SECTION_LOGS) &&
+           (!string_strcmp(opt->name, "debug") ||
+            !string_strcmp(opt->name, "daemon") ||
+            !string_strcmp(opt->name, "collector") ||
+            !string_strcmp(opt->name, "access") ||
+            !string_strcmp(opt->name, "health"));
+}
+
 static const char *inicfg_windows_path_list_for_display(const char *value, char *dst, size_t dst_size) {
     if (!value || !*value || !dst || dst_size == 0)
         return value ? value : "";
@@ -119,6 +128,9 @@ static const char *inicfg_windows_value_for_display(
 
     if (inicfg_windows_is_quoted_path_list_dir_var(sect, opt))
         return inicfg_windows_quoted_path_list_for_display(value, dst, dst_size);
+
+    if (inicfg_windows_is_log_path_setting(sect, opt))
+        return inicfg_log_path_setting_for_display(value, dst, dst_size);
 
     // Translate all PATH/FILENAME-typed options, plus all remaining DIRECTORIES keys.
     // The list-type keys handled above are ENV_VARS.PATH/PYTHONPATH and DIRECTORIES.plugins.
