@@ -76,11 +76,12 @@ void test_int_fds_plugin_kill_to_stop(SPAWN_SERVER *server, const char *argv0) {
 
     const char *msg = "Hello World!\n";
     ssize_t len = strlen(msg);
-    char buffer[len * 2];
+    CLEAN_CHAR_P *buffer = mallocz((size_t)len * 2);
+    size_t buffer_size = (size_t)len * 2;
 
     for(size_t j = 0; j < 30 ;j++) {
         fprintf(stderr, "-");
-        memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, buffer_size);
 
         ssize_t rc = write(spawn_server_instance_write_fd(si), msg, len);
 
@@ -131,11 +132,12 @@ void test_popen_plugin_kill_to_stop(const char *argv0) {
 
     const char *msg = "Hello World!\n";
     size_t len = strlen(msg);
-    char buffer[len * 2];
+    CLEAN_CHAR_P *buffer = mallocz(len * 2);
+    size_t buffer_size = len * 2;
 
     for(size_t j = 0; j < 30 ;j++) {
         fprintf(stderr, "-");
-        memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, buffer_size);
 
         size_t rc = fwrite(msg, 1, len, spawn_popen_stdin(pi));
         if (rc != len) {
@@ -207,11 +209,12 @@ void test_int_fds_plugin_close_to_stop(SPAWN_SERVER *server, const char *argv0) 
 
     const char *msg = "Hello World!\n";
     ssize_t len = strlen(msg);
-    char buffer[len * 2];
+    CLEAN_CHAR_P *buffer = mallocz((size_t)len * 2);
+    size_t buffer_size = (size_t)len * 2;
 
     for(size_t j = 0; j < 30 ;j++) {
         fprintf(stderr, "-");
-        memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, buffer_size);
 
         ssize_t rc = write(spawn_server_instance_write_fd(si), msg, len);
         if (rc != len) {
@@ -262,11 +265,12 @@ void test_popen_plugin_close_to_stop(const char *argv0) {
 
     const char *msg = "Hello World!\n";
     size_t len = strlen(msg);
-    char buffer[len * 2];
+    CLEAN_CHAR_P *buffer = mallocz(len * 2);
+    size_t buffer_size = len * 2;
 
     for(size_t j = 0; j < 30 ;j++) {
         fprintf(stderr, "-");
-        memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, buffer_size);
 
         size_t rc = fwrite(msg, 1, len, spawn_popen_stdin(pi));
         if (rc != len) {

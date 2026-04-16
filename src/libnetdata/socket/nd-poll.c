@@ -182,7 +182,7 @@ static int compare_last_served(const void *a, const void *b) {
 static void sort_events(nd_poll_t *ndpl) {
     if(ndpl->used <= 1) return;
 
-    sortable_event_t sortable_array[ndpl->used];
+    sortable_event_t *sortable_array = mallocz(ndpl->used * sizeof(*sortable_array));
     for (size_t i = 0; i < ndpl->used; ++i) {
         struct fd_info *fdi = POINTERS_GET(&ndpl->pointers, ndpl->ev[i].data.fd);
         sortable_array[i] = (sortable_event_t){
@@ -196,6 +196,8 @@ static void sort_events(nd_poll_t *ndpl) {
     // Reorder `ndpl->ev` based on the sorted order
     for (size_t i = 0; i < ndpl->used; ++i)
         ndpl->ev[i] = sortable_array[i].event;
+
+    freez(sortable_array);
 }
 
 // Wait for events

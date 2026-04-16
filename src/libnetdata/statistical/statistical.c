@@ -55,10 +55,7 @@ NETDATA_DOUBLE moving_average(const NETDATA_DOUBLE *series, size_t entries, size
 
     size_t i, count;
     NETDATA_DOUBLE sum = 0, avg = 0;
-    NETDATA_DOUBLE p[period];
-
-    for(count = 0; count < period ; count++)
-        p[count] = 0.0;
+    NETDATA_DOUBLE *p = callocz(period, sizeof(*p));
 
     for(i = 0, count = 0; i < entries; i++) {
         NETDATA_DOUBLE value = series[i];
@@ -77,6 +74,7 @@ NETDATA_DOUBLE moving_average(const NETDATA_DOUBLE *series, size_t entries, size
         count++;
     }
 
+    freez(p);
     return avg;
 }
 

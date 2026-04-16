@@ -340,7 +340,7 @@ STRING *string_strndupz(const char *str, size_t len) {
     uint8_t partition = string_partition_str(str);
 #endif
 
-    char buf[len + 1];
+    CLEAN_CHAR_P *buf = mallocz(len + 1);
     memcpy(buf, str, len);
     buf[len] = '\0';
 
@@ -450,7 +450,9 @@ STRING *string_2way_merge(STRING *a, STRING *b) {
     size_t alen = string_strlen(a);
     size_t blen = string_strlen(b);
     size_t length = alen + blen + string_strlen(string_2way_merge_X) + 1;
-    char buf1[length + 1], buf2[length + 1], *dst1;
+    CLEAN_CHAR_P *buf1 = mallocz(length + 1);
+    CLEAN_CHAR_P *buf2 = mallocz(length + 1);
+    char *dst1;
     const char *s1, *s2;
 
     s1 = string2str(a);
@@ -902,16 +904,16 @@ int string_unittest(size_t entries) {
         string_statistics(&oinserts, &odeletes, &osearches, &oentries, &oreferences, &omemory, &omemory_index, &oduplications, &oreleases);
 
         time_t seconds_to_run = 5;
-        int threads_to_create = 2;
+        enum { STRING_UNITTEST_THREADS = 2 };
         fprintf(
             stderr,
             "Checking string concurrency with %d threads for %lld seconds...\n",
-            threads_to_create,
+            STRING_UNITTEST_THREADS,
             (long long)seconds_to_run);
         // check string concurrency
-        ND_THREAD *threads[threads_to_create];
+        ND_THREAD *threads[STRING_UNITTEST_THREADS];
         tu.join = 0;
-        for (int i = 0; i < threads_to_create; i++) {
+        for (int i = 0; i < STRING_UNITTEST_THREADS; i++) {
             char buf[100 + 1];
             snprintf(buf, 100, "string%d", i);
             threads[i] = nd_thread_create(buf, NETDATA_THREAD_OPTION_DONT_LOG, string_thread, &tu);
@@ -919,7 +921,7 @@ int string_unittest(size_t entries) {
         sleep_usec(seconds_to_run * USEC_PER_SEC);
 
         __atomic_store_n(&tu.join, 1, __ATOMIC_RELAXED);
-        for (int i = 0; i < threads_to_create; i++)
+        for (int i = 0; i < STRING_UNITTEST_THREADS; i++)
             nd_thread_join(threads[i]);
 
         size_t inserts, deletes, searches, sentries, references, memory, memory_index, duplications, releases;

@@ -29,8 +29,9 @@ struct json_object *json_parse_function_payload_or_error(BUFFER *output, BUFFER 
     struct json_object *jobj = json_tokener_parse_ex(tokener, buffer_tostring(payload), (int)buffer_strlen(payload));
     if (json_tokener_get_error(tokener) != json_tokener_success) {
         const char *error_msg = json_tokener_error_desc(json_tokener_get_error(tokener));
-        char tmp[strlen(error_msg) + 100];
-        snprintf(tmp, sizeof(tmp), "JSON parser failed: %s", error_msg);
+        size_t tmp_size = strlen(error_msg) + 100;
+        CLEAN_CHAR_P *tmp = mallocz(tmp_size);
+        snprintf(tmp, tmp_size, "JSON parser failed: %s", error_msg);
         json_tokener_free(tokener);
         *code = rrd_call_function_error(output, tmp, HTTP_RESP_INTERNAL_SERVER_ERROR);
         return NULL;
@@ -39,8 +40,9 @@ struct json_object *json_parse_function_payload_or_error(BUFFER *output, BUFFER 
 
     CLEAN_BUFFER *error = buffer_create(0, NULL);
     if(!cb(jobj, cb_data, error)) {
-        char tmp[buffer_strlen(error) + 100];
-        snprintfz(tmp, sizeof(tmp), "JSON parser failed: %s", buffer_tostring(error));
+        size_t tmp_size = buffer_strlen(error) + 100;
+        CLEAN_CHAR_P *tmp = mallocz(tmp_size);
+        snprintfz(tmp, tmp_size, "JSON parser failed: %s", buffer_tostring(error));
         *code = rrd_call_function_error(output, tmp, HTTP_RESP_BAD_REQUEST);
         json_object_put(jobj);
         return NULL;
@@ -66,8 +68,9 @@ int json_parse_payload_or_error(BUFFER *payload, BUFFER *error, json_parse_funct
     struct json_object *jobj = json_tokener_parse_ex(tokener, buffer_tostring(payload), (int)buffer_strlen(payload));
     if (json_tokener_get_error(tokener) != json_tokener_success) {
         const char *error_msg = json_tokener_error_desc(json_tokener_get_error(tokener));
-        char tmp[strlen(error_msg) + 100];
-        snprintf(tmp, sizeof(tmp), "JSON parser failed: %s", error_msg);
+        size_t tmp_size = strlen(error_msg) + 100;
+        CLEAN_CHAR_P *tmp = mallocz(tmp_size);
+        snprintf(tmp, tmp_size, "JSON parser failed: %s", error_msg);
         json_tokener_free(tokener);
         buffer_strcat(error, tmp);
         return HTTP_RESP_BAD_REQUEST;
