@@ -741,6 +741,10 @@ modules:
               description: "Classification of the network interface (real or virtual)."
             - name: device
               description: "System-assigned network interface identifier."
+            - name: friendly_name
+              description: "Human-friendly network interface name, exposed on metadata charts."
+            - name: family
+              description: "Address family for network-interface address metadata."
           metrics:
             - name: net.net
               description: Bandwidth
@@ -756,6 +760,12 @@ modules:
               dimensions:
                 - name: received
                 - name: sent
+            - name: net.packets_unknown
+              description: Unknown or unsupported protocol packets
+              unit: "packets/s"
+              chart_type: line
+              dimensions:
+                - name: unknown
             - name: net.speed
               description: Interface Speed
               unit: "kilobits/s"
@@ -812,6 +822,30 @@ modules:
               chart_type: line
               dimensions:
                 - name: connections
+            - name: net.nic_info
+              description: Network Interface Information
+              unit: "state"
+              chart_type: line
+              dimensions:
+                - name: info
+            - name: net.nic_operation_status
+              description: Network Interface Operation Status
+              unit: "state"
+              chart_type: line
+              dimensions:
+                - name: up
+                - name: down
+                - name: testing
+                - name: unknown
+                - name: dormant
+                - name: not_present
+                - name: lower_layer_down
+            - name: net.nic_address_info
+              description: Network Interface Address Information
+              unit: "state"
+              chart_type: line
+              dimensions:
+                - name: info
   - meta:
       plugin_name: windows.plugin
       module_name: PerflibObjects

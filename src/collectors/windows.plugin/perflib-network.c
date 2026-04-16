@@ -2,6 +2,7 @@
 
 #include "windows_plugin.h"
 #include "windows-internals.h"
+#include "libnetdata/os/windows-api/windows_api.h"
 
 #define ADD_PACKET_IF_KEY(p, packets, pDataBlock, pObjectType, counter)                                                \
     do {                                                                                                               \
@@ -23,6 +24,28 @@
         if (p->packets.packet_field.key)                                                                               \
             p->packets.rd_##packet_field = rrddim_add(st, id, name, multiplier, 1, algorithm);                         \
     } while (0)
+
+struct network_interface_address {
+    usec_t last_collected;
+    RRDSET *st;
+    RRDDIM *rd;
+    char family[NETDATA_WIN_ADDRESS_FAMILY_MAX];
+    char address[NETDATA_WIN_IP_ADDRESS_MAX];
+};
+
+static const struct interface_oper_status_dimension {
+    enum netdata_windows_oper_status status;
+    const char *id;
+    const char *name;
+} interface_oper_status_dimensions[] = {
+    {NETDATA_WIN_OPER_STATUS_UP, "up", "up"},
+    {NETDATA_WIN_OPER_STATUS_DOWN, "down", "down"},
+    {NETDATA_WIN_OPER_STATUS_TESTING, "testing", "testing"},
+    {NETDATA_WIN_OPER_STATUS_UNKNOWN, "unknown", "unknown"},
+    {NETDATA_WIN_OPER_STATUS_DORMANT, "dormant", "dormant"},
+    {NETDATA_WIN_OPER_STATUS_NOT_PRESENT, "not_present", "not present"},
+    {NETDATA_WIN_OPER_STATUS_LOWER_LAYER_DOWN, "lower_layer_down", "lower layer down"},
+};
 
 // --------------------------------------------------------------------------------------------------------------------
 // network protocols
@@ -497,7 +520,6 @@ static bool do_network_protocol(PERF_DATA_BLOCK *pDataBlock, int update_every, s
 
 struct network_interface {
     usec_t last_collected;
-    bool collected_metadata;
 
     struct {
         COUNTER_DATA received;
@@ -544,6 +566,12 @@ struct network_interface {
     } errors;
 
     struct {
+        COUNTER_DATA received;
+        RRDSET *st;
+        RRDDIM *rd;
+    } unknown_packets;
+
+    struct {
         COUNTER_DATA length;
         RRDSET *st;
         RRDDIM *rd;
@@ -573,9 +601,37 @@ struct network_interface {
         RRDSET *st_average_packet_size;
         RRDDIM *rd_average_packet_size;
     } rsc;
+
+    struct {
+        struct {
+            RRDSET *st;
+            RRDDIM *rd;
+        } info;
+
+        struct {
+            RRDSET *st;
+            RRDDIM *rd[NETDATA_WIN_OPER_STATUS_MAX];
+        } oper_status;
+
+        DICTIONARY *addresses;
+    } metadata;
 };
 
 static DICTIONARY *physical_interfaces = NULL, *virtual_interfaces = NULL;
+
+static void network_interface_address_cleanup(struct network_interface_address *address)
+{
+    rrdset_is_obsolete___safe_from_collector_thread(address->st);
+}
+
+static void dict_interface_address_delete_cb(
+    const DICTIONARY_ITEM *item __maybe_unused,
+    void *value,
+    void *data __maybe_unused)
+{
+    struct network_interface_address *address = value;
+    network_interface_address_cleanup(address);
+}
 
 static void network_interface_init(struct network_interface *d)
 {
@@ -588,12 +644,17 @@ static void network_interface_init(struct network_interface *d)
     d->discards.outbound.key = "Packets Outbound Discarded";
     d->errors.received.key = "Packets Received Errors";
     d->errors.outbound.key = "Packets Outbound Errors";
+    d->unknown_packets.received.key = "Packets Received Unknown";
     d->queue.length.key = "Output Queue Length";
     d->chimney.connections.key = "Offloaded Connections";
     d->rsc.connections.key = "TCP Active RSC Connections";
     d->rsc.packets.key = "TCP RSC Coalesced Packets/sec";
     d->rsc.exceptions.key = "TCP RSC Exceptions/sec";
     d->rsc.average_packet_size.key = "TCP RSC Average Packet Size";
+
+    d->metadata.addresses = dictionary_create_advanced(
+        DICT_OPTION_DONT_OVERWRITE_VALUE | DICT_OPTION_FIXED_SIZE, NULL, sizeof(struct network_interface_address));
+    dictionary_register_delete_callback(d->metadata.addresses, dict_interface_address_delete_cb, NULL);
 }
 
 static void network_interface_cleanup(struct network_interface *d)
@@ -605,12 +666,20 @@ static void network_interface_cleanup(struct network_interface *d)
     rrdset_is_obsolete___safe_from_collector_thread(d->speed.st);
     rrdset_is_obsolete___safe_from_collector_thread(d->discards.st);
     rrdset_is_obsolete___safe_from_collector_thread(d->errors.st);
+    rrdset_is_obsolete___safe_from_collector_thread(d->unknown_packets.st);
     rrdset_is_obsolete___safe_from_collector_thread(d->queue.st);
     rrdset_is_obsolete___safe_from_collector_thread(d->chimney.st);
     rrdset_is_obsolete___safe_from_collector_thread(d->rsc.st_connections);
     rrdset_is_obsolete___safe_from_collector_thread(d->rsc.st_packets);
     rrdset_is_obsolete___safe_from_collector_thread(d->rsc.st_exceptions);
     rrdset_is_obsolete___safe_from_collector_thread(d->rsc.st_average_packet_size);
+    rrdset_is_obsolete___safe_from_collector_thread(d->metadata.info.st);
+    rrdset_is_obsolete___safe_from_collector_thread(d->metadata.oper_status.st);
+
+    if (d->metadata.addresses) {
+        dictionary_destroy(d->metadata.addresses);
+        d->metadata.addresses = NULL;
+    }
 }
 
 void dict_interface_insert_cb(const DICTIONARY_ITEM *item __maybe_unused, void *value, void *data __maybe_unused)
@@ -643,7 +712,194 @@ static bool is_physical_interface(const char *name)
     return d ? true : false;
 }
 
-static bool do_network_interface(PERF_DATA_BLOCK *pDataBlock, int update_every, bool physical, usec_t now_ut)
+static const struct netdata_windows_network_adapter *find_network_adapter(
+    const struct netdata_windows_network_adapter *adapters,
+    size_t adapters_count,
+    const char *name)
+{
+    for (size_t i = 0; i < adapters_count; i++) {
+        if (!strcasecmp(adapters[i].nic_name, name))
+            return &adapters[i];
+    }
+
+    return NULL;
+}
+
+static void update_network_interface_info_chart(
+    struct network_interface *d,
+    const char *name,
+    bool physical,
+    const struct netdata_windows_network_adapter *adapter,
+    int update_every)
+{
+    if (unlikely(!d->metadata.info.st)) {
+        d->metadata.info.st = rrdset_create_localhost(
+            "net_nic_info",
+            name,
+            NULL,
+            name,
+            "net.nic_info",
+            "Network Interface Information",
+            "state",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibNetwork",
+            NETDATA_CHART_PRIO_FIRST_NET_IFACE + 11,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        add_interface_labels(d->metadata.info.st, name, physical);
+        rrdset_flag_set(d->metadata.info.st, RRDSET_FLAG_HIDDEN);
+        d->metadata.info.rd = rrddim_add(d->metadata.info.st, "info", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrdlabels_add(d->metadata.info.st->rrdlabels, "friendly_name", adapter->friendly_name, RRDLABEL_SRC_AUTO);
+    rrdlabels_add(d->metadata.info.st->rrdlabels, "mac", adapter->mac_address, RRDLABEL_SRC_AUTO);
+
+    rrddim_set_by_pointer(d->metadata.info.st, d->metadata.info.rd, 1);
+    rrdset_done(d->metadata.info.st);
+}
+
+static void update_network_interface_oper_status_chart(
+    struct network_interface *d,
+    const char *name,
+    bool physical,
+    enum netdata_windows_oper_status current_status,
+    int update_every)
+{
+    if (unlikely(!d->metadata.oper_status.st)) {
+        d->metadata.oper_status.st = rrdset_create_localhost(
+            "net_nic_operation_status",
+            name,
+            NULL,
+            name,
+            "net.nic_operation_status",
+            "Network Interface Operation Status",
+            "state",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibNetwork",
+            NETDATA_CHART_PRIO_FIRST_NET_IFACE + 12,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        add_interface_labels(d->metadata.oper_status.st, name, physical);
+        rrdset_flag_set(d->metadata.oper_status.st, RRDSET_FLAG_HIDDEN);
+
+        for (size_t i = 0; i < sizeof(interface_oper_status_dimensions) / sizeof(interface_oper_status_dimensions[0]); i++) {
+            const struct interface_oper_status_dimension *dim = &interface_oper_status_dimensions[i];
+            d->metadata.oper_status.rd[dim->status] =
+                rrddim_add(d->metadata.oper_status.st, dim->id, dim->name, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        }
+    }
+
+    for (size_t i = 0; i < sizeof(interface_oper_status_dimensions) / sizeof(interface_oper_status_dimensions[0]); i++) {
+        const struct interface_oper_status_dimension *dim = &interface_oper_status_dimensions[i];
+        rrddim_set_by_pointer(
+            d->metadata.oper_status.st,
+            d->metadata.oper_status.rd[dim->status],
+            current_status == dim->status ? 1 : 0);
+    }
+
+    rrdset_done(d->metadata.oper_status.st);
+}
+
+static void update_network_interface_address_chart(
+    struct network_interface *d,
+    const char *name,
+    bool physical,
+    const char *family,
+    const char *address,
+    int update_every,
+    usec_t now_ut)
+{
+    char key[NETDATA_WIN_ADDRESS_FAMILY_MAX + NETDATA_WIN_IP_ADDRESS_MAX + 2];
+    snprintfz(key, sizeof(key), "%s|%s", family, address);
+
+    struct network_interface_address *entry = dictionary_set(d->metadata.addresses, key, NULL, sizeof(*entry));
+    entry->last_collected = now_ut;
+
+    if (!entry->family[0])
+        strncpyz(entry->family, family, sizeof(entry->family) - 1);
+
+    if (!entry->address[0])
+        strncpyz(entry->address, address, sizeof(entry->address) - 1);
+
+    if (unlikely(!entry->st)) {
+        char chart_id[NETDATA_WIN_ADAPTER_NAME_MAX + NETDATA_WIN_ADDRESS_FAMILY_MAX + NETDATA_WIN_IP_ADDRESS_MAX + 8];
+        char chart_id_sanitized[sizeof(chart_id)];
+
+        snprintfz(chart_id, sizeof(chart_id), "%s_%s_%s", name, entry->family, entry->address);
+        rrdset_strncpyz_name(chart_id_sanitized, chart_id, sizeof(chart_id_sanitized) - 1);
+
+        entry->st = rrdset_create_localhost(
+            "net_nic_address_info",
+            chart_id_sanitized,
+            NULL,
+            name,
+            "net.nic_address_info",
+            "Network Interface Address Information",
+            "state",
+            PLUGIN_WINDOWS_NAME,
+            "PerflibNetwork",
+            NETDATA_CHART_PRIO_FIRST_NET_IFACE + 13,
+            update_every,
+            RRDSET_TYPE_LINE);
+
+        add_interface_labels(entry->st, name, physical);
+        rrdlabels_add(entry->st->rrdlabels, "family", entry->family, RRDLABEL_SRC_AUTO);
+        rrdlabels_add(entry->st->rrdlabels, "address", entry->address, RRDLABEL_SRC_AUTO);
+        rrdset_flag_set(entry->st, RRDSET_FLAG_HIDDEN);
+        entry->rd = rrddim_add(entry->st, "info", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+    }
+
+    rrddim_set_by_pointer(entry->st, entry->rd, 1);
+    rrdset_done(entry->st);
+}
+
+static void cleanup_network_interface_address_charts(struct network_interface *d, usec_t now_ut)
+{
+    struct network_interface_address *entry;
+    dfe_start_write(d->metadata.addresses, entry)
+    {
+        if (entry->last_collected < now_ut)
+            dictionary_del(d->metadata.addresses, d_dfe.name);
+    }
+    dfe_done(entry);
+
+    dictionary_garbage_collect(d->metadata.addresses);
+}
+
+static void update_network_interface_metadata(
+    struct network_interface *d,
+    const char *name,
+    bool physical,
+    const struct netdata_windows_network_adapter *adapter,
+    int update_every,
+    usec_t now_ut)
+{
+    update_network_interface_info_chart(d, name, physical, adapter, update_every);
+    update_network_interface_oper_status_chart(d, name, physical, adapter->oper_status, update_every);
+
+    for (size_t i = 0; i < adapter->addresses_count; i++) {
+        update_network_interface_address_chart(
+            d,
+            name,
+            physical,
+            adapter->addresses[i].family,
+            adapter->addresses[i].address,
+            update_every,
+            now_ut);
+    }
+
+    cleanup_network_interface_address_charts(d, now_ut);
+}
+
+static bool do_network_interface(
+    PERF_DATA_BLOCK *pDataBlock,
+    int update_every,
+    bool physical,
+    usec_t now_ut,
+    const struct netdata_windows_network_adapter *adapters,
+    size_t adapters_count)
 {
     DICTIONARY *dict = physical ? physical_interfaces : virtual_interfaces;
 
@@ -673,10 +929,10 @@ static bool do_network_interface(PERF_DATA_BLOCK *pDataBlock, int update_every, 
         struct network_interface *d = dictionary_set(dict, windows_shared_buffer, NULL, sizeof(*d));
         d->last_collected = now_ut;
 
-        if (!d->collected_metadata) {
-            // TODO - get metadata about the network interface
-            d->collected_metadata = true;
-        }
+        const struct netdata_windows_network_adapter *adapter =
+            find_network_adapter(adapters, adapters_count, windows_shared_buffer);
+        if (adapter)
+            update_network_interface_metadata(d, windows_shared_buffer, physical, adapter, update_every, now_ut);
 
         if (perflibGetInstanceCounter(pDataBlock, pObjectType, pi, &d->traffic.received) &&
             perflibGetInstanceCounter(pDataBlock, pObjectType, pi, &d->traffic.sent)) {
@@ -746,6 +1002,32 @@ static bool do_network_interface(PERF_DATA_BLOCK *pDataBlock, int update_every, 
                 d->packets.st, d->packets.rd_received, (collected_number)d->packets.received.current.Data);
             rrddim_set_by_pointer(d->packets.st, d->packets.rd_sent, (collected_number)d->packets.sent.current.Data);
             rrdset_done(d->packets.st);
+        }
+
+        if (perflibGetInstanceCounter(pDataBlock, pObjectType, pi, &d->unknown_packets.received)) {
+            if (unlikely(!d->unknown_packets.st)) {
+                d->unknown_packets.st = rrdset_create_localhost(
+                    "net_packets_unknown",
+                    windows_shared_buffer,
+                    NULL,
+                    windows_shared_buffer,
+                    "net.packets_unknown",
+                    "Unknown or Unsupported Protocol Packets",
+                    "packets/s",
+                    PLUGIN_WINDOWS_NAME,
+                    "PerflibNetwork",
+                    NETDATA_CHART_PRIO_FIRST_NET_IFACE + 2,
+                    update_every,
+                    RRDSET_TYPE_LINE);
+
+                add_interface_labels(d->unknown_packets.st, windows_shared_buffer, physical);
+                d->unknown_packets.rd =
+                    rrddim_add(d->unknown_packets.st, "unknown", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+            }
+
+            rrddim_set_by_pointer(
+                d->unknown_packets.st, d->unknown_packets.rd, (collected_number)d->unknown_packets.received.current.Data);
+            rrdset_done(d->unknown_packets.st);
         }
 
         if (perflibGetInstanceCounter(pDataBlock, pObjectType, pi, &d->speed.current_bandwidth)) {
@@ -1061,8 +1343,16 @@ int do_PerflibNetwork(int update_every, usec_t dt __maybe_unused)
         return -1;
 
     usec_t now_ut = now_monotonic_usec();
-    do_network_interface(pDataBlock, update_every, true, now_ut);
-    do_network_interface(pDataBlock, update_every, false, now_ut);
+    struct netdata_windows_network_adapter *adapters = NULL;
+    size_t adapters_count = 0;
+
+    if (netdata_windows_get_network_adapters(&adapters, &adapters_count) != 0) {
+        adapters = NULL;
+        adapters_count = 0;
+    }
+
+    do_network_interface(pDataBlock, update_every, true, now_ut, adapters, adapters_count);
+    do_network_interface(pDataBlock, update_every, false, now_ut, adapters, adapters_count);
 
     struct network_protocol *tcp4 = NULL, *tcp6 = NULL;
     for (size_t i = 0; networks[i].protocol; i++) {
@@ -1081,5 +1371,7 @@ int do_PerflibNetwork(int update_every, usec_t dt __maybe_unused)
         tcp46.packets.sent.current.Data += tcp6->packets.sent.current.Data;
         protocol_packets_chart_update(&tcp46, update_every);
     }
+
+    netdata_windows_free_network_adapters(adapters, adapters_count);
     return 0;
 }
