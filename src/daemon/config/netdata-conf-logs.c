@@ -97,7 +97,7 @@ void netdata_conf_section_logs(void) {
 #else
         snprintfz(filename, FILENAME_MAX, "%s/aclk.log", netdata_configured_log_dir);
 #endif
-        nd_log_set_user_settings(NDLS_ACLK, inicfg_get(&netdata_config, CONFIG_SECTION_CLOUD, "conversation log file", filename));
+        nd_log_set_user_settings(NDLS_ACLK, inicfg_get_log_path_setting(&netdata_config, CONFIG_SECTION_CLOUD, "conversation log file", filename));
     }
 
     debug_flags_initialize();
