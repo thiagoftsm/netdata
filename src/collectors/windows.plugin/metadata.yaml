@@ -2299,16 +2299,16 @@ modules:
               dimensions:
                 - name: handles
             - name: netframework.clrmemory_collections
-              description: Garbage collections by generation
-              unit: collections
+              description: Garbage collections by generation rate
+              unit: collections/s
               chart_type: line
               dimensions:
                 - name: gen0
                 - name: gen1
                 - name: gen2
             - name: netframework.clrmemory_induced_gc
-              description: Induced garbage collections
-              unit: collections
+              description: Induced garbage collections rate
+              unit: collections/s
               chart_type: line
               dimensions:
                 - name: induced
@@ -2439,8 +2439,8 @@ modules:
               dimensions:
                 - name: threads
             - name: netframework.clrlocksandthreads_queue_length_peak
-              description: Managed lock waiters since start
-              unit: threads
+              description: Threads waited to acquire a managed lock
+              unit: threads/s
               chart_type: line
               dimensions:
                 - name: threads
