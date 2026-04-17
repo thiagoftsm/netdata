@@ -92,7 +92,7 @@ void test_int_fds_plugin_kill_to_stop(SPAWN_SERVER *server, const char *argv0) {
             exit(1);
         }
 
-        rc = read(spawn_server_instance_read_fd(si), buffer, sizeof(buffer));
+        rc = read(spawn_server_instance_read_fd(si), buffer, buffer_size);
         if (rc != len) {
             nd_log(NDLS_COLLECTORS, NDLP_ERR,
                    "Cannot read from plugin. Expected to read %zd bytes, read %zd bytes",
@@ -148,7 +148,7 @@ void test_popen_plugin_kill_to_stop(const char *argv0) {
         }
         fflush(spawn_popen_stdin(pi));
 
-        char *s = fgets(buffer, sizeof(buffer), spawn_popen_stdout(pi));
+        char *s = fgets(buffer, (int)buffer_size, spawn_popen_stdout(pi));
         if (!s || strlen(s) != len) {
             nd_log(NDLS_COLLECTORS, NDLP_ERR,
                    "Cannot read from plugin. Expected to read %zu bytes, read %zu bytes",
@@ -224,7 +224,7 @@ void test_int_fds_plugin_close_to_stop(SPAWN_SERVER *server, const char *argv0) 
             exit(1);
         }
 
-        rc = read(spawn_server_instance_read_fd(si), buffer, sizeof(buffer));
+        rc = read(spawn_server_instance_read_fd(si), buffer, buffer_size);
         if (rc != len) {
             nd_log(NDLS_COLLECTORS, NDLP_ERR,
                    "Cannot read from plugin. Expected to read %zd bytes, read %zd bytes",
@@ -281,7 +281,7 @@ void test_popen_plugin_close_to_stop(const char *argv0) {
         }
         fflush(spawn_popen_stdin(pi));
 
-        char *s = fgets(buffer, sizeof(buffer), spawn_popen_stdout(pi));
+        char *s = fgets(buffer, (int)buffer_size, spawn_popen_stdout(pi));
         if (!s || strlen(s) != len) {
             nd_log(NDLS_COLLECTORS, NDLP_ERR,
                    "Cannot read from plugin. Expected to read %zu bytes, read %zu bytes",
