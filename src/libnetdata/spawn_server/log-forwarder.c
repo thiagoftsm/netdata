@@ -256,6 +256,8 @@ static inline size_t log_forwarder_remove_deleted_unsafe(LOG_FORWARDER *lf) {
 
 static void log_forwarder_thread_func(void *arg) {
     LOG_FORWARDER *lf = (LOG_FORWARDER *)arg;
+    struct pollfd *pfds = NULL;
+    size_t pfds_capacity = 0;
 
     while (1) {
         spinlock_lock(&lf->spinlock);
@@ -274,7 +276,15 @@ static void log_forwarder_thread_func(void *arg) {
         // Count the number of fds
         size_t nfds = 1 + log_forwarder_remove_deleted_unsafe(lf);
 
-        struct pollfd *pfds = mallocz(nfds * sizeof(*pfds));
+        // Reuse the pollfd array across iterations to avoid heap churn in the worker loop.
+        if (unlikely(nfds > pfds_capacity)) {
+            size_t new_capacity = pfds_capacity ? pfds_capacity : 1;
+            while (new_capacity < nfds)
+                new_capacity *= 2;
+
+            pfds = reallocz(pfds, new_capacity * sizeof(*pfds));
+            pfds_capacity = new_capacity;
+        }
 
         // First, the notification pipe
         pfds[0].fd = lf->pipe_fds[PIPE_READ];
@@ -303,7 +313,6 @@ static void log_forwarder_thread_func(void *arg) {
 
                     if (should_exit) {
                         // Expected during shutdown
-                        freez(pfds);
                         break;
                     }
 
@@ -321,7 +330,6 @@ static void log_forwarder_thread_func(void *arg) {
                         if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
                             // Handle read error if necessary
                             nd_log(NDLS_COLLECTORS, NDLP_ERR, "Log forwarder: Failed to read from notification pipe");
-                            freez(pfds);
                             break;
                         }
                     }
@@ -370,15 +378,14 @@ static void log_forwarder_thread_func(void *arg) {
         }
         else if (ret == 0) {
             // Timeout, nothing to do
-            freez(pfds);
             continue;
 
         }
         else
             nd_log(NDLS_COLLECTORS, NDLP_ERR, "Log forwarder: poll() error");
-
-        freez(pfds);
     }
+
+    freez(pfds);
 
     spinlock_lock(&lf->spinlock);
     mark_all_entries_for_deletion_unsafe(lf);
