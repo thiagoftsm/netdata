@@ -1,9 +1,3 @@
-<!--
-title: Configure Netdata for cybersecurity platforms
-description: Configure Netdata behind cybersecurity platforms such as Sophos, reverse proxies, firewalls, and secure-access gateways.
-custom_edit_url: https://github.com/netdata/netdata/edit/master/docs/netdata-agent/configure-netdata-for-cybersecurity-platforms.md
-keywords: [netdata, cybersecurity, sophos, reverse proxy, firewall, bearer token, secure access]
--->
 # Configure Netdata for cybersecurity platforms
 
 Use this guide when you need to place Netdata behind enterprise cybersecurity controls, reverse proxies, firewalls, VPN gateways, or secure-access platforms. The exact user interface differs by platform, but the Netdata-side configuration and the network design remain the same.
