@@ -209,7 +209,7 @@ sidebar:
               - meta:
                   label: Configure Netdata for cybersecurity platforms
                   edit_url: https://github.com/netdata/netdata/edit/master/docs/netdata-agent/configure-netdata-for-cybersecurity-platforms.md
-                 description: Configure Netdata behind cybersecurity platforms such as Sophos, reverse proxies, firewalls, and secure-access gateways.
+                  description: Configure Netdata behind cybersecurity platforms such as Sophos, reverse proxies, firewalls, and secure-access gateways.
                   keywords:
                     - netdata
                     - cybersecurity
