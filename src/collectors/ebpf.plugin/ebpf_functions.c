@@ -819,24 +819,32 @@ static void ebpf_dns_format_rcodes(const netdata_dns_stats_t *stats, char *buffe
     size_t used = 0;
     netdata_dns_rcode_counter_t *rcode = stats->rcodes;
 
+    if (!length)
+        return;
+
     if (!stats->rcodes) {
         snprintfz(buffer, length, "%s", "none");
         return;
     }
 
     buffer[0] = '\0';
-    while (rcode && used < length) {
-        int written = snprintf(
-            buffer + used, length - used, "%s%u=%u", used ? ", " : "", rcode->code, rcode->count);
+    while (rcode && used + 1 < length) {
+        char chunk[32];
+        size_t available = length - used - 1;
+        int written = snprintf(chunk, sizeof(chunk), "%s%u=%u", used ? ", " : "", rcode->code, rcode->count);
         if (written < 0)
             break;
 
-        if ((size_t)written >= length - used) {
-            used = length - 1;
+        if ((size_t)written > available) {
+            memcpy(buffer + used, chunk, available);
+            used += available;
+            buffer[used] = '\0';
             break;
         }
 
+        memcpy(buffer + used, chunk, (size_t)written);
         used += (size_t)written;
+        buffer[used] = '\0';
         rcode = rcode->next;
     }
 }
