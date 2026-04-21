@@ -1592,6 +1592,14 @@ static void ebpf_function_dns_manipulation(
                 ebpf_function_error(transaction, HTTP_RESP_BAD_REQUEST, error_message);
                 return;
             }
+        } else if (
+            strncmp(keyword, "after:", sizeof("after:") - 1) == 0 ||
+            strncmp(keyword, "before:", sizeof("before:") - 1) == 0 ||
+            strncmp(keyword, "direction:", sizeof("direction:") - 1) == 0 ||
+            strncmp(keyword, "last:", sizeof("last:") - 1) == 0 ||
+            strncmp(keyword, "anchor:", sizeof("anchor:") - 1) == 0) {
+            // Ignore common FUNCTION UI navigation arguments for this on-demand table.
+            continue;
         } else if (strncmp(keyword, "help", 4) == 0) {
             ebpf_function_help(transaction, dns_help);
             return;
@@ -1611,6 +1619,19 @@ static void ebpf_function_dns_manipulation(
     buffer_json_member_add_time_t(wb, "update_every", NETDATA_DNS_CAPTURE_INTERVAL);
     buffer_json_member_add_boolean(wb, "has_history", false);
     buffer_json_member_add_string(wb, "help", EBPF_PLUGIN_DNS_FUNCTION_DESCRIPTION);
+    buffer_json_member_add_array(wb, "accepted_params");
+    {
+        buffer_json_add_array_item_string(wb, "port");
+        buffer_json_add_array_item_string(wb, "iteration");
+        buffer_json_add_array_item_string(wb, "info");
+        buffer_json_add_array_item_string(wb, "after");
+        buffer_json_add_array_item_string(wb, "before");
+        buffer_json_add_array_item_string(wb, "direction");
+        buffer_json_add_array_item_string(wb, "last");
+    }
+    buffer_json_array_close(wb);
+    buffer_json_member_add_array(wb, "required_params");
+    buffer_json_array_close(wb);
     buffer_json_member_add_uint64(wb, "iterations", cfg.iterations);
     buffer_json_member_add_uint64(wb, "capture_seconds", cfg.iterations * NETDATA_DNS_CAPTURE_INTERVAL);
 
