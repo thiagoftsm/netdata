@@ -85,7 +85,9 @@ struct netdata_ebpf_process_runtime *netdata_process_runtime_open_mode(const cha
 	rt->flavor = process_flavor(path);
 #ifdef PROCESS_HAS_CORE
 	if (use_core) {
-		struct bpf_object_open_opts opts = {};
+		struct bpf_object_open_opts opts = {
+			.sz = sizeof(opts),
+		};
 		switch (rt->flavor) {
 		case PROCESS_BUFFER: rt->skel.buffer = process_buffer_bpf__open_opts(&opts); rt->obj = rt->skel.buffer ? rt->skel.buffer->obj : NULL; break;
 		case PROCESS_ARENA: rt->skel.arena = process_arena_bpf__open_opts(&opts); rt->obj = rt->skel.arena ? rt->skel.arena->obj : NULL; break;
@@ -216,20 +218,37 @@ static void process_sum(uint32_t key, struct netdata_ebpf_process_runtime *rt, s
 	for (int i = 0; i < n; i++, v++) { out->exits += v->exit_call; out->task_close += v->release_call; out->forks += v->create_process; out->clones += v->create_thread; out->errors += v->task_err; }
 }
 
+#ifdef PROCESS_HAS_CORE
+static void process_acc_sum(struct netdata_ebpf_process_runtime *rt, struct netdata_ebpf_process_snapshot *out)
+{
+	for (size_t i = 0; i < rt->acc.count; i++) {
+		const struct process_entry *v = nd_ebpf_acc_item(&rt->acc, i);
+		out->exits += v->exit_call;
+		out->task_close += v->release_call;
+		out->forks += v->create_process;
+		out->clones += v->create_thread;
+		out->errors += v->task_err;
+	}
+}
+#endif
+
 int netdata_process_runtime_snapshot(struct netdata_ebpf_process_runtime *rt, int maps_per_core, struct netdata_ebpf_process_snapshot *out)
 {
 	(void)maps_per_core;
 	if (!rt || !out || !rt->values) return -1;
 	memset(out, 0, sizeof(*out));
 	uint32_t key = 0;
-	process_sum(key, rt, out);
 #ifdef PROCESS_HAS_CORE
 	if (rt->core && rt->flavor != PROCESS_BASE) {
 		if (!rt->rb && !rt->arena_state) process_setup_events(rt);
 		if (rt->rb) ring_buffer__poll(rt->rb, 0);
 		if (rt->arena_state) rt->arena_tail = nd_ebpf_arena_drain(rt->arena_state, rt->arena_tail, process_event_arena, rt);
-	}
+		process_acc_sum(rt, out);
+	} else
 #endif
+	{
+		process_sum(key, rt, out);
+	}
 	return 0;
 }
 
