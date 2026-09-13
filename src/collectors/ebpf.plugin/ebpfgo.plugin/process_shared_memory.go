@@ -96,6 +96,10 @@ func (s *ebpfSharedMemoryStore) UpdateAppsProcess(apps []libbpfloader.ProcessApp
 	s.processStale = stalePIDs
 	s.processMiss, s.nextProcessMs = s.nextProcessMs, s.processMiss
 	clear(s.nextProcessMs)
+	// Mark process data as active before the shared-memory publisher snapshots
+	// the store. Without this bit, a process-owned publisher emits no valid
+	// module flags and apps.plugin suppresses all eBPF chart announcements.
+	s.activeModules |= ebpfgoSHMFlagProcess
 	s.rebuildEntriesLocked()
 	return stalePIDs
 }

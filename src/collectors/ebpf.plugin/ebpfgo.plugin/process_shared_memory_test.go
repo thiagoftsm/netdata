@@ -12,6 +12,9 @@ func TestProcessSharedMemoryStorePublishesRowsAndDeltas(t *testing.T) {
 	copy(comm[:], "worker")
 	store.UpdateAppsProcess([]libbpfloader.ProcessAppSnapshot{{Pid: 42, Ppid: 1, Comm: comm, Ct: 10, Forks: 4}})
 	store.UpdateAppsProcess([]libbpfloader.ProcessAppSnapshot{{Pid: 42, Ppid: 1, Comm: comm, Ct: 20, Forks: 7, Errors: 2}})
+	if store.activeModules&ebpfgoSHMFlagProcess == 0 {
+		t.Fatal("process update did not mark the process module active")
+	}
 
 	rows := store.Snapshot()
 	if len(rows) != 1 || rows[0].pid != 42 {
